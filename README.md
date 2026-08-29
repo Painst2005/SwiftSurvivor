@@ -1,6 +1,6 @@
 # Thunder Swift
 
-一个使用 Swift 6.x、Swift Package Manager 和 SDL3 的 2D 纵向卷轴飞行射击小游戏。玩法参考经典街机飞行射击：战机在屏幕下方移动，自动向上开火，迎战敌机编队、敌方弹幕和阶段 Boss。当前采用渐进迁移策略：成熟的 Win32/GDI 游戏后端继续作为兼容路径，SDL3 平台层、渲染抽象、输入动作层和固定时间步已接入，后续按模块迁移实际战斗渲染。
+一个使用 Swift 6.x、Swift Package Manager 和 SDL3 的 2D 纵向卷轴飞行射击小游戏。玩法参考经典街机飞行射击：战机在屏幕下方移动，自动向上开火，迎战敌机编队、敌方弹幕和阶段 Boss。当前使用 SDL3 作为唯一窗口、输入、渲染和音频运行时。
 
 ## 运行环境
 
@@ -40,7 +40,7 @@ Copy-Item Vendor\SDL3-3.4.14\lib\x64\SDL3.dll .build-game\x86_64-unknown-windows
 .build-game\x86_64-unknown-windows-msvc\release\SwiftSurvivor.exe --sdl-game
 ```
 
-运行完整本地化 UI 的 SDL 展示桥接模式（GDI 负责字体栅格化，SDL 负责窗口和最终呈现）：
+运行完整 SDL 版本：
 
 ```powershell
 .build-game\x86_64-unknown-windows-msvc\release\SwiftSurvivor.exe --sdl-full
@@ -58,7 +58,7 @@ Copy-Item Vendor\SDL3-3.4.14\lib\x64\SDL3.dll .build-game\x86_64-unknown-windows
 .build-game\x86_64-unknown-windows-msvc\release\SwiftSurvivor.exe
 ```
 
-如果直接双击项目根目录的旧版 `SwiftSurvivor.exe`，它仍使用兼容的 GDI 后端；通过脚本构建的版本会同时带上 SDL3 运行库。
+项目根目录的 `SwiftSurvivor-SDL.exe` 是唯一正式运行入口；旧的 GDI 版本已移除。
 
 ## 操作
 
@@ -118,7 +118,7 @@ Copy-Item Vendor\SDL3-3.4.14\lib\x64\SDL3.dll .build-game\x86_64-unknown-windows
 - 游戏以无边框全屏方式运行，星空背景与战斗画布覆盖整个显示器；战斗使用 1000×760 逻辑分辨率并按 DPI 等比放大，保持战机、子弹和 HUD 的合适尺寸，避免高分辨率下画面空旷
 - 背景音乐使用 Windows 原生 `PlaySoundW` 循环播放由 `thunder_swift_battle.mp3` 解码得到的 `thunder_swift_battle.wav`，绕过 MCI 解码器并保留原始 MP3 资源
 - Windows 版本按图形子系统链接，启动时不会额外弹出控制台终端窗口
-- 性能优化：GDI 画刷跨帧缓存、粒子原地压缩、弹幕回收减少数组搬移、碰撞使用平方距离、战斗中的鼠标移动不再触发重复全屏重绘；粒子密集时自动降低绘制采样而不改变碰撞逻辑。音频命令在独立队列执行，窗口启用 DPI 感知，并以 1ms 唤醒配合独立 60Hz 截止时间稳定呈现；战斗 HUD 会显示实时 FPS
+- 性能优化：粒子原地压缩、弹幕回收减少数组搬移、碰撞使用平方距离、粒子密集时自动降低绘制采样而不改变碰撞逻辑。SDL 音频和渲染分别运行在各自的轻量路径，固定 60Hz 逻辑步长配合独立呈现；战斗 HUD 会显示实时 FPS
 - Controls 页面可切换 **WASD** 或 **Mouse Follow** 驾驶方式
 - 游戏中按 **P** 或 **Esc** 打开暂停菜单，可选择 Resume、Restart、Controls、Main Menu（回到开始界面）或 Exit to Desktop
 - 死亡结算页面可点击 Restart 或 Main Menu，按 **R** 也可重新出击
@@ -128,7 +128,9 @@ Copy-Item Vendor\SDL3-3.4.14\lib\x64\SDL3.dll .build-game\x86_64-unknown-windows
 ## 文件说明
 
 - `Package.swift`：Swift Package Manager 配置
-- `Sources/SwiftSurvivor/App.swift`：游戏状态、敌人逻辑、升级系统、音频播放、Win32 窗口与 GDI 绘制
+- `Sources/SwiftSurvivor/App.swift`：游戏状态、敌人逻辑、升级系统和存档调用
+- `Sources/SwiftSurvivor/Platform/SDL/SDLNativeGameRenderer.swift`：SDL 原生菜单、战斗、暂停和结算渲染
+- `Sources/SwiftSurvivor/Platform/SDL/SDLUILayout.swift`：SDL 版本共用的界面布局与点击区域
 - `Sources/SwiftSurvivor/Combat/BulletSystem.swift`：Bullet 核心数据、Emitter、Pattern、Modifier 和子弹类型定义
 - `Sources/SwiftSurvivor/Progression/SaveManager.swift`：版本化本地玩家档案、资源、装备和备份存档
 - `Resources/Audio/thunder_swift_bgm.wav`：原创 48 秒循环背景音乐

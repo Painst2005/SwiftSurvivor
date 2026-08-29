@@ -5,13 +5,13 @@ param(
 
 $ErrorActionPreference = "Stop"
 $projectRoot = (Resolve-Path -LiteralPath $PSScriptRoot).Path
-$exePath = Join-Path $projectRoot "SwiftSurvivor.exe"
+$exePath = Join-Path $projectRoot "SwiftSurvivor-SDL.exe"
 $resourcesPath = Join-Path $projectRoot "Resources"
 $stagePath = Join-Path $projectRoot "SwiftSurvivor-Portable-$Version"
 $zipPath = Join-Path $projectRoot "SwiftSurvivor-Portable-$Version.zip"
 
 if (-not (Test-Path -LiteralPath $exePath)) {
-    throw "SwiftSurvivor.exe was not found at $exePath"
+    throw "SwiftSurvivor-SDL.exe was not found at $exePath"
 }
 if (-not (Test-Path -LiteralPath $resourcesPath)) {
     throw "Resources folder was not found at $resourcesPath"

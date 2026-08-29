@@ -2,7 +2,7 @@ import Foundation
 import CSwiftSDL3
 
 /// Small opt-in executable path used to validate SDL initialization and the
-/// renderer contract without changing the established Win32 gameplay path.
+/// renderer contract used by the SDL-only runtime.
 enum SDLSmoke {
     static func run(duration: Double = 1.5) {
         do {

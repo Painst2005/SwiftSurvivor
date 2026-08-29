@@ -3,8 +3,7 @@ import CSwiftSDL3
 
 /// First real gameplay migration target. It reuses the established simulation
 /// and collision code, but presents the player, enemies, bullets and Boss via
-/// GameRenderer. The legacy Win32 renderer remains the default until this slice
-/// has feature parity with the full UI.
+/// the shared SDL GameRenderer contract.
 enum SDLGameplaySlice {
     static func run() {
         do {

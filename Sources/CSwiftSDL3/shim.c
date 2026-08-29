@@ -282,6 +282,27 @@ void swift_sdl3_present(SwiftSDL3Context *context) {
     }
 }
 
+bool swift_sdl3_set_window_size(SwiftSDL3Context *context, int width, int height) {
+    if (context == NULL || context->window == NULL || width <= 0 || height <= 0) {
+        return false;
+    }
+    return SDL_SetWindowSize(context->window, width, height);
+}
+
+bool swift_sdl3_set_window_fullscreen(SwiftSDL3Context *context, bool fullscreen) {
+    if (context == NULL || context->window == NULL) {
+        return false;
+    }
+    return SDL_SetWindowFullscreen(context->window, fullscreen);
+}
+
+bool swift_sdl3_get_window_size(SwiftSDL3Context *context, int *width, int *height) {
+    if (context == NULL || context->window == NULL || width == NULL || height == NULL) {
+        return false;
+    }
+    return SDL_GetWindowSize(context->window, width, height);
+}
+
 uint64_t swift_sdl3_ticks_ns(void) {
     return (uint64_t)SDL_GetTicksNS();
 }

@@ -7,8 +7,8 @@ import CSwiftSDL3
 /// behavior while the window/presentation path becomes SDL-owned.
 enum SDLFullGame {
     static func run() {
-        let width = 1280
-        let height = 720
+        var width = Game.shared.profile.resolutionWidth == 1024 ? 1024 : 1280
+        var height = Game.shared.profile.resolutionHeight == 768 ? 768 : 720
         do {
             let platform = try SDLPlatform(title: "SwiftSurvivor", width: width, height: height, resizable: true)
             let renderer = SDLRenderer(platform: platform)
@@ -24,7 +24,9 @@ enum SDLFullGame {
             var clock = FixedStepClock()
             var previous = Double(swift_sdl3_ticks_ns()) / 1_000_000_000
             var running = true
-            var firstFrame = true
+            var appliedResolution = (width, height)
+            var appliedFullscreen = Game.shared.profile.isFullscreen
+            platform.setFullscreen(appliedFullscreen)
 
             while running {
                 let now = Double(swift_sdl3_ticks_ns()) / 1_000_000_000
@@ -34,6 +36,33 @@ enum SDLFullGame {
                 input.beginFrame(events: events)
                 sdlAudio.tick()
                 if input.shouldQuit { running = false }
+                let requestedWidth = Game.shared.profile.resolutionWidth == 1024 ? 1024 : 1280
+                let requestedHeight = Game.shared.profile.resolutionHeight == 768 ? 768 : 720
+                let requestedFullscreen = Game.shared.profile.isFullscreen
+                if requestedFullscreen != appliedFullscreen {
+                    appliedFullscreen = requestedFullscreen
+                    platform.setFullscreen(requestedFullscreen)
+                    if !requestedFullscreen {
+                        _ = platform.setWindowSize(width: requestedWidth, height: requestedHeight)
+                        width = requestedWidth
+                        height = requestedHeight
+                        appliedResolution = (width, height)
+                        frameTexture = nil
+                    }
+                } else if !requestedFullscreen && appliedResolution != (requestedWidth, requestedHeight) {
+                    _ = platform.setWindowSize(width: requestedWidth, height: requestedHeight)
+                    width = requestedWidth
+                    height = requestedHeight
+                    appliedResolution = (width, height)
+                    frameTexture = nil
+                }
+                if requestedFullscreen, platform.windowSize.width > 0, platform.windowSize.height > 0 {
+                    if width != platform.windowSize.width || height != platform.windowSize.height {
+                        width = platform.windowSize.width
+                        height = platform.windowSize.height
+                        frameTexture = nil
+                    }
+                }
                 handleInput(input, width: width, height: height)
                 Game.shared.updateMousePosition(Vec2(x: Double(input.mousePosition.x), y: Double(input.mousePosition.y)))
                 clock.advance(realDelta: realDelta) { delta in
@@ -53,8 +82,7 @@ enum SDLFullGame {
                     renderer.drawSprite(frameTexture, in: RenderRect(x: 0, y: 0, width: Float(width), height: Float(height)))
                 }
                 renderer.present()
-                firstFrame = false
-                Thread.sleep(forTimeInterval: firstFrame ? 0.02 : 1.0 / 120.0)
+                Thread.sleep(forTimeInterval: 1.0 / 120.0)
             }
             framebuffer.release()
             sdlAudio.stopMusic()

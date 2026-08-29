@@ -3481,7 +3481,18 @@ final class AudioManager: @unchecked Sendable {
 
 // MARK: - Win32 drawing helpers
 
-func keyDown(_ key: Int32) -> Bool { GetAsyncKeyState(key) < 0 }
+nonisolated(unsafe) private var injectedKeyboardState: Set<Int32>?
+
+func setInjectedKeyboardState(_ keys: Set<Int32>?) {
+    injectedKeyboardState = keys
+}
+
+func keyDown(_ key: Int32) -> Bool {
+    if let injectedKeyboardState {
+        return injectedKeyboardState.contains(key)
+    }
+    return GetAsyncKeyState(key) < 0
+}
 
 func rgb(_ r: UInt32, _ g: UInt32, _ b: UInt32) -> COLORREF {
     COLORREF(r | (g << 8) | (b << 16))
@@ -5002,6 +5013,10 @@ struct SwiftSurvivorApp {
     static func main() {
         if CommandLine.arguments.contains("--sdl-smoke") {
             SDLSmoke.run()
+            return
+        }
+        if CommandLine.arguments.contains("--sdl-game") {
+            SDLGameplaySlice.run()
             return
         }
         // Opt out of Windows bitmap DPI virtualization. On high-DPI laptops

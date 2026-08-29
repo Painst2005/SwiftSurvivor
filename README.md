@@ -26,6 +26,12 @@ Copy-Item Vendor\SDL3-3.4.14\lib\x64\SDL3.dll .build-game\x86_64-unknown-windows
 .build-game\x86_64-unknown-windows-msvc\release\SwiftSurvivor.exe --sdl-smoke
 ```
 
+运行第一版 SDL 战斗纵向切片（复用现有战斗逻辑，暂不包含完整菜单 UI）：
+
+```powershell
+.build-game\x86_64-unknown-windows-msvc\release\SwiftSurvivor.exe --sdl-game
+```
+
 也可以直接运行构建出的程序：
 
 ```powershell

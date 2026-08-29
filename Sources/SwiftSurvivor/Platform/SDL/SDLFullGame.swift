@@ -3,10 +3,8 @@ import CSwiftSDL3
 
 nonisolated(unsafe) private var sdlQuitRequested = false
 
-/// Full presentation bridge: the existing localized GDI UI is rendered into a
-/// reusable DIB and uploaded to SDL as one texture. This is intentionally a
-/// migration bridge, so every menu and Chinese string keeps its current visual
-/// behavior while the window/presentation path becomes SDL-owned.
+/// Full SDL presentation path. Gameplay, menus and overlays are rendered with
+/// the SDL renderer directly; no legacy Windows drawing layer is involved.
 enum SDLFullGame {
     static func run() {
         // Keep gameplay/UI in a stable 16:9 coordinate system. The actual
@@ -26,9 +24,6 @@ enum SDLFullGame {
                 .appendingPathComponent("Resources/Audio/thunder_swift_battle.wav").path
             AudioManager.shared.setExternalMusicActive(true)
             sdlAudio.playMusic(named: musicPath, loop: true)
-            let framebuffer = GDIFrameBuffer()
-            var pixelBuffer: [UInt8] = []
-            var frameTexture: SDLTexture?
             var clock = FixedStepClock()
             var previous = Double(swift_sdl3_ticks_ns()) / 1_000_000_000
             var running = true
@@ -79,22 +74,12 @@ enum SDLFullGame {
                     Game.shared.update(delta: delta, width: Double(logicalWidth), height: Double(logicalHeight))
                 }
 
-                guard let hdc = framebuffer.ensure(width: logicalWidth, height: logicalHeight) else { break }
-                drawGame(hdc, width: Double(logicalWidth), height: Double(logicalHeight))
-                guard framebuffer.copyRGBA(into: &pixelBuffer) else { break }
-                if frameTexture == nil {
-                    frameTexture = SDLTexture(platform: platform, width: logicalWidth, height: logicalHeight, rgbaPixels: pixelBuffer)
-                } else {
-                    _ = frameTexture?.update(rgbaPixels: pixelBuffer)
-                }
-                renderer.beginFrame(clear: RenderColor(0, 0, 0))
-                if let frameTexture {
-                    renderer.drawSprite(frameTexture, in: viewport.destination)
-                }
-                renderer.present()
+                // SDL is the only presentation path. Gameplay is drawn
+                // directly with SDL primitives each frame.
+                SDLNativeGameRenderer.draw(renderer, game: Game.shared,
+                                            width: logicalWidth, height: logicalHeight)
                 Thread.sleep(forTimeInterval: 1.0 / 120.0)
             }
-            framebuffer.release()
             sdlAudio.stopMusic()
             Game.shared.persistProfile()
         } catch {

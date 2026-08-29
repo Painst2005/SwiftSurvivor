@@ -1,0 +1,12 @@
+.build/
+.build-*/
+*.user
+
+# Local save data is machine-specific and should never be published.
+SwiftSurvivorSave*.json
+SwiftSurvivor.active-slot
+
+# Generated distribution packages are kept outside the source repository.
+SwiftSurvivor-Portable-*.zip
+SwiftSurvivor-Repair-*.zip
+SwiftSurvivor-Setup-*.exe

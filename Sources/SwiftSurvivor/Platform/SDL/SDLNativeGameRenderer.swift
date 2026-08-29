@@ -45,13 +45,14 @@ enum SDLNativeGameRenderer {
         bar(r, x: 18, y: 39, width: 190, value: game.health / max(1, game.maxHealth), fill: RenderColor(239, 70, 105), back: RenderColor(61, 28, 53))
         text(r, t(game, "HP", "生命") + " \(Int(game.health))/\(Int(game.maxHealth))", 22, 42, RenderColor(255, 244, 247))
         bar(r, x: 225, y: 39, width: 190, value: Double(game.experience) / Double(max(1, game.experienceGoal)), fill: RenderColor(138, 229, 255), back: RenderColor(22, 56, 79))
-        text(r, "XP", 232, 42, RenderColor(215, 245, 255))
+        text(r, t(game, "XP", "经验"), 232, 42, RenderColor(215, 245, 255))
         text(r, t(game, "THUNDER", "雷霆") + " \(Int(game.thunderEnergy))%", 430, 42, RenderColor(106, 239, 255))
         if game.combo > 1 { text(r, t(game, "COMBO", "连击") + " x\(game.combo)", 640, 16, RenderColor(255, 181, 91)) }
 
         if let boss = game.boss {
             bar(r, x: Float(width / 2 - 220), y: 64, width: 440, value: boss.health / max(1, boss.maxHealth), fill: RenderColor(226, 71, 226), back: RenderColor(56, 24, 67))
-            text(r, t(game, "BOSS", "首领") + "  " + (BossType(rawValue: boss.kind)?.title ?? "DREADNOUGHT"), Float(width / 2 - 110), 67, RenderColor(255, 225, 255))
+            let bossName = BossType(rawValue: boss.kind)?.title(for: game.language) ?? t(game, "DREADNOUGHT", "无畏战舰")
+            text(r, t(game, "BOSS", "首领") + "  " + bossName, Float(width / 2 - 110), 67, RenderColor(255, 225, 255))
         }
 
         for enemy in game.enemies {

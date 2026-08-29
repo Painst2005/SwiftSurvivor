@@ -20,6 +20,14 @@ Copy-Item Vendor\SDL3-3.4.14\lib\x64\SDL3.dll .build-game\x86_64-unknown-windows
 
 也可以直接运行 `BuildAndRun.ps1`，脚本会自动复制 SDL3 运行库。
 
+生成可直接双击启动 SDL 完整界面的独立程序：
+
+```powershell
+.\PackageSDL.ps1
+```
+
+生成后双击项目根目录的 `SwiftSurvivor-SDL.exe` 即可运行 SDL 版本。
+
 验证 SDL3 窗口、输入和基础 2D Renderer：
 
 ```powershell

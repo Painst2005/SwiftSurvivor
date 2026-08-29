@@ -5011,6 +5011,12 @@ func windowProc(_ hwnd: HWND?, _ message: UINT, _ wParam: WPARAM, _ lParam: LPAR
 @main
 struct SwiftSurvivorApp {
     static func main() {
+        let executableName = URL(fileURLWithPath: CommandLine.arguments.first ?? "")
+            .deletingPathExtension().lastPathComponent.lowercased()
+        if executableName.contains("swiftsurvivor-sdl") {
+            SDLFullGame.run()
+            return
+        }
         if CommandLine.arguments.contains("--sdl-smoke") {
             SDLSmoke.run()
             return

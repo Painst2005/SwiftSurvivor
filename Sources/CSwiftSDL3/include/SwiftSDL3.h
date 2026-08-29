@@ -52,6 +52,7 @@ void swift_sdl3_present(SwiftSDL3Context *context);
 bool swift_sdl3_set_window_size(SwiftSDL3Context *context, int width, int height);
 bool swift_sdl3_set_window_fullscreen(SwiftSDL3Context *context, bool fullscreen);
 bool swift_sdl3_get_window_size(SwiftSDL3Context *context, int *width, int *height);
+bool swift_sdl3_set_logical_presentation(SwiftSDL3Context *context, int width, int height);
 uint64_t swift_sdl3_ticks_ns(void);
 const char *swift_sdl3_error(void);
 int32_t swift_sdl3_keycode_w(void);

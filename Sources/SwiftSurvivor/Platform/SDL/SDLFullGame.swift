@@ -18,6 +18,7 @@ enum SDLFullGame {
             sdlQuitRequested = false
             let platform = try SDLPlatform(title: "SwiftSurvivor", width: windowWidth, height: windowHeight, resizable: true)
             let renderer = SDLRenderer(platform: platform)
+            _ = platform.setLogicalPresentation(width: logicalWidth, height: logicalHeight)
             let input = SDLInputManager()
             let sdlAudio = SDLAudioService()
             let musicPath = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)

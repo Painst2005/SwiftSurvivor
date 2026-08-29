@@ -303,6 +303,14 @@ bool swift_sdl3_get_window_size(SwiftSDL3Context *context, int *width, int *heig
     return SDL_GetWindowSize(context->window, width, height);
 }
 
+bool swift_sdl3_set_logical_presentation(SwiftSDL3Context *context, int width, int height) {
+    if (context == NULL || context->renderer == NULL || width <= 0 || height <= 0) {
+        return false;
+    }
+    return SDL_SetRenderLogicalPresentation(context->renderer, width, height,
+                                            SDL_LOGICAL_PRESENTATION_LETTERBOX);
+}
+
 uint64_t swift_sdl3_ticks_ns(void) {
     return (uint64_t)SDL_GetTicksNS();
 }

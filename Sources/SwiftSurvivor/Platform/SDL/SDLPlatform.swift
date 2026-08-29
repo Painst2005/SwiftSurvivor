@@ -94,6 +94,11 @@ final class SDLPlatform {
         }
     }
 
+    @discardableResult
+    func setLogicalPresentation(width: Int, height: Int) -> Bool {
+        swift_sdl3_set_logical_presentation(context, Int32(width), Int32(height))
+    }
+
     static func lastError() -> String {
         guard let pointer = swift_sdl3_error() else { return "未知错误" }
         return String(cString: pointer)

@@ -50,6 +50,13 @@ enum SDLNativeGameRenderer {
         text(r, t(game, "XP", "经验"), 232, 42, RenderColor(215, 245, 255))
         text(r, t(game, "THUNDER", "雷霆") + " \(Int(game.thunderEnergy))%", 430, 42, RenderColor(106, 239, 255))
         if game.combo > 1 { text(r, t(game, "COMBO", "连击") + " x\(game.combo)", 640, 16, RenderColor(255, 181, 91)) }
+        if let comboBurst = game.combatFeedback.comboFeedback {
+            let life = max(0, min(1, 1 - comboBurst.elapsed / 0.9))
+            let burstColor = color(comboBurst.tint)
+            let label = "\(comboBurst.count) " + t(game, "COMBO!", "连击!")
+            text(r, label, Float(width / 2 - 42), Float(field.top + 58 - comboBurst.elapsed * 24),
+                 RenderColor(burstColor.red, burstColor.green, burstColor.blue, UInt8(255 * life)))
+        }
 
         if let boss = game.boss {
             bar(r, x: Float(width / 2 - 220), y: 64, width: 440, value: boss.health / max(1, boss.maxHealth), fill: RenderColor(226, 71, 226), back: RenderColor(56, 24, 67))

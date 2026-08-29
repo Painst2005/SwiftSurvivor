@@ -23,6 +23,8 @@ enum CombatEvent {
     case bossPartDestroyed
     case bossKilled
     case playerKilled
+    case comboMilestone
+    case rareDrop
 }
 
 enum FeedbackDamageKind {
@@ -80,6 +82,12 @@ struct BossDeathFeedback {
     var burstStage = 0
 }
 
+struct ComboFeedback {
+    var count: Int
+    var elapsed: Double = 0
+    var tint: COLORREF
+}
+
 /// Owns presentation response to combat events. Gameplay sends a concise
 /// event; this system decides flash, particles, sounds, text, shake and time.
 /// It intentionally contains no SDL calls.
@@ -95,7 +103,10 @@ final class CombatFeedbackSystem {
     private var hitStopTime = 0.0
     private var slowMotionTime = 0.0
     private var slowMotionScale = 1.0
+    private var lowHealthSmokeClock = 0.0
+    private var lowHealthWarningClock = 0.0
     var bossDeath: BossDeathFeedback?
+    var comboFeedback: ComboFeedback?
 
     func reset() {
         pendingDamage.removeAll(keepingCapacity: true)
@@ -107,7 +118,10 @@ final class CombatFeedbackSystem {
         hitStopTime = 0
         slowMotionTime = 0
         slowMotionScale = 1
+        lowHealthSmokeClock = 0
+        lowHealthWarningClock = 0
         bossDeath = nil
+        comboFeedback = nil
     }
 
     /// Updates feedback in real time. It returns the gameplay time step after
@@ -117,6 +131,7 @@ final class CombatFeedbackSystem {
         flushDamage(realDelta: realDelta, game: game)
         updateVisualState(realDelta: realDelta, game: game)
         updateBossDeath(realDelta: realDelta, game: game)
+        updateComboFeedback(realDelta: realDelta)
 
         shakeTime = max(0, shakeTime - realDelta)
         shakeStrength = max(0, shakeStrength - realDelta * 42)
@@ -167,10 +182,12 @@ final class CombatFeedbackSystem {
             playSound(level: .medium, name: "sfx_hit")
         case .enemyKilled:
             spawnExplosion(at: context.position, direction: context.direction, tint: context.tint, level: context.overkill ? .medium : .light, game: game)
+            applyWeaponKillAccent(context, level: context.overkill ? .medium : .light, game: game)
             requestShake(context.overkill ? .medium : .light, game: game)
             playSound(level: .medium, name: "sfx_explosion")
         case .eliteKilled:
             spawnExplosion(at: context.position, direction: context.direction, tint: context.tint, level: .heavy, game: game)
+            applyWeaponKillAccent(context, level: .heavy, game: game)
             requestShake(.heavy, game: game)
             requestHitStop(config.hitStopHeavy)
             playSound(level: .heavy, name: "sfx_explosion")
@@ -222,6 +239,21 @@ final class CombatFeedbackSystem {
             slowMotionTime = 0.15
             slowMotionScale = 0.35
             playSound(level: .critical, name: "sfx_explosion")
+        case .comboMilestone:
+            let count = max(1, Int(context.damage.rounded()))
+            let tint: COLORREF = count >= 100 ? rgb(255, 108, 226) : (count >= 50 ? rgb(130, 239, 255) : rgb(255, 207, 105))
+            comboFeedback = ComboFeedback(count: count, tint: tint)
+            spawnShockwave(at: game.player, tint: tint, game: game)
+            spawnSparks(at: game.player, direction: Vec2(x: 0, y: -1), tint: tint, count: min(12, 4 + count / 15), game: game)
+            requestShake(count >= 100 ? .heavy : .medium, game: game)
+            playSound(level: .heavy, name: "sfx_hit")
+        case .rareDrop:
+            spawnShockwave(at: context.position, tint: context.tint, game: game)
+            spawnShield(at: context.position, tint: context.tint, count: 18, game: game)
+            spawnSparks(at: context.position, direction: Vec2(x: 0, y: -1), tint: rgb(255, 245, 194), count: 12, game: game)
+            requestShake(.medium, game: game)
+            game.notifyFeedback(title: "RARE MODULE ACQUIRED", chineseTitle: "获得稀有模块", tint: context.tint)
+            playSound(level: .heavy, name: "sfx_boss")
         }
     }
 
@@ -313,12 +345,35 @@ final class CombatFeedbackSystem {
             boss.visualOffset = boss.visualOffset * max(0, 1 - realDelta * 12)
             game.boss = boss
         }
+        let healthRatio = game.health / max(1, game.maxHealth)
+        if healthRatio < 0.5, game.phase == .playing {
+            lowHealthSmokeClock -= realDelta
+            if lowHealthSmokeClock <= 0 {
+                lowHealthSmokeClock = healthRatio < 0.2 ? 0.14 : 0.28
+                let tint = healthRatio < 0.2 ? rgb(255, 104, 112) : rgb(178, 194, 220)
+                let life = healthRatio < 0.2 ? 0.44 : 0.30
+                appendParticle(Particle(position: game.player + Vec2(x: Double.random(in: -8...8, using: &rng), y: 12),
+                                        velocity: Vec2(x: Double.random(in: -18...18, using: &rng), y: Double.random(in: 18...40, using: &rng)),
+                                        radius: healthRatio < 0.2 ? 4.8 : 3.2, life: life, maxLife: life, tint: tint, kind: .smoke), game: game)
+            }
+        } else {
+            lowHealthSmokeClock = 0
+        }
+        if healthRatio < 0.2, game.phase == .playing {
+            lowHealthWarningClock -= realDelta
+            if lowHealthWarningClock <= 0 {
+                lowHealthWarningClock = 1.2
+                game.notifyFeedback(title: "HULL CRITICAL", chineseTitle: "机体严重受损", tint: rgb(255, 105, 121))
+            }
+        } else {
+            lowHealthWarningClock = 0
+        }
     }
 
     private func updateBossDeath(realDelta: Double, game: Game) {
         guard var sequence = bossDeath else { return }
         sequence.elapsed += realDelta
-        let stages: [Double] = [0.16, 0.34, 0.54]
+        let stages: [Double] = [0.13, 0.28, 0.46, 0.68]
         while sequence.burstStage < stages.count, sequence.elapsed >= stages[sequence.burstStage] {
             let angle = Double(sequence.burstStage) * 2.1
             let offset = Vec2(x: cos(angle) * (42 + Double(sequence.burstStage) * 25), y: sin(angle) * 20)
@@ -326,10 +381,29 @@ final class CombatFeedbackSystem {
                            level: sequence.burstStage == stages.count - 1 ? .critical : .heavy, game: game)
             sequence.burstStage += 1
         }
-        if sequence.elapsed > 0.86 {
+        if sequence.elapsed > 1.12 {
             bossDeath = nil
         } else {
             bossDeath = sequence
+        }
+    }
+
+    private func updateComboFeedback(realDelta: Double) {
+        guard var feedback = comboFeedback else { return }
+        feedback.elapsed += realDelta
+        comboFeedback = feedback.elapsed > 0.9 ? nil : feedback
+    }
+
+    private func applyWeaponKillAccent(_ context: FeedbackContext, level: FeedbackLevel, game: Game) {
+        switch context.damageKind {
+        case .missile:
+            spawnShockwave(at: context.position, tint: rgb(255, 185, 104), game: game)
+        case .laser:
+            spawnSparks(at: context.position, direction: context.direction, tint: rgb(130, 239, 255), count: 10, game: game)
+        case .electromagnetic:
+            spawnShield(at: context.position, tint: rgb(190, 132, 255), count: level >= .heavy ? 14 : 8, game: game)
+        default:
+            break
         }
     }
 

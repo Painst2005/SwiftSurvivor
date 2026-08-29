@@ -2200,7 +2200,7 @@ final class Game: @unchecked Sendable {
     /// F8 cycles through feedback samples without requiring a full boss run.
     func debugFeedbackTest() {
         guard phase == .playing else { return }
-        feedbackDebugIndex = (feedbackDebugIndex + 1) % 8
+        feedbackDebugIndex = (feedbackDebugIndex + 1) % 10
         let point = enemies.first?.position ?? (boss?.position ?? player + Vec2(x: 0, y: -90))
         let targetID = enemies.first?.feedbackID
         let event: CombatEvent
@@ -2213,7 +2213,9 @@ final class Game: @unchecked Sendable {
         case 4: event = .playerHit; level = .medium
         case 5: event = .shieldHit; level = .medium
         case 6: event = .shieldBreak; level = .heavy
-        default: event = .bossKilled; level = .critical
+        case 7: event = .bossKilled; level = .critical
+        case 8: event = .comboMilestone; level = .heavy
+        default: event = .rareDrop; level = .heavy
         }
         combatFeedback.play(event,
                             context: FeedbackContext(position: point, direction: Vec2(x: 0, y: -1), damage: 128,
@@ -2368,6 +2370,11 @@ final class Game: @unchecked Sendable {
         comboBest = max(comboBest, combo)
         profile.bestCombo = max(profile.bestCombo, comboBest)
         comboTimer = 3.0
+        if [10, 25, 50, 100, 200, 500].contains(combo) {
+            combatFeedback.play(.comboMilestone,
+                                context: FeedbackContext(position: player, damage: Double(combo), level: combo >= 100 ? .heavy : .medium),
+                                game: self)
+        }
         let multiplier = 1.0 + min(Double(combo), 50.0) * 0.015
         score += Int(Double(baseScore) * multiplier * comboScoreMultiplier)
         experience += 1
@@ -2455,6 +2462,9 @@ final class Game: @unchecked Sendable {
                                                      evolution: 0,
                                                      affix: Int.random(in: 1...4, using: &rng)))
             dropDetail = "RARE MODULE CACHE  •  \(dropNames[dropIndex])"
+            combatFeedback.play(.rareDrop,
+                                context: FeedbackContext(position: position, level: .heavy, tint: rgb(255, 211, 112)),
+                                game: self)
         } else {
             profile.bossDropPity += 1
         }

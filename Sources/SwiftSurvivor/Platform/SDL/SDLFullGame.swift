@@ -24,7 +24,7 @@ enum SDLFullGame {
             let sdlAudio = SDLAudioService()
             let musicPath = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
                 .appendingPathComponent("Resources/Audio/thunder_swift_battle.wav").path
-            AudioManager.shared.stopMusic()
+            AudioManager.shared.setExternalMusicActive(true)
             sdlAudio.playMusic(named: musicPath, loop: true)
             let framebuffer = GDIFrameBuffer()
             var pixelBuffer: [UInt8] = []
@@ -133,7 +133,7 @@ enum SDLFullGame {
             default: break
             }
         }
-        if input.isPressed(keyCode: 0x51), Game.shared.phase == .playing { Game.shared.cycleWeapon() }
+        if input.isPressedQ(), Game.shared.phase == .playing { Game.shared.cycleWeapon() }
         if Game.shared.phase == .upgrade {
             if input.isPressed(keyCode: 49) { Game.shared.chooseUpgrade(0) }
             if input.isPressed(keyCode: 50) { Game.shared.chooseUpgrade(1) }

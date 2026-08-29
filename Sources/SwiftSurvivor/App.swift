@@ -3203,6 +3203,10 @@ final class AudioManager: @unchecked Sendable {
     private let commandQueue = DispatchQueue(label: "ThunderSwift.AudioCommands", qos: .userInitiated)
     private let stateLock = NSLock()
     private var musicIsPlaying = false
+    // The SDL presentation path owns music playback. Keeping this gate in
+    // the legacy WinMM manager prevents Game.start() and other gameplay
+    // callbacks from starting a second copy of the same track.
+    private var externalMusicActive = false
     private var bgmVolume = 70
     private var sfxVolume = 80
     private var openedAliases: Set<String> = []
@@ -3286,7 +3290,7 @@ final class AudioManager: @unchecked Sendable {
 
     func startMusic() {
         let request: String? = withState {
-            guard !musicIsPlaying, bgmVolume > 0 else { return nil }
+            guard !externalMusicActive, !musicIsPlaying, bgmVolume > 0 else { return nil }
             // PlaySoundW supports PCM WAV directly on Windows. This WAV is a
             // decoded copy of the requested thunder_swift_battle.mp3 track,
             // so playback uses the exact battle composition without routing
@@ -3300,6 +3304,11 @@ final class AudioManager: @unchecked Sendable {
         commandQueue.async { [self] in
             playMusicLoop(path: request, attempt: 0)
         }
+    }
+
+    func setExternalMusicActive(_ active: Bool) {
+        withState { externalMusicActive = active }
+        if active { stopMusic() }
     }
 
     private func playMusicLoop(path: String, attempt: Int) {

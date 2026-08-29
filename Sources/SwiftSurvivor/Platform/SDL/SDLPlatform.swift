@@ -219,6 +219,7 @@ final class SDLInputManager {
     func isPressed(_ action: GameAction) -> Bool { mappedCodes(for: action).contains { pressedKeys.contains($0) } }
     func isReleased(_ action: GameAction) -> Bool { mappedCodes(for: action).contains { releasedKeys.contains($0) } }
     func isPressed(keyCode: Int32) -> Bool { pressedKeys.contains(keyCode) }
+    func isPressedQ() -> Bool { pressedKeys.contains(swift_sdl3_keycode_q()) }
     func consumePrimaryClick() -> (x: Float, y: Float)? {
         defer { clickPosition = nil }
         return clickPosition

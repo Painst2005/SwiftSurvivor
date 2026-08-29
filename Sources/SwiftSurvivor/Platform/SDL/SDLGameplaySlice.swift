@@ -35,7 +35,7 @@ enum SDLGameplaySlice {
                 if input.isPressed(keyCode: 0x52), game.phase == .paused || game.phase == .gameOver {
                     game.start(width: Double(width), height: Double(height))
                 }
-                if input.isPressed(keyCode: 0x51), game.phase == .paused || game.phase == .gameOver {
+                if input.isPressedQ(), game.phase == .paused || game.phase == .gameOver {
                     game.phase = .menu
                 }
                 if game.phase == .upgrade {

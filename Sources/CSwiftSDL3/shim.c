@@ -323,3 +323,4 @@ int32_t swift_sdl3_keycode_space(void) { return (int32_t)SDLK_SPACE; }
 int32_t swift_sdl3_keycode_shift(void) { return (int32_t)SDLK_LSHIFT; }
 int32_t swift_sdl3_keycode_escape(void) { return (int32_t)SDLK_ESCAPE; }
 int32_t swift_sdl3_keycode_enter(void) { return (int32_t)SDLK_RETURN; }
+int32_t swift_sdl3_keycode_q(void) { return (int32_t)SDLK_Q; }

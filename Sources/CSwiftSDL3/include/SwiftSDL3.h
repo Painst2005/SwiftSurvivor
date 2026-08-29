@@ -66,5 +66,6 @@ int32_t swift_sdl3_keycode_space(void);
 int32_t swift_sdl3_keycode_shift(void);
 int32_t swift_sdl3_keycode_escape(void);
 int32_t swift_sdl3_keycode_enter(void);
+int32_t swift_sdl3_keycode_q(void);
 
 #endif

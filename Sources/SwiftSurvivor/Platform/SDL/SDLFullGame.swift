@@ -1,6 +1,8 @@
 import Foundation
 import CSwiftSDL3
 
+nonisolated(unsafe) private var sdlQuitRequested = false
+
 /// Full presentation bridge: the existing localized GDI UI is rendered into a
 /// reusable DIB and uploaded to SDL as one texture. This is intentionally a
 /// migration bridge, so every menu and Chinese string keeps its current visual
@@ -15,6 +17,7 @@ enum SDLFullGame {
         var windowWidth = Game.shared.profile.resolutionWidth == 1024 ? 1024 : 1280
         var windowHeight = Game.shared.profile.resolutionHeight == 768 ? 768 : 720
         do {
+            sdlQuitRequested = false
             let platform = try SDLPlatform(title: "SwiftSurvivor", width: windowWidth, height: windowHeight, resizable: true)
             let renderer = SDLRenderer(platform: platform)
             let input = SDLInputManager()
@@ -40,7 +43,7 @@ enum SDLFullGame {
                 let events = platform.pollEvents()
                 input.beginFrame(events: events)
                 sdlAudio.tick()
-                if input.shouldQuit { running = false }
+                if input.shouldQuit || sdlQuitRequested { running = false }
                 let requestedWidth = Game.shared.profile.resolutionWidth == 1024 ? 1024 : 1280
                 let requestedHeight = Game.shared.profile.resolutionHeight == 768 ? 768 : 720
                 let requestedFullscreen = Game.shared.profile.isFullscreen
@@ -98,7 +101,16 @@ enum SDLFullGame {
     private static func handleInput(_ input: SDLInputManager, viewport: SDLViewport) {
         if let click = input.consumePrimaryClick() {
             let point = viewport.logicalPoint(x: click.x, y: click.y)
-            Game.shared.handleClick(at: Vec2(x: Double(point.x), y: Double(point.y)), width: Double(viewport.logicalWidth), height: Double(viewport.logicalHeight))
+            let logicalPoint = Vec2(x: Double(point.x), y: Double(point.y))
+            if Game.shared.phase == .menu && mainMenuButtons(width: Double(viewport.logicalWidth), height: Double(viewport.logicalHeight))[4].contains(logicalPoint) {
+                sdlQuitRequested = true
+                return
+            }
+            if Game.shared.phase == .paused && pauseButtons(width: Double(viewport.logicalWidth), height: Double(viewport.logicalHeight))[4].contains(logicalPoint) {
+                sdlQuitRequested = true
+                return
+            }
+            Game.shared.handleClick(at: logicalPoint, width: Double(viewport.logicalWidth), height: Double(viewport.logicalHeight))
         }
         if input.isPressed(keyCode: 13) {
             switch Game.shared.phase {

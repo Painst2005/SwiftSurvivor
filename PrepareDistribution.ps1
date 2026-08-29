@@ -29,6 +29,11 @@ New-Item -ItemType Directory -Path $stagePath | Out-Null
 Copy-Item -LiteralPath $exePath -Destination (Join-Path $stagePath "SwiftSurvivor.exe")
 Copy-Item -LiteralPath $resourcesPath -Destination (Join-Path $stagePath "Resources") -Recurse
 
+$sdlDllPath = Join-Path $projectRoot "Vendor\SDL3-3.4.14\lib\x64\SDL3.dll"
+if (Test-Path -LiteralPath $sdlDllPath) {
+    Copy-Item -LiteralPath $sdlDllPath -Destination $stagePath -Force
+}
+
 # Swift loads some modules lazily (for example swift_RegexParser.dll), so
 # copying only the executable's static imports is not sufficient. Ship every
 # runtime DLL from the matching Swift toolchain.

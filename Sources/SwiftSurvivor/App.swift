@@ -712,6 +712,8 @@ final class Game: @unchecked Sendable {
     let particleLimit = 2200
     var lastTime = Date().timeIntervalSinceReferenceDate
     var nextFrameDeadline = Date().timeIntervalSinceReferenceDate
+    private var fixedStepAccumulator = 0.0
+    private let fixedStepDelta = 1.0 / 60.0
     var measuredFPS = 0.0
     private var presentedFrameCount = 0
     private var fpsWindowStart = Date().timeIntervalSinceReferenceDate
@@ -854,8 +856,25 @@ final class Game: @unchecked Sendable {
     func resetFrameClock(at now: Double) {
         lastTime = now
         nextFrameDeadline = now
+        fixedStepAccumulator = 0
         presentedFrameCount = 0
         fpsWindowStart = now
+    }
+
+    /// Advances gameplay at a deterministic 60 Hz. Rendering remains driven by
+    /// the window timer, while a stalled frame is capped to avoid a catch-up
+    /// spiral and frame-rate-dependent gameplay.
+    func advanceFixed(realDelta: Double, width: Double, height: Double) {
+        fixedStepAccumulator += min(max(realDelta, 0), 0.25)
+        var steps = 0
+        while fixedStepAccumulator >= fixedStepDelta && steps < 8 {
+            update(delta: fixedStepDelta, width: width, height: height)
+            fixedStepAccumulator -= fixedStepDelta
+            steps += 1
+        }
+        if steps == 8 && fixedStepAccumulator > fixedStepDelta {
+            fixedStepAccumulator = fixedStepDelta
+        }
     }
 
     func start(width: Double, height: Double) {
@@ -4886,7 +4905,9 @@ func windowProc(_ hwnd: HWND?, _ message: UINT, _ wParam: WPARAM, _ lParam: LPAR
                 Game.shared.nextFrameDeadline = now + frameInterval
             }
             let viewport = viewportMetrics(pixelWidth: max(1, rect.right), pixelHeight: max(1, rect.bottom))
-            Game.shared.update(delta: delta, width: viewport.logicalWidth, height: viewport.logicalHeight)
+            Game.shared.advanceFixed(realDelta: delta,
+                                     width: viewport.logicalWidth,
+                                     height: viewport.logicalHeight)
             // Render and present in the same timer message. WM_PAINT is a
             // low-priority message and can be delayed behind input/audio,
             // which previously produced irregular visual frame pacing.
@@ -4979,6 +5000,10 @@ func windowProc(_ hwnd: HWND?, _ message: UINT, _ wParam: WPARAM, _ lParam: LPAR
 @main
 struct SwiftSurvivorApp {
     static func main() {
+        if CommandLine.arguments.contains("--sdl-smoke") {
+            SDLSmoke.run()
+            return
+        }
         // Opt out of Windows bitmap DPI virtualization. On high-DPI laptops
         // the old behavior rendered a much larger off-screen surface and then
         // scaled every frame, which both blurred the UI and caused stutter.

@@ -1,0 +1,172 @@
+import Foundation
+import CSwiftSDL3
+
+enum SDLPlatformError: Error, CustomStringConvertible {
+    case initialization(String)
+    case windowCreation(String)
+
+    var description: String {
+        switch self {
+        case .initialization(let message): return "SDL 初始化失败：\(message)"
+        case .windowCreation(let message): return "SDL 窗口创建失败：\(message)"
+        }
+    }
+}
+
+struct SDLInputEvent {
+    enum Kind { case quit, keyDown, keyUp, mouseMotion, mouseButtonDown, mouseButtonUp, windowResized }
+    var kind: Kind
+    var key: Int32 = 0
+    var repeated = false
+    var button: UInt8 = 0
+    var x: Float = 0
+    var y: Float = 0
+    var width = 0
+    var height = 0
+}
+
+/// Owns SDL lifetime and converts C event structs into Swift values.
+final class SDLPlatform {
+    private(set) var context: OpaquePointer
+    private(set) var windowSize: (width: Int, height: Int)
+
+    init(title: String, width: Int, height: Int, resizable: Bool = true) throws {
+        guard swift_sdl3_startup() else {
+            throw SDLPlatformError.initialization(Self.lastError())
+        }
+        guard let context = title.withCString({ swift_sdl3_create($0, Int32(width), Int32(height), resizable) }) else {
+            swift_sdl3_shutdown()
+            throw SDLPlatformError.windowCreation(Self.lastError())
+        }
+        self.context = context
+        self.windowSize = (width, height)
+    }
+
+    deinit {
+        swift_sdl3_destroy(context)
+        swift_sdl3_shutdown()
+    }
+
+    func pollEvents() -> [SDLInputEvent] {
+        var result: [SDLInputEvent] = []
+        var raw = SwiftSDL3Event()
+        while swift_sdl3_poll_event(&raw) {
+            switch raw.kind {
+            case UInt32(bitPattern: SWIFT_SDL3_EVENT_QUIT.rawValue):
+                result.append(SDLInputEvent(kind: .quit))
+            case UInt32(bitPattern: SWIFT_SDL3_EVENT_KEY_DOWN.rawValue):
+                result.append(SDLInputEvent(kind: .keyDown, key: raw.key, repeated: raw.repeat != 0))
+            case UInt32(bitPattern: SWIFT_SDL3_EVENT_KEY_UP.rawValue):
+                result.append(SDLInputEvent(kind: .keyUp, key: raw.key))
+            case UInt32(bitPattern: SWIFT_SDL3_EVENT_MOUSE_MOTION.rawValue):
+                result.append(SDLInputEvent(kind: .mouseMotion, x: raw.x, y: raw.y))
+            case UInt32(bitPattern: SWIFT_SDL3_EVENT_MOUSE_BUTTON_DOWN.rawValue):
+                result.append(SDLInputEvent(kind: .mouseButtonDown, button: raw.button, x: raw.x, y: raw.y))
+            case UInt32(bitPattern: SWIFT_SDL3_EVENT_MOUSE_BUTTON_UP.rawValue):
+                result.append(SDLInputEvent(kind: .mouseButtonUp, button: raw.button, x: raw.x, y: raw.y))
+            case UInt32(bitPattern: SWIFT_SDL3_EVENT_WINDOW_RESIZED.rawValue):
+                windowSize = (Int(raw.width), Int(raw.height))
+                result.append(SDLInputEvent(kind: .windowResized, width: Int(raw.width), height: Int(raw.height)))
+            default:
+                break
+            }
+        }
+        return result
+    }
+
+    static func lastError() -> String {
+        guard let pointer = swift_sdl3_error() else { return "未知错误" }
+        return String(cString: pointer)
+    }
+}
+
+final class SDLRenderer: GameRenderer {
+    private let platform: SDLPlatform
+    private var drawColor = RenderColor(255, 255, 255)
+
+    init(platform: SDLPlatform) { self.platform = platform }
+
+    var drawableSize: (width: Int, height: Int) { platform.windowSize }
+
+    func beginFrame(clear color: RenderColor) {
+        swift_sdl3_begin_frame(platform.context, color.red, color.green, color.blue, color.alpha)
+        drawColor = color
+    }
+
+    func fillRect(_ rect: RenderRect, color: RenderColor) {
+        setColor(color)
+        _ = swift_sdl3_fill_rect(platform.context, rect.x, rect.y, rect.width, rect.height)
+    }
+
+    func line(from start: (x: Float, y: Float), to end: (x: Float, y: Float), color: RenderColor) {
+        setColor(color)
+        _ = swift_sdl3_line(platform.context, start.x, start.y, end.x, end.y)
+    }
+
+    func drawText(_ text: String, at position: (x: Float, y: Float), color: RenderColor) {
+        // SDL_RenderDebugText is intentionally limited to ASCII. A future SDL_ttf
+        // text backend will preserve the game's Chinese UI without changing this API.
+        setColor(color)
+        text.withCString { _ = swift_sdl3_debug_text(platform.context, position.x, position.y, $0) }
+    }
+
+    func present() { swift_sdl3_present(platform.context) }
+
+    private func setColor(_ color: RenderColor) {
+        swift_sdl3_set_draw_color(platform.context, color.red, color.green, color.blue, color.alpha)
+        drawColor = color
+    }
+}
+
+enum GameAction: Hashable {
+    case moveUp, moveDown, moveLeft, moveRight
+    case precisionMove, specialAttack, pause, confirm, cancel
+}
+
+/// SDL events mapped to stable gameplay actions instead of raw key codes.
+final class SDLInputManager {
+    private(set) var mousePosition: (x: Float, y: Float) = (0, 0)
+    private var heldKeys: Set<Int32> = []
+    private var pressedKeys: Set<Int32> = []
+    private var releasedKeys: Set<Int32> = []
+    private var quitRequested = false
+
+    func beginFrame(events: [SDLInputEvent]) {
+        pressedKeys.removeAll(keepingCapacity: true)
+        releasedKeys.removeAll(keepingCapacity: true)
+        for event in events {
+            switch event.kind {
+            case .quit: quitRequested = true
+            case .keyDown:
+                if !event.repeated { pressedKeys.insert(event.key) }
+                heldKeys.insert(event.key)
+            case .keyUp:
+                heldKeys.remove(event.key); releasedKeys.insert(event.key)
+            case .mouseMotion:
+                mousePosition = (event.x, event.y)
+            case .mouseButtonDown, .mouseButtonUp, .windowResized:
+                break
+            }
+        }
+    }
+
+    var shouldQuit: Bool { quitRequested }
+
+    func isHeld(_ action: GameAction) -> Bool { mappedCodes(for: action).contains { heldKeys.contains($0) } }
+    func isPressed(_ action: GameAction) -> Bool { mappedCodes(for: action).contains { pressedKeys.contains($0) } }
+    func isReleased(_ action: GameAction) -> Bool { mappedCodes(for: action).contains { releasedKeys.contains($0) } }
+
+    private func mappedCodes(for action: GameAction) -> [Int32] {
+        switch action {
+        case .moveUp: return [swift_sdl3_keycode_w(), swift_sdl3_keycode_up()]
+        case .moveDown: return [swift_sdl3_keycode_s(), swift_sdl3_keycode_down()]
+        case .moveLeft: return [swift_sdl3_keycode_a(), swift_sdl3_keycode_left()]
+        case .moveRight: return [swift_sdl3_keycode_d(), swift_sdl3_keycode_right()]
+        case .precisionMove: return [swift_sdl3_keycode_shift()]
+        case .specialAttack: return [swift_sdl3_keycode_space()]
+        case .pause: return [swift_sdl3_keycode_escape()]
+        case .confirm: return [swift_sdl3_keycode_enter(), swift_sdl3_keycode_space()]
+        case .cancel: return [swift_sdl3_keycode_escape()]
+        }
+    }
+}

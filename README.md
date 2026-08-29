@@ -1,11 +1,12 @@
 # Thunder Swift
 
-一个只依赖 Swift Windows 工具链的 2D 纵向卷轴飞行射击小游戏。玩法参考经典街机飞行射击：战机在屏幕下方移动，自动向上开火，迎战敌机编队、敌方弹幕和阶段 Boss。绘图使用 Windows 原生 Win32/GDI，不需要 Unity、Godot 或第三方包。
+一个使用 Swift 6.x、Swift Package Manager 和 SDL3 的 2D 纵向卷轴飞行射击小游戏。玩法参考经典街机飞行射击：战机在屏幕下方移动，自动向上开火，迎战敌机编队、敌方弹幕和阶段 Boss。当前采用渐进迁移策略：成熟的 Win32/GDI 游戏后端继续作为兼容路径，SDL3 平台层、渲染抽象、输入动作层和固定时间步已接入，后续按模块迁移实际战斗渲染。
 
 ## 运行环境
 
 - Windows 10/11
 - Swift 6.x for Windows（本机已验证 Swift 6.3.3）
+- SDL3 3.4.14（随项目放在 `Vendor/SDL3-3.4.14`，运行时需要 `SDL3.dll`）
 
 ## 编译与运行
 
@@ -13,7 +14,16 @@
 
 ```powershell
 swift build -c release --scratch-path .build-game
-swift run -c release --scratch-path .build-game
+Copy-Item Vendor\SDL3-3.4.14\lib\x64\SDL3.dll .build-game\x86_64-unknown-windows-msvc\release -Force
+.build-game\x86_64-unknown-windows-msvc\release\SwiftSurvivor.exe
+```
+
+也可以直接运行 `BuildAndRun.ps1`，脚本会自动复制 SDL3 运行库。
+
+验证 SDL3 窗口、输入和基础 2D Renderer：
+
+```powershell
+.build-game\x86_64-unknown-windows-msvc\release\SwiftSurvivor.exe --sdl-smoke
 ```
 
 也可以直接运行构建出的程序：
@@ -22,7 +32,7 @@ swift run -c release --scratch-path .build-game
 .build-game\x86_64-unknown-windows-msvc\release\SwiftSurvivor.exe
 ```
 
-也可以直接运行项目里附带的 `SwiftSurvivor.exe`，不需要重新编译。
+如果直接双击项目根目录的旧版 `SwiftSurvivor.exe`，它仍使用兼容的 GDI 后端；通过脚本构建的版本会同时带上 SDL3 运行库。
 
 ## 操作
 

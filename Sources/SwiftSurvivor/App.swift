@@ -5023,6 +5023,10 @@ struct SwiftSurvivorApp {
             SDLFullGame.run()
             return
         }
+        if CommandLine.arguments.contains("--sdl-audio-smoke") {
+            SDLAudioSmoke.run()
+            return
+        }
         // Opt out of Windows bitmap DPI virtualization. On high-DPI laptops
         // the old behavior rendered a much larger off-screen surface and then
         // scaled every frame, which both blurred the UI and caused stutter.

@@ -38,6 +38,12 @@ Copy-Item Vendor\SDL3-3.4.14\lib\x64\SDL3.dll .build-game\x86_64-unknown-windows
 .build-game\x86_64-unknown-windows-msvc\release\SwiftSurvivor.exe --sdl-full
 ```
 
+验证 SDL Audio WAV 播放链路：
+
+```powershell
+.build-game\x86_64-unknown-windows-msvc\release\SwiftSurvivor.exe --sdl-audio-smoke
+```
+
 也可以直接运行构建出的程序：
 
 ```powershell

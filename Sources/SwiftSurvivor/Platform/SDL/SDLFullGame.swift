@@ -13,6 +13,11 @@ enum SDLFullGame {
             let platform = try SDLPlatform(title: "SwiftSurvivor", width: width, height: height, resizable: true)
             let renderer = SDLRenderer(platform: platform)
             let input = SDLInputManager()
+            let sdlAudio = SDLAudioService()
+            let musicPath = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+                .appendingPathComponent("Resources/Audio/thunder_swift_battle.wav").path
+            AudioManager.shared.stopMusic()
+            sdlAudio.playMusic(named: musicPath, loop: true)
             let framebuffer = GDIFrameBuffer()
             var pixelBuffer: [UInt8] = []
             var frameTexture: SDLTexture?
@@ -27,6 +32,7 @@ enum SDLFullGame {
                 previous = now
                 let events = platform.pollEvents()
                 input.beginFrame(events: events)
+                sdlAudio.tick()
                 if input.shouldQuit { running = false }
                 handleInput(input, width: width, height: height)
                 Game.shared.updateMousePosition(Vec2(x: Double(input.mousePosition.x), y: Double(input.mousePosition.y)))
@@ -51,6 +57,7 @@ enum SDLFullGame {
                 Thread.sleep(forTimeInterval: firstFrame ? 0.02 : 1.0 / 120.0)
             }
             framebuffer.release()
+            sdlAudio.stopMusic()
             Game.shared.persistProfile()
         } catch {
             print("SDL full presentation failed: \(error)")

@@ -10,6 +10,13 @@ struct SwiftSDL3Texture {
     SDL_Texture *texture;
 };
 
+struct SwiftSDL3Audio {
+    SDL_AudioStream *stream;
+    Uint8 *data;
+    Uint32 length;
+    bool loop;
+};
+
 bool swift_sdl3_startup(void) {
     return SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMEPAD);
 }
@@ -211,6 +218,62 @@ bool swift_sdl3_draw_texture(SwiftSDL3Context *context, SwiftSDL3Texture *textur
     SDL_SetTextureAlphaMod(texture->texture, alpha);
     SDL_FRect destination = { x, y, width, height };
     return SDL_RenderTexture(context->renderer, texture->texture, NULL, &destination);
+}
+
+SwiftSDL3Audio *swift_sdl3_audio_create(const char *path, bool loop) {
+    if (path == NULL) {
+        return NULL;
+    }
+    SDL_AudioSpec spec;
+    Uint8 *data = NULL;
+    Uint32 length = 0;
+    if (!SDL_LoadWAV(path, &spec, &data, &length)) {
+        return NULL;
+    }
+    SDL_AudioStream *stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, NULL, NULL);
+    if (stream == NULL || !SDL_PutAudioStreamData(stream, data, (int)length)) {
+        if (stream != NULL) SDL_DestroyAudioStream(stream);
+        SDL_free(data);
+        return NULL;
+    }
+    if (!SDL_ResumeAudioStreamDevice(stream)) {
+        SDL_DestroyAudioStream(stream);
+        SDL_free(data);
+        return NULL;
+    }
+    SwiftSDL3Audio *audio = (SwiftSDL3Audio *)SDL_calloc(1, sizeof(SwiftSDL3Audio));
+    if (audio == NULL) {
+        SDL_DestroyAudioStream(stream);
+        SDL_free(data);
+        return NULL;
+    }
+    audio->stream = stream;
+    audio->data = data;
+    audio->length = length;
+    audio->loop = loop;
+    return audio;
+}
+
+bool swift_sdl3_audio_tick(SwiftSDL3Audio *audio) {
+    if (audio == NULL || audio->stream == NULL) {
+        return false;
+    }
+    if (SDL_GetAudioStreamAvailable(audio->stream) > 0) {
+        return true;
+    }
+    if (!audio->loop) {
+        return false;
+    }
+    return SDL_PutAudioStreamData(audio->stream, audio->data, (int)audio->length);
+}
+
+void swift_sdl3_audio_destroy(SwiftSDL3Audio *audio) {
+    if (audio == NULL) {
+        return;
+    }
+    if (audio->stream != NULL) SDL_DestroyAudioStream(audio->stream);
+    if (audio->data != NULL) SDL_free(audio->data);
+    SDL_free(audio);
 }
 
 void swift_sdl3_present(SwiftSDL3Context *context) {

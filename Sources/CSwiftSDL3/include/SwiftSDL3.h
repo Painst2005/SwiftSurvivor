@@ -43,8 +43,13 @@ bool swift_sdl3_line(SwiftSDL3Context *context, float x1, float y1, float x2, fl
 bool swift_sdl3_debug_text(SwiftSDL3Context *context, float x, float y, const char *utf8);
 SwiftSDL3Texture *swift_sdl3_texture_create(SwiftSDL3Context *context, int width, int height, const void *pixels, int pitch);
 bool swift_sdl3_texture_update(SwiftSDL3Texture *texture, const void *pixels, int pitch);
+bool swift_sdl3_texture_set_nearest(SwiftSDL3Texture *texture);
 void swift_sdl3_texture_destroy(SwiftSDL3Texture *texture);
 bool swift_sdl3_draw_texture(SwiftSDL3Context *context, SwiftSDL3Texture *texture, float x, float y, float width, float height, uint8_t alpha);
+bool swift_sdl3_draw_texture_region(SwiftSDL3Context *context, SwiftSDL3Texture *texture,
+                                    float sourceX, float sourceY, float sourceWidth, float sourceHeight,
+                                    float x, float y, float width, float height,
+                                    uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha);
 SwiftSDL3Audio *swift_sdl3_audio_create(const char *path, bool loop);
 bool swift_sdl3_audio_tick(SwiftSDL3Audio *audio);
 void swift_sdl3_audio_destroy(SwiftSDL3Audio *audio);

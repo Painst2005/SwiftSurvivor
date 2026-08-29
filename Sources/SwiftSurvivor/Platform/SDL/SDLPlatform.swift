@@ -107,9 +107,13 @@ final class SDLPlatform {
 
 final class SDLRenderer: GameRenderer {
     private let platform: SDLPlatform
+    private let bitmapFont: SDLBitmapFont?
     private var drawColor = RenderColor(255, 255, 255)
 
-    init(platform: SDLPlatform) { self.platform = platform }
+    init(platform: SDLPlatform) {
+        self.platform = platform
+        self.bitmapFont = SDLBitmapFont.load(platform: platform)
+    }
 
     var drawableSize: (width: Int, height: Int) { platform.windowSize }
 
@@ -141,10 +145,14 @@ final class SDLRenderer: GameRenderer {
     }
 
     func drawText(_ text: String, at position: (x: Float, y: Float), color: RenderColor) {
-        // SDL_RenderDebugText is intentionally limited to ASCII. A future SDL_ttf
-        // text backend will preserve the game's Chinese UI without changing this API.
-        setColor(color)
-        text.withCString { _ = swift_sdl3_debug_text(platform.context, position.x, position.y, $0) }
+        if let bitmapFont {
+            bitmapFont.draw(text, at: position, color: color)
+        } else {
+            // Keep a visible diagnostic fallback if a damaged portable package
+            // is missing its font asset.
+            setColor(color)
+            text.withCString { _ = swift_sdl3_debug_text(platform.context, position.x, position.y, $0) }
+        }
     }
 
     func present() { swift_sdl3_present(platform.context) }
@@ -156,7 +164,7 @@ final class SDLRenderer: GameRenderer {
 }
 
 final class SDLTexture: GameTexture {
-    fileprivate let handle: OpaquePointer
+    let handle: OpaquePointer
     let width: Int
     let height: Int
 

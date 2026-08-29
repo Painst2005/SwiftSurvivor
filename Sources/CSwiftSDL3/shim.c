@@ -201,6 +201,13 @@ bool swift_sdl3_texture_update(SwiftSDL3Texture *texture, const void *pixels, in
     return SDL_UpdateTexture(texture->texture, NULL, pixels, pitch);
 }
 
+bool swift_sdl3_texture_set_nearest(SwiftSDL3Texture *texture) {
+    if (texture == NULL || texture->texture == NULL) {
+        return false;
+    }
+    return SDL_SetTextureScaleMode(texture->texture, SDL_SCALEMODE_NEAREST);
+}
+
 void swift_sdl3_texture_destroy(SwiftSDL3Texture *texture) {
     if (texture == NULL) {
         return;
@@ -218,6 +225,20 @@ bool swift_sdl3_draw_texture(SwiftSDL3Context *context, SwiftSDL3Texture *textur
     SDL_SetTextureAlphaMod(texture->texture, alpha);
     SDL_FRect destination = { x, y, width, height };
     return SDL_RenderTexture(context->renderer, texture->texture, NULL, &destination);
+}
+
+bool swift_sdl3_draw_texture_region(SwiftSDL3Context *context, SwiftSDL3Texture *texture,
+                                    float sourceX, float sourceY, float sourceWidth, float sourceHeight,
+                                    float x, float y, float width, float height,
+                                    uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha) {
+    if (context == NULL || context->renderer == NULL || texture == NULL || texture->texture == NULL) {
+        return false;
+    }
+    SDL_SetTextureColorMod(texture->texture, red, green, blue);
+    SDL_SetTextureAlphaMod(texture->texture, alpha);
+    SDL_FRect source = { sourceX, sourceY, sourceWidth, sourceHeight };
+    SDL_FRect destination = { x, y, width, height };
+    return SDL_RenderTexture(context->renderer, texture->texture, &source, &destination);
 }
 
 SwiftSDL3Audio *swift_sdl3_audio_create(const char *path, bool loop) {

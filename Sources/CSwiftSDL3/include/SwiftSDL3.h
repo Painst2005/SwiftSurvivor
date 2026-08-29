@@ -41,6 +41,7 @@ bool swift_sdl3_fill_circle(SwiftSDL3Context *context, float centerX, float cent
 bool swift_sdl3_line(SwiftSDL3Context *context, float x1, float y1, float x2, float y2);
 bool swift_sdl3_debug_text(SwiftSDL3Context *context, float x, float y, const char *utf8);
 SwiftSDL3Texture *swift_sdl3_texture_create(SwiftSDL3Context *context, int width, int height, const void *pixels, int pitch);
+bool swift_sdl3_texture_update(SwiftSDL3Texture *texture, const void *pixels, int pitch);
 void swift_sdl3_texture_destroy(SwiftSDL3Texture *texture);
 bool swift_sdl3_draw_texture(SwiftSDL3Context *context, SwiftSDL3Texture *texture, float x, float y, float width, float height, uint8_t alpha);
 void swift_sdl3_present(SwiftSDL3Context *context);

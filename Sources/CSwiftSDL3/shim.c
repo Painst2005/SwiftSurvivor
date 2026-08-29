@@ -187,6 +187,13 @@ SwiftSDL3Texture *swift_sdl3_texture_create(SwiftSDL3Context *context, int width
     return result;
 }
 
+bool swift_sdl3_texture_update(SwiftSDL3Texture *texture, const void *pixels, int pitch) {
+    if (texture == NULL || texture->texture == NULL || pixels == NULL || pitch <= 0) {
+        return false;
+    }
+    return SDL_UpdateTexture(texture->texture, NULL, pixels, pitch);
+}
+
 void swift_sdl3_texture_destroy(SwiftSDL3Texture *texture) {
     if (texture == NULL) {
         return;

@@ -148,6 +148,13 @@ final class SDLTexture: GameTexture {
     }
 
     deinit { swift_sdl3_texture_destroy(handle) }
+
+    func update(rgbaPixels: [UInt8]) -> Bool {
+        guard rgbaPixels.count >= width * height * 4 else { return false }
+        return rgbaPixels.withUnsafeBytes { bytes in
+            swift_sdl3_texture_update(handle, bytes.baseAddress, Int32(width * 4))
+        }
+    }
 }
 
 enum GameAction: Hashable {
@@ -162,10 +169,12 @@ final class SDLInputManager {
     private var pressedKeys: Set<Int32> = []
     private var releasedKeys: Set<Int32> = []
     private var quitRequested = false
+    private var clickPosition: (x: Float, y: Float)?
 
     func beginFrame(events: [SDLInputEvent]) {
         pressedKeys.removeAll(keepingCapacity: true)
         releasedKeys.removeAll(keepingCapacity: true)
+        clickPosition = nil
         for event in events {
             switch event.kind {
             case .quit: quitRequested = true
@@ -176,7 +185,9 @@ final class SDLInputManager {
                 heldKeys.remove(event.key); releasedKeys.insert(event.key)
             case .mouseMotion:
                 mousePosition = (event.x, event.y)
-            case .mouseButtonDown, .mouseButtonUp, .windowResized:
+            case .mouseButtonDown:
+                if event.button == 1 { clickPosition = (event.x, event.y) }
+            case .mouseButtonUp, .windowResized:
                 break
             }
         }
@@ -188,6 +199,10 @@ final class SDLInputManager {
     func isPressed(_ action: GameAction) -> Bool { mappedCodes(for: action).contains { pressedKeys.contains($0) } }
     func isReleased(_ action: GameAction) -> Bool { mappedCodes(for: action).contains { releasedKeys.contains($0) } }
     func isPressed(keyCode: Int32) -> Bool { pressedKeys.contains(keyCode) }
+    func consumePrimaryClick() -> (x: Float, y: Float)? {
+        defer { clickPosition = nil }
+        return clickPosition
+    }
 
     private func mappedCodes(for action: GameAction) -> [Int32] {
         switch action {

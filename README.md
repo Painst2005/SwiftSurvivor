@@ -32,6 +32,12 @@ Copy-Item Vendor\SDL3-3.4.14\lib\x64\SDL3.dll .build-game\x86_64-unknown-windows
 .build-game\x86_64-unknown-windows-msvc\release\SwiftSurvivor.exe --sdl-game
 ```
 
+运行完整本地化 UI 的 SDL 展示桥接模式（GDI 负责字体栅格化，SDL 负责窗口和最终呈现）：
+
+```powershell
+.build-game\x86_64-unknown-windows-msvc\release\SwiftSurvivor.exe --sdl-full
+```
+
 也可以直接运行构建出的程序：
 
 ```powershell

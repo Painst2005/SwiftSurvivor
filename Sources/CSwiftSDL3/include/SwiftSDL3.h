@@ -37,6 +37,7 @@ bool swift_sdl3_poll_event(SwiftSDL3Event *event);
 void swift_sdl3_begin_frame(SwiftSDL3Context *context, uint8_t r, uint8_t g, uint8_t b, uint8_t a);
 void swift_sdl3_set_draw_color(SwiftSDL3Context *context, uint8_t r, uint8_t g, uint8_t b, uint8_t a);
 bool swift_sdl3_fill_rect(SwiftSDL3Context *context, float x, float y, float width, float height);
+bool swift_sdl3_fill_circle(SwiftSDL3Context *context, float centerX, float centerY, float radius);
 bool swift_sdl3_line(SwiftSDL3Context *context, float x1, float y1, float x2, float y2);
 bool swift_sdl3_debug_text(SwiftSDL3Context *context, float x, float y, const char *utf8);
 SwiftSDL3Texture *swift_sdl3_texture_create(SwiftSDL3Context *context, int width, int height, const void *pixels, int pitch);

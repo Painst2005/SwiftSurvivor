@@ -98,6 +98,11 @@ final class SDLRenderer: GameRenderer {
         _ = swift_sdl3_fill_rect(platform.context, rect.x, rect.y, rect.width, rect.height)
     }
 
+    func fillCircle(center: (x: Float, y: Float), radius: Float, color: RenderColor) {
+        setColor(color)
+        _ = swift_sdl3_fill_circle(platform.context, center.x, center.y, radius)
+    }
+
     func line(from start: (x: Float, y: Float), to end: (x: Float, y: Float), color: RenderColor) {
         setColor(color)
         _ = swift_sdl3_line(platform.context, start.x, start.y, end.x, end.y)
@@ -182,6 +187,7 @@ final class SDLInputManager {
     func isHeld(_ action: GameAction) -> Bool { mappedCodes(for: action).contains { heldKeys.contains($0) } }
     func isPressed(_ action: GameAction) -> Bool { mappedCodes(for: action).contains { pressedKeys.contains($0) } }
     func isReleased(_ action: GameAction) -> Bool { mappedCodes(for: action).contains { releasedKeys.contains($0) } }
+    func isPressed(keyCode: Int32) -> Bool { pressedKeys.contains(keyCode) }
 
     private func mappedCodes(for action: GameAction) -> [Int32] {
         switch action {

@@ -25,6 +25,7 @@ protocol GameRenderer: AnyObject {
     var drawableSize: (width: Int, height: Int) { get }
     func beginFrame(clear color: RenderColor)
     func fillRect(_ rect: RenderRect, color: RenderColor)
+    func fillCircle(center: (x: Float, y: Float), radius: Float, color: RenderColor)
     func line(from start: (x: Float, y: Float), to end: (x: Float, y: Float), color: RenderColor)
     func drawSprite(_ texture: GameTexture, in destination: RenderRect, alpha: UInt8)
     func drawText(_ text: String, at position: (x: Float, y: Float), color: RenderColor)

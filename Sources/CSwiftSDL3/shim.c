@@ -134,6 +134,22 @@ bool swift_sdl3_fill_rect(SwiftSDL3Context *context, float x, float y, float wid
     return SDL_RenderFillRect(context->renderer, &rect);
 }
 
+bool swift_sdl3_fill_circle(SwiftSDL3Context *context, float centerX, float centerY, float radius) {
+    if (context == NULL || context->renderer == NULL || radius <= 0.0f) {
+        return false;
+    }
+    int minY = (int)(centerY - radius);
+    int maxY = (int)(centerY + radius);
+    for (int y = minY; y <= maxY; ++y) {
+        float dy = (float)y - centerY;
+        float span = SDL_sqrtf(SDL_max(0.0f, radius * radius - dy * dy));
+        if (!SDL_RenderLine(context->renderer, centerX - span, (float)y, centerX + span, (float)y)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool swift_sdl3_line(SwiftSDL3Context *context, float x1, float y1, float x2, float y2) {
     if (context == NULL || context->renderer == NULL) {
         return false;

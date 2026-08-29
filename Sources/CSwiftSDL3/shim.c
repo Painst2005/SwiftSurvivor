@@ -353,3 +353,4 @@ int32_t swift_sdl3_keycode_shift(void) { return (int32_t)SDLK_LSHIFT; }
 int32_t swift_sdl3_keycode_escape(void) { return (int32_t)SDLK_ESCAPE; }
 int32_t swift_sdl3_keycode_enter(void) { return (int32_t)SDLK_RETURN; }
 int32_t swift_sdl3_keycode_q(void) { return (int32_t)SDLK_Q; }
+int32_t swift_sdl3_keycode_f8(void) { return (int32_t)SDLK_F8; }

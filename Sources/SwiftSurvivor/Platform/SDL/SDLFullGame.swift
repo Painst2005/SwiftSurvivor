@@ -120,6 +120,7 @@ enum SDLFullGame {
             }
         }
         if input.isPressedQ(), Game.shared.phase == .playing { Game.shared.cycleWeapon() }
+        if input.isPressedFeedbackDebug() { Game.shared.debugFeedbackTest() }
         if Game.shared.phase == .upgrade {
             if input.isPressed(keyCode: 49) { Game.shared.chooseUpgrade(0) }
             if input.isPressed(keyCode: 50) { Game.shared.chooseUpgrade(1) }

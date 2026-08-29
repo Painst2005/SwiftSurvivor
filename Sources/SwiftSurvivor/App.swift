@@ -471,6 +471,7 @@ struct UIRect {
 }
 
 struct Enemy {
+    var feedbackID: Int = 0
     var position: Vec2
     var baseX: Double
     var radius: Double
@@ -488,6 +489,9 @@ struct Enemy {
     var attackWarningActive: Bool = false
     var diveStarted: Bool = false
     var spawnTimer: Double = 4.5
+    // Presentation-only response. Collision and movement always use position.
+    var visualOffset: Vec2 = .zero
+    var hitFlash: Double = 0
 }
 
 struct PowerUp {
@@ -503,6 +507,7 @@ struct Particle {
     var life: Double
     var maxLife: Double
     var tint: COLORREF
+    var kind: FeedbackParticleKind = .spark
 }
 
 struct DamageNumber {
@@ -511,6 +516,7 @@ struct DamageNumber {
     var critical: Bool
     var life: Double
     var maxLife: Double
+    var tint: COLORREF = rgb(255, 231, 150)
 }
 
 struct Star {
@@ -539,6 +545,8 @@ struct Boss {
     var laserCooldown: Double = 5
     var laserX: Double = 0
     var laserHitCooldown: Double = 0
+    var visualOffset: Vec2 = .zero
+    var hitFlash: Double = 0
 }
 
 enum BossType: Int, CaseIterable {
@@ -692,6 +700,15 @@ final class Game: @unchecked Sendable {
     var thunderOverloadTime = 0.0
     var cameraShakeTime = 0.0
     var cameraShakeStrength = 0.0
+    let combatFeedback = CombatFeedbackSystem()
+    var playerVisualOffset = Vec2.zero
+    var playerHitFlash = 0.0
+    var playerShieldFlash = 0.0
+    var healthLag = 120.0
+    var healthBarFlash = 0.0
+    var damageEdgeFlash = 0.0
+    var nextFeedbackID = 1
+    var feedbackDebugIndex = 0
     var score = 0
     var kills = 0
     var experience = 0
@@ -988,6 +1005,15 @@ final class Game: @unchecked Sendable {
         thunderOverloadTime = 0
         cameraShakeTime = 0
         cameraShakeStrength = 0
+        playerVisualOffset = .zero
+        playerHitFlash = 0
+        playerShieldFlash = 0
+        healthLag = maxHealth
+        healthBarFlash = 0
+        damageEdgeFlash = 0
+        nextFeedbackID = 1
+        feedbackDebugIndex = 0
+        combatFeedback.reset()
         score = 0
         kills = 0
         runCreditsEarned = 0
@@ -1005,19 +1031,31 @@ final class Game: @unchecked Sendable {
     }
 
     func update(delta rawDelta: Double, width: Double, height: Double) {
-        let delta = min(max(rawDelta, 0), 0.05)
+        let realDelta = min(max(rawDelta, 0), 0.05)
         if stars.isEmpty { initializeStars(width: width, height: height) }
         if phase == .menu || phase == .saveSlots || phase == .missionSelect || phase == .controls || phase == .hangar || phase == .settings || phase == .archive {
-            updateStars(delta: delta, height: height)
-            updateParticles(delta: delta)
-            hangarMessageTimer = max(0, hangarMessageTimer - delta)
+            updateStars(delta: realDelta, height: height)
+            updateParticles(delta: realDelta)
+            hangarMessageTimer = max(0, hangarMessageTimer - realDelta)
+            return
+        }
+        // The death/defeat screen still needs to advance presentation-only feedback.
+        // Gameplay remains stopped, while particles, damage numbers, hit flashes and
+        // the delayed health bar are allowed to finish their short animations.
+        if phase == .gameOver {
+            updateStars(delta: realDelta, height: height)
+            updateParticles(delta: realDelta)
+            updateDamageNumbers(delta: realDelta)
+            _ = combatFeedback.advance(realDelta: realDelta, game: self)
             return
         }
         guard phase == .playing else { return }
-        updateStars(delta: delta, height: height)
-        updateParticles(delta: delta)
-        updateDamageNumbers(delta: delta)
-        updateCameraShake(delta: delta)
+        updateStars(delta: realDelta, height: height)
+        updateParticles(delta: realDelta)
+        updateDamageNumbers(delta: realDelta)
+        let gameplayDelta = combatFeedback.advance(realDelta: realDelta, game: self)
+        guard gameplayDelta > 0 else { return }
+        let delta = gameplayDelta
 
         survivalTime += delta
         stage = gameMode == .campaign ? activeMission.id : Int(survivalTime / 45.0) + 1
@@ -1108,6 +1146,8 @@ final class Game: @unchecked Sendable {
 
         if health <= 0 {
             health = 0
+            combatFeedback.play(.playerKilled,
+                                context: FeedbackContext(position: player, level: .critical, tint: rgb(255, 118, 140)), game: self)
             phase = .gameOver
             profile.bestCombo = max(profile.bestCombo, comboBest)
             profile.bestScore = max(profile.bestScore, score)
@@ -1214,7 +1254,10 @@ final class Game: @unchecked Sendable {
             radius = pattern == 2 ? 19 : 17; hpMultiplier = 1.0; speed = 54; tint = pattern == 1 ? rgb(232, 101, 68) : (pattern == 2 ? rgb(177, 77, 224) : rgb(235, 65, 108)); initialShoot = Double.random(in: 2.2...3.8, using: &rng)
         }
         let hp = (24.0 + survivalTime * 0.22 + Double(stage - 1) * 10) * hpMultiplier * activeDifficultyMultiplier
-        enemies.append(Enemy(position: position,
+        let feedbackID = nextFeedbackID
+        nextFeedbackID &+= 1
+        enemies.append(Enemy(feedbackID: feedbackID,
+                             position: position,
                              baseX: position.x,
                              radius: radius,
                              speed: (speed + survivalTime * 0.04 + Double(stage - 1) * 7) * (0.88 + activeDifficultyMultiplier * 0.12),
@@ -1954,37 +1997,40 @@ final class Game: @unchecked Sendable {
                     let hitPosition: Vec2
                     switch hitPart {
                     case .leftTurret:
+                        let wasAlive = currentBoss.leftTurretHealth > 0
                         currentBoss.leftTurretHealth = max(0, currentBoss.leftTurretHealth - finalDamage)
                         currentBoss.health -= finalDamage * 0.45
                         hitPosition = currentBoss.position + Vec2(x: -102, y: 18)
-                        if currentBoss.leftTurretHealth <= 0 {
+                        if wasAlive && currentBoss.leftTurretHealth <= 0 {
                             notifyPickup(title: "BOSS TURRET DESTROYED", detail: "Left weapon disabled", tint: rgb(255, 188, 112))
-                            spawnExplosion(at: hitPosition, tint: rgb(255, 188, 112), count: 22)
-                            addCameraShake(strength: 6)
+                            combatFeedback.play(.bossPartDestroyed,
+                                                context: FeedbackContext(position: hitPosition, direction: bullets[index].velocity.normalized,
+                                                                         damage: finalDamage, level: .heavy, tint: rgb(255, 188, 112)), game: self)
                         }
                     case .rightTurret:
+                        let wasAlive = currentBoss.rightTurretHealth > 0
                         currentBoss.rightTurretHealth = max(0, currentBoss.rightTurretHealth - finalDamage)
                         currentBoss.health -= finalDamage * 0.45
                         hitPosition = currentBoss.position + Vec2(x: 102, y: 18)
-                        if currentBoss.rightTurretHealth <= 0 {
+                        if wasAlive && currentBoss.rightTurretHealth <= 0 {
                             notifyPickup(title: "BOSS TURRET DESTROYED", detail: "Right weapon disabled", tint: rgb(255, 188, 112))
-                            spawnExplosion(at: hitPosition, tint: rgb(255, 188, 112), count: 22)
-                            addCameraShake(strength: 6)
+                            combatFeedback.play(.bossPartDestroyed,
+                                                context: FeedbackContext(position: hitPosition, direction: bullets[index].velocity.normalized,
+                                                                         damage: finalDamage, level: .heavy, tint: rgb(255, 188, 112)), game: self)
                         }
                     case .core:
                         currentBoss.health -= finalDamage
                         hitPosition = currentBoss.position
                     }
                     boss = currentBoss
-                    addDamageNumber(at: hitPosition, amount: Int(finalDamage), critical: critical)
-                    spawnHit(at: bullets[index].position, tint: rgb(255, 225, 122))
-                    if bullets[index].weaponStyle == WeaponType.missile.rawValue {
-                        spawnExplosion(at: bullets[index].position, tint: rgb(255, 133, 92), count: 12)
-                        addCameraShake(strength: 3.5)
-                    } else if bullets[index].weaponStyle == WeaponType.electromagnetic.rawValue {
-                        spawnHit(at: bullets[index].position, tint: rgb(191, 133, 255))
-                    }
-                    if critical { addCameraShake(strength: 2.5) }
+                    let bossDamageKind: FeedbackDamageKind = bullets[index].weaponStyle == WeaponType.missile.rawValue ? .missile :
+                        (bullets[index].weaponStyle == WeaponType.electromagnetic.rawValue ? .electromagnetic :
+                            (bullets[index].weaponStyle == WeaponType.laser.rawValue ? .laser : .cannon))
+                    let bossFeedback = FeedbackContext(position: hitPosition, direction: bullets[index].velocity.normalized,
+                                                        damage: finalDamage, level: critical ? .medium : .light, critical: critical,
+                                                        damageKind: bossDamageKind,
+                                                        tint: bullets[index].weaponStyle == WeaponType.electromagnetic.rawValue ? rgb(191, 133, 255) : rgb(255, 225, 122))
+                    combatFeedback.play(critical ? .criticalHit : .enemyHit, context: bossFeedback, game: self)
                     if critical, stormCoreActive { thunderEnergy = min(100, thunderEnergy + 4) }
                     if laserTime > 0 || bullets[index].pierceRemaining > 0 {
                         if laserTime <= 0 { bullets[index].pierceRemaining -= 1 }
@@ -1994,7 +2040,10 @@ final class Game: @unchecked Sendable {
                     }
                     if currentBoss.health <= 0 {
                         registerBossDefeat(at: currentBoss.position)
-                        spawnExplosion(at: currentBoss.position, tint: rgb(244, 104, 255), count: 55)
+                        combatFeedback.play(.bossKilled,
+                                            context: FeedbackContext(position: currentBoss.position, direction: bullets[index].velocity.normalized,
+                                                                     damage: finalDamage, level: .critical, critical: critical,
+                                                                     damageKind: bossDamageKind, tint: rgb(244, 104, 255)), game: self)
                         boss = nil
                     }
                 } else {
@@ -2004,16 +2053,20 @@ final class Game: @unchecked Sendable {
                             let critical = Double.random(in: 0...1, using: &rng) < criticalChance
                             let shieldMultiplier = isEnemyProtected(enemyIndex) ? 0.55 : 1.0
                             let finalDamage = bullets[index].damage * (critical ? criticalMultiplier : 1.0) * (thunderOverloadTime > 0 ? 1.45 : 1.0) * shieldMultiplier
+                            let remainingHealth = enemies[enemyIndex].health
+                            let targetID = enemies[enemyIndex].feedbackID
+                            let targetTint = enemies[enemyIndex].tint
+                            let enemyType = EnemyType(rawValue: enemies[enemyIndex].type) ?? .fighter
                             enemies[enemyIndex].health -= finalDamage
-                            addDamageNumber(at: bullets[index].position, amount: Int(finalDamage), critical: critical)
-                            spawnHit(at: bullets[index].position, tint: rgb(255, 225, 122))
-                            if bullets[index].weaponStyle == WeaponType.missile.rawValue {
-                                spawnExplosion(at: bullets[index].position, tint: rgb(255, 133, 92), count: 10)
-                                addCameraShake(strength: 3.0)
-                            } else if bullets[index].weaponStyle == WeaponType.electromagnetic.rawValue {
-                                spawnHit(at: bullets[index].position, tint: rgb(191, 133, 255))
-                            }
-                            if critical { addCameraShake(strength: 1.8) }
+                            let damageKind: FeedbackDamageKind = bullets[index].weaponStyle == WeaponType.missile.rawValue ? .missile :
+                                (bullets[index].weaponStyle == WeaponType.electromagnetic.rawValue ? .electromagnetic :
+                                    (bullets[index].weaponStyle == WeaponType.laser.rawValue ? .laser : .cannon))
+                            let feedback = FeedbackContext(position: bullets[index].position, direction: bullets[index].velocity.normalized,
+                                                           damage: finalDamage, level: critical ? .medium : .light, targetID: targetID,
+                                                           critical: critical, overkill: finalDamage > max(1, remainingHealth) * 2.5,
+                                                           damageKind: damageKind,
+                                                           tint: bullets[index].weaponStyle == WeaponType.electromagnetic.rawValue ? rgb(191, 133, 255) : rgb(255, 225, 122))
+                            combatFeedback.play(critical ? .criticalHit : .enemyHit, context: feedback, game: self)
                             if critical, stormCoreActive { thunderEnergy = min(100, thunderEnergy + 4) }
                             if laserTime > 0 || bullets[index].pierceRemaining > 0 {
                                 if laserTime <= 0 { bullets[index].pierceRemaining -= 1 }
@@ -2032,7 +2085,11 @@ final class Game: @unchecked Sendable {
                                                                  life: 12))
                                     }
                                 }
-                                spawnExplosion(at: defeated.position, tint: defeated.tint, count: defeated.radius > 18 ? 24 : 14)
+                                let isElite = enemyType == .turret || enemyType == .carrier || defeated.radius >= 23
+                                combatFeedback.play(isElite ? .eliteKilled : .enemyKilled,
+                                                    context: FeedbackContext(position: defeated.position, direction: bullets[index].velocity.normalized,
+                                                                             damage: finalDamage, level: isElite ? .heavy : .medium,
+                                                                             overkill: feedback.overkill, damageKind: damageKind, tint: targetTint), game: self)
                                 checkForUpgradeReady()
                             }
                             break
@@ -2106,22 +2163,63 @@ final class Game: @unchecked Sendable {
     }
 
     private func damagePlayer(amount: Double) {
-        guard reflectorTime <= 0, playerInvulnerability <= 0 else { return }
+        let incomingDirection = (player - Vec2(x: player.x, y: player.y - 1)).normalized
+        if reflectorTime > 0 {
+            combatFeedback.play(.shieldHit,
+                                context: FeedbackContext(position: player, direction: incomingDirection, damage: amount,
+                                                         level: .light, damageKind: .enemyBullet, tint: rgb(126, 196, 255)), game: self)
+            return
+        }
+        guard playerInvulnerability <= 0 else { return }
         if armorShieldCharges > 0 {
             armorShieldCharges -= 1
             playerInvulnerability = 0.72
             notifyPickup(title: "ARMOR SHIELD ABSORBED", detail: "\(armorShieldCharges) charge(s) remaining", tint: rgb(122, 232, 204))
-            spawnHit(at: player, tint: rgb(122, 232, 204))
-            addCameraShake(strength: 2.5)
+            combatFeedback.play(.shieldHit,
+                                context: FeedbackContext(position: player, direction: incomingDirection, damage: amount,
+                                                         level: .medium, damageKind: .enemyBullet, tint: rgb(122, 232, 204)), game: self)
+            if armorShieldCharges == 0 {
+                combatFeedback.play(.shieldBreak,
+                                    context: FeedbackContext(position: player, direction: incomingDirection, damage: amount,
+                                                             level: .heavy, damageKind: .enemyBullet, tint: rgb(114, 222, 255)), game: self)
+            }
             return
         }
-        health -= amount * (1.0 - armorDamageReduction)
+        let actualDamage = amount * (1.0 - armorDamageReduction)
+        health -= actualDamage
         playerInvulnerability = 0.50
         combo = max(0, combo - 5)
         comboTimer = 0
         thunderEnergy = max(0, thunderEnergy - 10)
-        addCameraShake(strength: 5)
-        spawnHit(at: player, tint: rgb(255, 105, 132))
+        combatFeedback.play(.playerHit,
+                            context: FeedbackContext(position: player, direction: incomingDirection, damage: actualDamage,
+                                                     level: actualDamage >= maxHealth * 0.18 ? .heavy : .medium,
+                                                     damageKind: .enemyBullet, tint: rgb(255, 105, 132)), game: self)
+    }
+
+    /// F8 cycles through feedback samples without requiring a full boss run.
+    func debugFeedbackTest() {
+        guard phase == .playing else { return }
+        feedbackDebugIndex = (feedbackDebugIndex + 1) % 8
+        let point = enemies.first?.position ?? (boss?.position ?? player + Vec2(x: 0, y: -90))
+        let targetID = enemies.first?.feedbackID
+        let event: CombatEvent
+        let level: FeedbackLevel
+        switch feedbackDebugIndex {
+        case 0: event = .enemyHit; level = .light
+        case 1: event = .criticalHit; level = .medium
+        case 2: event = .enemyKilled; level = .medium
+        case 3: event = .eliteKilled; level = .heavy
+        case 4: event = .playerHit; level = .medium
+        case 5: event = .shieldHit; level = .medium
+        case 6: event = .shieldBreak; level = .heavy
+        default: event = .bossKilled; level = .critical
+        }
+        combatFeedback.play(event,
+                            context: FeedbackContext(position: point, direction: Vec2(x: 0, y: -1), damage: 128,
+                                                     level: level, targetID: targetID, critical: event == .criticalHit,
+                                                     tint: event == .shieldHit || event == .shieldBreak ? rgb(114, 222, 255) : rgb(255, 190, 112)), game: self)
+        notifyFeedback(title: "FEEDBACK TEST", chineseTitle: "反馈测试", tint: rgb(126, 231, 255))
     }
 
     private func notifyPickup(title: String, detail: String, tint: COLORREF) {
@@ -2424,23 +2522,16 @@ final class Game: @unchecked Sendable {
     }
 
     private func addCameraShake(strength: Double) {
-        let multipliers = [0.0, 0.45, 1.0, 1.35]
-        let multiplier = multipliers[min(3, max(0, profile.cameraShake))]
-        guard multiplier > 0 else { return }
-        let adjusted = strength * multiplier
-        cameraShakeStrength = min(22, max(cameraShakeStrength, adjusted))
-        cameraShakeTime = min(0.45, max(cameraShakeTime, adjusted > 10 ? 0.35 : 0.18))
+        combatFeedback.requestLegacyShake(strength: strength, game: self)
     }
 
     private func updateCameraShake(delta: Double) {
-        cameraShakeTime = max(0, cameraShakeTime - delta)
-        cameraShakeStrength = max(0, cameraShakeStrength - delta * 38)
+        // CombatFeedbackSystem owns camera timing. Retained as a compatibility
+        // seam for old callers while gameplay migrates to combat events.
     }
 
     func currentShakeOffset() -> Vec2 {
-        guard cameraShakeTime > 0, cameraShakeStrength > 0 else { return .zero }
-        return Vec2(x: Double.random(in: -cameraShakeStrength...cameraShakeStrength, using: &rng),
-                    y: Double.random(in: -cameraShakeStrength...cameraShakeStrength, using: &rng))
+        combatFeedback.cameraOffset
     }
 
     // Experience is an upgrade-charge meter, not a player-level system.

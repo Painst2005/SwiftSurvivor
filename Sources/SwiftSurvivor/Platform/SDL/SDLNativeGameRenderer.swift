@@ -38,11 +38,13 @@ enum SDLNativeGameRenderer {
 
     private static func drawBattle(_ r: GameRenderer, game: Game, width: Int, height: Int) {
         let field = playfieldBounds(width: Double(width), height: Double(height))
+        let camera = game.combatFeedback.cameraOffset
         text(r, t(game, "THUNDER SWIFT", "雷霆疾影"), 16, 16, RenderColor(225, 242, 255))
         text(r, t(game, "STAGE", "关卡") + " \(game.stage)", 190, 16, RenderColor(126, 190, 255))
         text(r, t(game, "KILLS", "击杀") + " \(game.kills)", Float(width - 170), 16, RenderColor(235, 187, 255))
         text(r, t(game, "SCORE", "分数") + " \(game.score)", Float(width - 90), 16, RenderColor(255, 219, 125))
-        bar(r, x: 18, y: 39, width: 190, value: game.health / max(1, game.maxHealth), fill: RenderColor(239, 70, 105), back: RenderColor(61, 28, 53))
+        bar(r, x: 18, y: 39, width: 190, value: game.healthLag / max(1, game.maxHealth), fill: RenderColor(255, 171, 93, game.healthBarFlash > 0 ? 245 : 165), back: RenderColor(61, 28, 53))
+        bar(r, x: 18, y: 39, width: 190, value: game.health / max(1, game.maxHealth), fill: RenderColor(239, 70, 105), back: RenderColor(0, 0, 0, 0))
         text(r, t(game, "HP", "生命") + " \(Int(game.health))/\(Int(game.maxHealth))", 22, 42, RenderColor(255, 244, 247))
         bar(r, x: 225, y: 39, width: 190, value: Double(game.experience) / Double(max(1, game.experienceGoal)), fill: RenderColor(138, 229, 255), back: RenderColor(22, 56, 79))
         text(r, t(game, "XP", "经验"), 232, 42, RenderColor(215, 245, 255))
@@ -56,8 +58,8 @@ enum SDLNativeGameRenderer {
         }
 
         for enemy in game.enemies {
-            let p = enemy.position
-            let c = color(enemy.tint)
+            let p = enemy.position + enemy.visualOffset + camera
+            let c = highlighted(color(enemy.tint), amount: enemy.hitFlash > 0 ? 0.82 : 0)
             r.fillCircle(center: (Float(p.x), Float(p.y)), radius: Float(max(6, enemy.radius)), color: c)
             r.fillRect(RenderRect(x: Float(p.x - enemy.radius), y: Float(p.y - enemy.radius - 8), width: Float(enemy.radius * 2), height: 3), color: RenderColor(55, 24, 47))
             r.fillRect(RenderRect(x: Float(p.x - enemy.radius), y: Float(p.y - enemy.radius - 8), width: Float(max(0, enemy.radius * 2 * enemy.health / max(1, enemy.maxHealth))), height: 3), color: RenderColor(255, 134, 126))
@@ -66,30 +68,68 @@ enum SDLNativeGameRenderer {
             }
         }
         if let boss = game.boss {
-            r.fillCircle(center: (Float(boss.position.x), Float(boss.position.y)), radius: 54, color: RenderColor(119, 44, 159))
-            r.fillCircle(center: (Float(boss.position.x), Float(boss.position.y)), radius: 35, color: RenderColor(237, 102, 221))
+            let p = boss.position + boss.visualOffset + camera
+            r.fillCircle(center: (Float(p.x), Float(p.y)), radius: 54, color: highlighted(RenderColor(119, 44, 159), amount: boss.hitFlash > 0 ? 0.75 : 0))
+            r.fillCircle(center: (Float(p.x), Float(p.y)), radius: 35, color: highlighted(RenderColor(237, 102, 221), amount: boss.hitFlash > 0 ? 0.92 : 0))
             if boss.laserWarningTimer > 0 || boss.laserActiveTimer > 0 {
                 let active = boss.laserActiveTimer > 0
-                r.fillRect(RenderRect(x: Float(boss.laserX - (active ? 12 : 3)), y: Float(field.top), width: Float(active ? 24 : 6), height: Float(field.bottom - field.top)), color: active ? RenderColor(255, 71, 142, 175) : RenderColor(183, 48, 92, 130))
+                r.fillRect(RenderRect(x: Float(boss.laserX + camera.x - (active ? 12 : 3)), y: Float(field.top + camera.y), width: Float(active ? 24 : 6), height: Float(field.bottom - field.top)), color: active ? RenderColor(255, 71, 142, 175) : RenderColor(183, 48, 92, 130))
             }
         }
         for bullet in game.bullets {
-            let p = bullet.position
+            let p = bullet.position + camera
             let radius = Float(max(2, bullet.radius))
             r.fillCircle(center: (Float(p.x), Float(p.y)), radius: radius, color: color(bullet.tint))
             if bullet.playerOwned { r.line(from: (Float(p.x), Float(p.y + Double(radius) * 2)), to: (Float(p.x), Float(p.y - Double(radius) * 2)), color: color(bullet.tint)) }
         }
         for pickup in game.powerUps {
             let c: RenderColor = pickup.kind == 0 ? RenderColor(89, 236, 255) : (pickup.kind == 1 ? RenderColor(126, 196, 255) : RenderColor(255, 214, 110))
-            r.fillRect(RenderRect(x: Float(pickup.position.x - 10), y: Float(pickup.position.y - 10), width: 20, height: 20), color: c)
-            text(r, pickup.kind == 0 ? "L" : (pickup.kind == 1 ? "S" : "+") , Float(pickup.position.x - 3), Float(pickup.position.y - 6), RenderColor(17, 33, 60))
+            let p = pickup.position + camera
+            r.fillRect(RenderRect(x: Float(p.x - 10), y: Float(p.y - 10), width: 20, height: 20), color: c)
+            text(r, pickup.kind == 0 ? "L" : (pickup.kind == 1 ? "S" : "+") , Float(p.x - 3), Float(p.y - 6), RenderColor(17, 33, 60))
         }
         for particle in game.particles {
-            r.fillCircle(center: (Float(particle.position.x), Float(particle.position.y)), radius: Float(max(1, particle.radius)), color: color(particle.tint))
+            let life = max(0, min(1, particle.life / max(0.001, particle.maxLife)))
+            let p = particle.position + camera
+            let particleColor = color(particle.tint)
+            switch particle.kind {
+            case .coreFlash:
+                r.fillCircle(center: (Float(p.x), Float(p.y)), radius: Float(max(4, particle.radius * (1 + (1 - life) * 1.8))), color: RenderColor(255, 248, 228, UInt8(220 * life)))
+            case .shockwave:
+                r.fillCircle(center: (Float(p.x), Float(p.y)), radius: Float(particle.radius * (1 + (1 - life) * 4)), color: RenderColor(particleColor.red, particleColor.green, particleColor.blue, UInt8(70 * life)))
+            case .smoke:
+                r.fillCircle(center: (Float(p.x), Float(p.y)), radius: Float(particle.radius * (1 + (1 - life) * 0.6)), color: RenderColor(particleColor.red, particleColor.green, particleColor.blue, UInt8(70 * life)))
+            default:
+                r.fillCircle(center: (Float(p.x), Float(p.y)), radius: Float(max(1, particle.radius)), color: RenderColor(particleColor.red, particleColor.green, particleColor.blue, UInt8(255 * life)))
+            }
         }
-        r.fillCircle(center: (Float(game.player.x), Float(game.player.y)), radius: 18, color: RenderColor(81, 205, 255))
-        r.fillCircle(center: (Float(game.player.x), Float(game.player.y - 7)), radius: 8, color: RenderColor(232, 250, 255))
-        if game.precisionMode { r.fillCircle(center: (Float(game.player.x), Float(game.player.y)), radius: 5, color: RenderColor(255, 229, 112)) }
+        if let bossDeath = game.combatFeedback.bossDeath {
+            let p = bossDeath.position + camera
+            let pulse = 16 + Float(bossDeath.elapsed) * 40
+            r.fillCircle(center: (Float(p.x), Float(p.y)), radius: pulse, color: RenderColor(255, 190, 244, 78))
+        }
+        for number in game.damageNumbers {
+            let p = number.position + camera
+            let remaining = max(0, min(1, number.life / max(0.001, number.maxLife)))
+            let value = number.critical ? "\(number.amount)!" : "\(number.amount)"
+            let nColor = color(number.tint)
+            text(r, value, Float(p.x), Float(p.y), RenderColor(nColor.red, nColor.green, nColor.blue, UInt8(255 * remaining)))
+            if number.critical { text(r, "!", Float(p.x + 16), Float(p.y - 3), RenderColor(255, 249, 180, UInt8(220 * remaining))) }
+        }
+        let playerP = game.player + game.playerVisualOffset + camera
+        let playerColor = game.playerShieldFlash > 0 ? RenderColor(122, 232, 204) :
+            (game.playerHitFlash > 0 ? RenderColor(255, 128, 150) : RenderColor(81, 205, 255))
+        r.fillCircle(center: (Float(playerP.x), Float(playerP.y)), radius: 18, color: playerColor)
+        r.fillCircle(center: (Float(playerP.x), Float(playerP.y - 7)), radius: 8, color: game.playerHitFlash > 0 ? RenderColor(255, 246, 248) : RenderColor(232, 250, 255))
+        if game.playerShieldFlash > 0 { r.fillCircle(center: (Float(playerP.x), Float(playerP.y)), radius: 25, color: RenderColor(112, 224, 255, 68)) }
+        if game.precisionMode { r.fillCircle(center: (Float(playerP.x), Float(playerP.y)), radius: 5, color: RenderColor(255, 229, 112)) }
+        if game.damageEdgeFlash > 0 {
+            let alpha = UInt8(min(115, game.damageEdgeFlash * 440))
+            r.fillRect(RenderRect(x: 0, y: Float(field.top), width: Float(width), height: 14), color: RenderColor(255, 55, 80, alpha))
+            r.fillRect(RenderRect(x: 0, y: Float(height - 14), width: Float(width), height: 14), color: RenderColor(255, 55, 80, alpha))
+            r.fillRect(RenderRect(x: 0, y: Float(field.top), width: 14, height: Float(field.bottom - field.top)), color: RenderColor(255, 55, 80, alpha))
+            r.fillRect(RenderRect(x: Float(width - 14), y: Float(field.top), width: 14, height: Float(field.bottom - field.top)), color: RenderColor(255, 55, 80, alpha))
+        }
         if game.notificationTimer > 0 { text(r, game.notificationTitle, Float(width / 2 - 150), Float(height - 70), color(game.notificationTint)) }
     }
 
@@ -207,5 +247,11 @@ enum SDLNativeGameRenderer {
     private static func color(_ value: UInt32) -> RenderColor {
         let v = UInt32(value)
         return RenderColor(UInt8(v & 0xff), UInt8((v >> 8) & 0xff), UInt8((v >> 16) & 0xff))
+    }
+
+    private static func highlighted(_ color: RenderColor, amount: Double) -> RenderColor {
+        guard amount > 0 else { return color }
+        func blend(_ value: UInt8) -> UInt8 { UInt8(min(255, Double(value) + (255 - Double(value)) * min(1, amount))) }
+        return RenderColor(blend(color.red), blend(color.green), blend(color.blue), color.alpha)
     }
 }

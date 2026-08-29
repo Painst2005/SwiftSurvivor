@@ -7,10 +7,15 @@ import CSwiftSDL3
 /// behavior while the window/presentation path becomes SDL-owned.
 enum SDLFullGame {
     static func run() {
-        var width = Game.shared.profile.resolutionWidth == 1024 ? 1024 : 1280
-        var height = Game.shared.profile.resolutionHeight == 768 ? 768 : 720
+        // Keep gameplay/UI in a stable 16:9 coordinate system. The actual
+        // window is scaled into this canvas with a centered letterbox, so a
+        // 1920x1080 fullscreen display never makes the fighter look tiny.
+        let logicalWidth = 1280
+        let logicalHeight = 720
+        var windowWidth = Game.shared.profile.resolutionWidth == 1024 ? 1024 : 1280
+        var windowHeight = Game.shared.profile.resolutionHeight == 768 ? 768 : 720
         do {
-            let platform = try SDLPlatform(title: "SwiftSurvivor", width: width, height: height, resizable: true)
+            let platform = try SDLPlatform(title: "SwiftSurvivor", width: windowWidth, height: windowHeight, resizable: true)
             let renderer = SDLRenderer(platform: platform)
             let input = SDLInputManager()
             let sdlAudio = SDLAudioService()
@@ -24,7 +29,7 @@ enum SDLFullGame {
             var clock = FixedStepClock()
             var previous = Double(swift_sdl3_ticks_ns()) / 1_000_000_000
             var running = true
-            var appliedResolution = (width, height)
+            var appliedResolution = (windowWidth, windowHeight)
             var appliedFullscreen = Game.shared.profile.isFullscreen
             platform.setFullscreen(appliedFullscreen)
 
@@ -44,42 +49,40 @@ enum SDLFullGame {
                     platform.setFullscreen(requestedFullscreen)
                     if !requestedFullscreen {
                         _ = platform.setWindowSize(width: requestedWidth, height: requestedHeight)
-                        width = requestedWidth
-                        height = requestedHeight
-                        appliedResolution = (width, height)
-                        frameTexture = nil
+                        windowWidth = requestedWidth
+                        windowHeight = requestedHeight
+                        appliedResolution = (windowWidth, windowHeight)
                     }
                 } else if !requestedFullscreen && appliedResolution != (requestedWidth, requestedHeight) {
                     _ = platform.setWindowSize(width: requestedWidth, height: requestedHeight)
-                    width = requestedWidth
-                    height = requestedHeight
-                    appliedResolution = (width, height)
-                    frameTexture = nil
+                    windowWidth = requestedWidth
+                    windowHeight = requestedHeight
+                    appliedResolution = (windowWidth, windowHeight)
                 }
                 if requestedFullscreen, platform.windowSize.width > 0, platform.windowSize.height > 0 {
-                    if width != platform.windowSize.width || height != platform.windowSize.height {
-                        width = platform.windowSize.width
-                        height = platform.windowSize.height
-                        frameTexture = nil
-                    }
+                    windowWidth = platform.windowSize.width
+                    windowHeight = platform.windowSize.height
                 }
-                handleInput(input, width: width, height: height)
-                Game.shared.updateMousePosition(Vec2(x: Double(input.mousePosition.x), y: Double(input.mousePosition.y)))
+                let viewport = SDLViewport(logicalWidth: logicalWidth, logicalHeight: logicalHeight,
+                                            windowWidth: max(1, windowWidth), windowHeight: max(1, windowHeight))
+                handleInput(input, viewport: viewport)
+                let logicalMouse = viewport.logicalPoint(x: input.mousePosition.x, y: input.mousePosition.y)
+                Game.shared.updateMousePosition(Vec2(x: Double(logicalMouse.x), y: Double(logicalMouse.y)))
                 clock.advance(realDelta: realDelta) { delta in
-                    Game.shared.update(delta: delta, width: Double(width), height: Double(height))
+                    Game.shared.update(delta: delta, width: Double(logicalWidth), height: Double(logicalHeight))
                 }
 
-                guard let hdc = framebuffer.ensure(width: width, height: height) else { break }
-                drawGame(hdc, width: Double(width), height: Double(height))
+                guard let hdc = framebuffer.ensure(width: logicalWidth, height: logicalHeight) else { break }
+                drawGame(hdc, width: Double(logicalWidth), height: Double(logicalHeight))
                 guard framebuffer.copyRGBA(into: &pixelBuffer) else { break }
                 if frameTexture == nil {
-                    frameTexture = SDLTexture(platform: platform, width: width, height: height, rgbaPixels: pixelBuffer)
+                    frameTexture = SDLTexture(platform: platform, width: logicalWidth, height: logicalHeight, rgbaPixels: pixelBuffer)
                 } else {
                     _ = frameTexture?.update(rgbaPixels: pixelBuffer)
                 }
                 renderer.beginFrame(clear: RenderColor(0, 0, 0))
                 if let frameTexture {
-                    renderer.drawSprite(frameTexture, in: RenderRect(x: 0, y: 0, width: Float(width), height: Float(height)))
+                    renderer.drawSprite(frameTexture, in: viewport.destination)
                 }
                 renderer.present()
                 Thread.sleep(forTimeInterval: 1.0 / 120.0)
@@ -92,14 +95,15 @@ enum SDLFullGame {
         }
     }
 
-    private static func handleInput(_ input: SDLInputManager, width: Int, height: Int) {
+    private static func handleInput(_ input: SDLInputManager, viewport: SDLViewport) {
         if let click = input.consumePrimaryClick() {
-            Game.shared.handleClick(at: Vec2(x: Double(click.x), y: Double(click.y)), width: Double(width), height: Double(height))
+            let point = viewport.logicalPoint(x: click.x, y: click.y)
+            Game.shared.handleClick(at: Vec2(x: Double(point.x), y: Double(point.y)), width: Double(viewport.logicalWidth), height: Double(viewport.logicalHeight))
         }
         if input.isPressed(keyCode: 13) {
             switch Game.shared.phase {
-            case .menu, .missionSelect: Game.shared.start(width: Double(width), height: Double(height))
-            case .gameOver: Game.shared.start(width: Double(width), height: Double(height))
+            case .menu, .missionSelect: Game.shared.start(width: Double(viewport.logicalWidth), height: Double(viewport.logicalHeight))
+            case .gameOver: Game.shared.start(width: Double(viewport.logicalWidth), height: Double(viewport.logicalHeight))
             default: break
             }
         }
@@ -130,5 +134,29 @@ enum SDLFullGame {
         if input.isHeld(.moveDown) { keys.insert(0x53) }
         if input.isHeld(.precisionMove) { keys.insert(0x10) }
         setInjectedKeyboardState(keys)
+    }
+}
+
+private struct SDLViewport {
+    let logicalWidth: Int
+    let logicalHeight: Int
+    let windowWidth: Int
+    let windowHeight: Int
+
+    var scale: Float {
+        min(Float(windowWidth) / Float(logicalWidth), Float(windowHeight) / Float(logicalHeight))
+    }
+
+    var destination: RenderRect {
+        let width = Float(logicalWidth) * scale
+        let height = Float(logicalHeight) * scale
+        return RenderRect(x: (Float(windowWidth) - width) * 0.5,
+                          y: (Float(windowHeight) - height) * 0.5,
+                          width: width, height: height)
+    }
+
+    func logicalPoint(x: Float, y: Float) -> (x: Float, y: Float) {
+        let target = destination
+        return ((x - target.x) / max(0.001, scale), (y - target.y) / max(0.001, scale))
     }
 }

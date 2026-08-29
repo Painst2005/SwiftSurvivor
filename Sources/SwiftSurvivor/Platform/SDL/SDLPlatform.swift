@@ -103,6 +103,13 @@ final class SDLRenderer: GameRenderer {
         _ = swift_sdl3_line(platform.context, start.x, start.y, end.x, end.y)
     }
 
+    func drawSprite(_ texture: GameTexture, in destination: RenderRect, alpha: UInt8 = 255) {
+        guard let texture = texture as? SDLTexture else { return }
+        _ = swift_sdl3_draw_texture(platform.context, texture.handle,
+                                    destination.x, destination.y,
+                                    destination.width, destination.height, alpha)
+    }
+
     func drawText(_ text: String, at position: (x: Float, y: Float), color: RenderColor) {
         // SDL_RenderDebugText is intentionally limited to ASCII. A future SDL_ttf
         // text backend will preserve the game's Chinese UI without changing this API.
@@ -116,6 +123,26 @@ final class SDLRenderer: GameRenderer {
         swift_sdl3_set_draw_color(platform.context, color.red, color.green, color.blue, color.alpha)
         drawColor = color
     }
+}
+
+final class SDLTexture: GameTexture {
+    fileprivate let handle: OpaquePointer
+    let width: Int
+    let height: Int
+
+    init?(platform: SDLPlatform, width: Int, height: Int, rgbaPixels: [UInt8]) {
+        guard width > 0, height > 0, rgbaPixels.count >= width * height * 4 else { return nil }
+        let pitch = width * 4
+        let created: OpaquePointer? = rgbaPixels.withUnsafeBytes { bytes in
+            swift_sdl3_texture_create(platform.context, Int32(width), Int32(height), bytes.baseAddress, Int32(pitch))
+        }
+        guard let created else { return nil }
+        handle = created
+        self.width = width
+        self.height = height
+    }
+
+    deinit { swift_sdl3_texture_destroy(handle) }
 }
 
 enum GameAction: Hashable {

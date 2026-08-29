@@ -6,6 +6,10 @@ struct SwiftSDL3Context {
     SDL_Renderer *renderer;
 };
 
+struct SwiftSDL3Texture {
+    SDL_Texture *texture;
+};
+
 bool swift_sdl3_startup(void) {
     return SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMEPAD);
 }
@@ -142,6 +146,48 @@ bool swift_sdl3_debug_text(SwiftSDL3Context *context, float x, float y, const ch
         return false;
     }
     return SDL_RenderDebugText(context->renderer, x, y, utf8);
+}
+
+SwiftSDL3Texture *swift_sdl3_texture_create(SwiftSDL3Context *context, int width, int height, const void *pixels, int pitch) {
+    if (context == NULL || context->renderer == NULL || width <= 0 || height <= 0) {
+        return NULL;
+    }
+    SwiftSDL3Texture *result = (SwiftSDL3Texture *)SDL_calloc(1, sizeof(SwiftSDL3Texture));
+    if (result == NULL) {
+        return NULL;
+    }
+    result->texture = SDL_CreateTexture(context->renderer, SDL_PIXELFORMAT_RGBA32,
+                                        SDL_TEXTUREACCESS_STATIC, width, height);
+    if (result->texture == NULL) {
+        SDL_free(result);
+        return NULL;
+    }
+    SDL_SetTextureBlendMode(result->texture, SDL_BLENDMODE_BLEND);
+    if (pixels != NULL && !SDL_UpdateTexture(result->texture, NULL, pixels, pitch)) {
+        SDL_DestroyTexture(result->texture);
+        SDL_free(result);
+        return NULL;
+    }
+    return result;
+}
+
+void swift_sdl3_texture_destroy(SwiftSDL3Texture *texture) {
+    if (texture == NULL) {
+        return;
+    }
+    if (texture->texture != NULL) {
+        SDL_DestroyTexture(texture->texture);
+    }
+    SDL_free(texture);
+}
+
+bool swift_sdl3_draw_texture(SwiftSDL3Context *context, SwiftSDL3Texture *texture, float x, float y, float width, float height, uint8_t alpha) {
+    if (context == NULL || context->renderer == NULL || texture == NULL || texture->texture == NULL) {
+        return false;
+    }
+    SDL_SetTextureAlphaMod(texture->texture, alpha);
+    SDL_FRect destination = { x, y, width, height };
+    return SDL_RenderTexture(context->renderer, texture->texture, NULL, &destination);
 }
 
 void swift_sdl3_present(SwiftSDL3Context *context) {

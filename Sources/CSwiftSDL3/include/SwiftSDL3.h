@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 typedef struct SwiftSDL3Context SwiftSDL3Context;
+typedef struct SwiftSDL3Texture SwiftSDL3Texture;
 
 typedef enum SwiftSDL3EventKind {
     SWIFT_SDL3_EVENT_NONE = 0,
@@ -38,6 +39,9 @@ void swift_sdl3_set_draw_color(SwiftSDL3Context *context, uint8_t r, uint8_t g, 
 bool swift_sdl3_fill_rect(SwiftSDL3Context *context, float x, float y, float width, float height);
 bool swift_sdl3_line(SwiftSDL3Context *context, float x1, float y1, float x2, float y2);
 bool swift_sdl3_debug_text(SwiftSDL3Context *context, float x, float y, const char *utf8);
+SwiftSDL3Texture *swift_sdl3_texture_create(SwiftSDL3Context *context, int width, int height, const void *pixels, int pitch);
+void swift_sdl3_texture_destroy(SwiftSDL3Texture *texture);
+bool swift_sdl3_draw_texture(SwiftSDL3Context *context, SwiftSDL3Texture *texture, float x, float y, float width, float height, uint8_t alpha);
 void swift_sdl3_present(SwiftSDL3Context *context);
 uint64_t swift_sdl3_ticks_ns(void);
 const char *swift_sdl3_error(void);

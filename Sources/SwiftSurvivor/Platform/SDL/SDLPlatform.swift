@@ -86,6 +86,14 @@ final class SDLPlatform {
         swift_sdl3_set_window_fullscreen(context, fullscreen)
     }
 
+    func refreshWindowSize() {
+        var width: Int32 = 0
+        var height: Int32 = 0
+        if swift_sdl3_get_window_size(context, &width, &height), width > 0, height > 0 {
+            windowSize = (Int(width), Int(height))
+        }
+    }
+
     static func lastError() -> String {
         guard let pointer = swift_sdl3_error() else { return "未知错误" }
         return String(cString: pointer)

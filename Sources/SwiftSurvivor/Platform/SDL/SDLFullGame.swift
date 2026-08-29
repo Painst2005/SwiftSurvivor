@@ -41,6 +41,7 @@ enum SDLFullGame {
                 let realDelta = now - previous
                 previous = now
                 let events = platform.pollEvents()
+                platform.refreshWindowSize()
                 input.beginFrame(events: events)
                 sdlAudio.tick()
                 if input.shouldQuit || sdlQuitRequested { running = false }
@@ -63,6 +64,9 @@ enum SDLFullGame {
                     appliedResolution = (windowWidth, windowHeight)
                 }
                 if requestedFullscreen, platform.windowSize.width > 0, platform.windowSize.height > 0 {
+                    windowWidth = platform.windowSize.width
+                    windowHeight = platform.windowSize.height
+                } else if !requestedFullscreen {
                     windowWidth = platform.windowSize.width
                     windowHeight = platform.windowSize.height
                 }

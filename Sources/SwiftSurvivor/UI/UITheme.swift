@@ -5,24 +5,27 @@ import Foundation
 /// rewriting page or HUD code.
 enum UITheme {
     enum Color {
-        static let background = RenderColor(6, 10, 25)
-        static let backgroundRaised = RenderColor(10, 20, 42)
-        static let panel = RenderColor(12, 24, 51, 242)
-        static let panelRaised = RenderColor(18, 39, 68, 248)
-        static let panelHover = RenderColor(26, 67, 101, 252)
-        static let panelSelected = RenderColor(35, 109, 158, 255)
-        static let border = RenderColor(45, 92, 128, 235)
-        static let borderHighlight = RenderColor(84, 190, 226, 255)
-        static let primary = RenderColor(99, 215, 244)
-        static let secondary = RenderColor(157, 182, 211)
-        static let text = RenderColor(232, 243, 252)
-        static let muted = RenderColor(139, 164, 190)
-        static let danger = RenderColor(239, 83, 110)
-        static let warning = RenderColor(255, 207, 105)
-        static let success = RenderColor(111, 226, 174)
-        static let shield = RenderColor(122, 232, 204)
-        static let energy = RenderColor(106, 239, 255)
-        static let boss = RenderColor(226, 108, 226)
+        // A restrained navy palette keeps the interface legible without the
+        // harsh "neon dashboard" look. Bright accents are reserved for state
+        // changes, rewards and combat warnings.
+        static let background = RenderColor(8, 13, 28)
+        static let backgroundRaised = RenderColor(13, 25, 45)
+        static let panel = RenderColor(15, 28, 52, 232)
+        static let panelRaised = RenderColor(23, 42, 66, 238)
+        static let panelHover = RenderColor(31, 57, 83, 246)
+        static let panelSelected = RenderColor(40, 79, 108, 250)
+        static let border = RenderColor(71, 102, 128, 155)
+        static let borderHighlight = RenderColor(111, 169, 188, 185)
+        static let primary = RenderColor(113, 199, 218)
+        static let secondary = RenderColor(174, 193, 211)
+        static let text = RenderColor(235, 242, 247)
+        static let muted = RenderColor(151, 170, 187)
+        static let danger = RenderColor(231, 100, 119)
+        static let warning = RenderColor(239, 202, 126)
+        static let success = RenderColor(127, 210, 174)
+        static let shield = RenderColor(131, 211, 195)
+        static let energy = RenderColor(116, 213, 226)
+        static let boss = RenderColor(208, 130, 205)
     }
 
     enum Spacing {
@@ -41,10 +44,10 @@ enum UITheme {
     }
 
     enum Animation {
-        static let hover = 0.10
-        static let pressed = 0.06
-        static let page = 0.20
-        static let popup = 0.16
+        static let hover = 0.14
+        static let pressed = 0.08
+        static let page = 0.24
+        static let popup = 0.18
     }
 
     static func rarity(_ value: Int) -> RenderColor {

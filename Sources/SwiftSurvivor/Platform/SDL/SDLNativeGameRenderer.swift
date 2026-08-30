@@ -662,6 +662,9 @@ enum SDLNativeGameRenderer {
     private static func panel(_ r: GameRenderer, x: Int, y: Int, width: Int, height: Int) {
         let component = UIPanel(rect: UIRect(x: Double(x), y: Double(y), width: Double(width), height: Double(height)))
         r.fillRect(RenderRect(x: Float(component.rect.x), y: Float(component.rect.y), width: Float(component.rect.width), height: Float(component.rect.height)), color: UITheme.Color.panel)
+        // A muted edge hierarchy reads as a single glass-like surface instead
+        // of a grid of bright boxes.
+        r.fillRect(RenderRect(x: Float(x + 1), y: Float(y + 1), width: Float(max(0, width - 2)), height: 1), color: RenderColor(190, 218, 230, 24))
         r.line(from: (Float(x), Float(y)), to: (Float(x + width), Float(y)), color: UITheme.Color.borderHighlight)
         r.line(from: (Float(x), Float(y + height)), to: (Float(x + width), Float(y + height)), color: UITheme.Color.border)
         r.line(from: (Float(x), Float(y)), to: (Float(x), Float(y + height)), color: UITheme.Color.border)
@@ -675,13 +678,13 @@ enum SDLNativeGameRenderer {
         let border: RenderColor
         switch state {
         case .selected:
-            let pulse = UIAnimationSystem.pulse(time: UIInteraction.time, speed: 4.2, amount: 0.10)
-            fill = UITheme.Color.panelSelected; border = RenderColor(84, 190, 226, UInt8(min(255, 220 * pulse)))
+            let pulse = UIAnimationSystem.pulse(time: UIInteraction.time, speed: 3.0, amount: 0.035)
+            fill = UITheme.Color.panelSelected; border = RenderColor(125, 191, 205, UInt8(min(225, 185 * pulse)))
         case .hover:
-            let pulse = UIAnimationSystem.pulse(time: UIInteraction.time, speed: 7.0, amount: 0.08)
-            fill = UITheme.Color.panelHover; border = RenderColor(99, 215, 244, UInt8(min(255, 225 * pulse)))
+            let pulse = UIAnimationSystem.pulse(time: UIInteraction.time, speed: 4.0, amount: 0.025)
+            fill = UITheme.Color.panelHover; border = RenderColor(126, 184, 199, UInt8(min(210, 170 * pulse)))
         case .pressed:
-            fill = UITheme.Color.panelSelected; border = UITheme.Color.warning
+            fill = UITheme.Color.panelSelected; border = RenderColor(UITheme.Color.warning.red, UITheme.Color.warning.green, UITheme.Color.warning.blue, 185)
         case .disabled:
             fill = RenderColor(25, 34, 49, 190); border = RenderColor(57, 70, 86, 180)
         default:
@@ -702,7 +705,7 @@ enum SDLNativeGameRenderer {
         let rect = bar.rect
         r.fillRect(RenderRect(x: Float(rect.x), y: Float(rect.y), width: Float(rect.width), height: height), color: bar.back)
         r.fillRect(RenderRect(x: Float(rect.x), y: Float(rect.y), width: Float(rect.width) * Float(min(1, max(0, bar.value))), height: height), color: bar.fill)
-        r.line(from: (Float(rect.x), Float(rect.y)), to: (Float(rect.x + rect.width), Float(rect.y)), color: UITheme.Color.border)
+        r.line(from: (Float(rect.x), Float(rect.y)), to: (Float(rect.x + rect.width), Float(rect.y)), color: RenderColor(UITheme.Color.border.red, UITheme.Color.border.green, UITheme.Color.border.blue, 100))
     }
 
     private static func text(_ r: GameRenderer, _ value: String, _ x: Float, _ y: Float, _ c: RenderColor) { r.drawText(value, at: (x: x, y: y), color: c) }

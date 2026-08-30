@@ -241,18 +241,12 @@ enum SDLNativeGameRenderer {
         text(r, t(game, "THUNDER SWIFT", "雷霆疾影"), 64, 112, UITheme.Color.text)
         text(r, t(game, "SINGLE PILOT SORTIE SYSTEM", "单人作战出击系统"), 66, 140, UITheme.Color.muted)
 
-        let center = (x: Float(290), y: Float(318))
-        drawShip(r, center: center, scale: 2.5, accent: UITheme.Color.primary)
-        text(r, t(game, "ACTIVE AIRFRAME", "当前机体"), 154, 454, UITheme.Color.muted)
-        let shipName = ShipType(rawValue: game.profile.selectedShip)?.label(for: game.language) ?? t(game, "THUNDER", "雷霆号")
-        text(r, shipName, 154, 478, UITheme.Color.text)
-        text(r, t(game, "COMBAT POWER", "战力") + "  \(game.combatPower())", 154, 504, UITheme.Color.warning)
-
         r.fillRect(RenderRect(x: 94, y: 184, width: 390, height: 1), color: UITheme.Color.border)
-        text(r, t(game, "SORTIE PROFILE", "出击档案"), 94, 205, UITheme.Color.secondary)
+        text(r, t(game, "PILOT RECORD", "飞行档案"), 94, 205, UITheme.Color.secondary)
         text(r, t(game, "BEST SCORE", "最高分") + "  \(game.profile.bestScore)", 94, 232, UITheme.Color.text)
         text(r, t(game, "BEST COMBO", "最高连击") + "  \(game.profile.bestCombo)", 94, 258, UITheme.Color.text)
         text(r, t(game, "BOSSES DOWN", "击破首领") + "  \(game.profile.totalBosses)", 94, 284, UITheme.Color.text)
+        text(r, t(game, "COMBAT POWER", "战力") + "  \(game.combatPower())", 94, 316, UITheme.Color.warning)
 
         let buttons = mainMenuButtons(width: Double(width), height: Double(height))
         let labels = [t(game, "NEW GAME", "开始游戏"), t(game, "CONTROLS", "操作设置"), t(game, "HANGAR", "机库"), t(game, "SETTINGS", "设置"), t(game, "EXIT", "退出"), t(game, "ARCHIVE", "档案馆")]

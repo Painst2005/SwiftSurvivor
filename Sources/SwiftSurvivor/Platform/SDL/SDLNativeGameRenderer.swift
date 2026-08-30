@@ -50,7 +50,6 @@ enum SDLNativeGameRenderer {
             let scroll = Float(game.survivalTime * 24).truncatingRemainder(dividingBy: tileHeight)
             r.drawSprite(spaceTexture, in: RenderRect(x: 0, y: -scroll, width: Float(width), height: tileHeight), alpha: 255)
             r.drawSprite(spaceTexture, in: RenderRect(x: 0, y: tileHeight - scroll, width: Float(width), height: tileHeight), alpha: 255)
-            r.fillRect(RenderRect(x: 0, y: 0, width: Float(width), height: Float(height)), color: RenderColor(3, 10, 24, 72))
             hasSpaceTexture = true
         } else {
             hasSpaceTexture = false
@@ -59,10 +58,11 @@ enum SDLNativeGameRenderer {
             r.fillCircle(center: (Float(star.position.x), Float(star.position.y)), radius: Float(max(1, star.radius)), color: color(star.tint))
         }
         let field = playfieldBounds(width: Double(width), height: Double(height))
-        let playfieldOverlay = hasSpaceTexture ? RenderColor(12, 25, 45, 86) : UITheme.Color.backgroundRaised
-        r.fillRect(RenderRect(x: 0, y: Float(field.top), width: Float(width), height: Float(field.bottom - field.top)), color: playfieldOverlay)
-        for lane in stride(from: 0, through: width, by: 96) {
-            r.fillRect(RenderRect(x: Float(lane), y: Float(field.top), width: 1, height: Float(field.bottom - field.top)), color: RenderColor(70, 109, 151, 22))
+        if !hasSpaceTexture {
+            r.fillRect(RenderRect(x: 0, y: Float(field.top), width: Float(width), height: Float(field.bottom - field.top)), color: UITheme.Color.backgroundRaised)
+            for lane in stride(from: 0, through: width, by: 96) {
+                r.fillRect(RenderRect(x: Float(lane), y: Float(field.top), width: 1, height: Float(field.bottom - field.top)), color: RenderColor(70, 109, 151, 22))
+            }
         }
         r.fillRect(RenderRect(x: 0, y: 0, width: Float(width), height: 54), color: UITheme.Color.panel)
     }

@@ -109,6 +109,7 @@ final class SDLRenderer: GameRenderer {
     private let platform: SDLPlatform
     private let bitmapFont: SDLBitmapFont?
     private var drawColor = RenderColor(255, 255, 255)
+    private var artTextures: [String: SDLTexture] = [:]
 
     init(platform: SDLPlatform) {
         self.platform = platform
@@ -116,6 +117,13 @@ final class SDLRenderer: GameRenderer {
     }
 
     var drawableSize: (width: Int, height: Int) { platform.windowSize }
+
+    func artTexture(named name: String) -> SDLTexture? {
+        if let cached = artTextures[name] { return cached }
+        guard let texture = SDLGameArt.load(named: name, platform: platform) else { return nil }
+        artTextures[name] = texture
+        return texture
+    }
 
     func beginFrame(clear color: RenderColor) {
         swift_sdl3_begin_frame(platform.context, color.red, color.green, color.blue, color.alpha)

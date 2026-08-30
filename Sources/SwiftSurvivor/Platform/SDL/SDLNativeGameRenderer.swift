@@ -42,13 +42,27 @@ enum SDLNativeGameRenderer {
 
     private static func drawSpace(_ r: GameRenderer, game: Game, width: Int, height: Int) {
         r.fillRect(RenderRect(x: 0, y: 0, width: Float(width), height: Float(height)), color: UITheme.Color.background)
+        let hasSpaceTexture: Bool
+        if let spaceTexture = (r as? SDLRenderer)?.artTexture(named: "space_nebula") {
+            // Fill the 16:9 play canvas from a portrait space plate. Two
+            // copies create a continuous downward drift as the craft advances.
+            let tileHeight: Float = Float(width) * 1.5
+            let scroll = Float(game.survivalTime * 24).truncatingRemainder(dividingBy: tileHeight)
+            r.drawSprite(spaceTexture, in: RenderRect(x: 0, y: -scroll, width: Float(width), height: tileHeight), alpha: 255)
+            r.drawSprite(spaceTexture, in: RenderRect(x: 0, y: tileHeight - scroll, width: Float(width), height: tileHeight), alpha: 255)
+            r.fillRect(RenderRect(x: 0, y: 0, width: Float(width), height: Float(height)), color: RenderColor(3, 10, 24, 72))
+            hasSpaceTexture = true
+        } else {
+            hasSpaceTexture = false
+        }
         for star in game.stars {
             r.fillCircle(center: (Float(star.position.x), Float(star.position.y)), radius: Float(max(1, star.radius)), color: color(star.tint))
         }
         let field = playfieldBounds(width: Double(width), height: Double(height))
-        r.fillRect(RenderRect(x: 0, y: Float(field.top), width: Float(width), height: Float(field.bottom - field.top)), color: UITheme.Color.backgroundRaised)
+        let playfieldOverlay = hasSpaceTexture ? RenderColor(12, 25, 45, 86) : UITheme.Color.backgroundRaised
+        r.fillRect(RenderRect(x: 0, y: Float(field.top), width: Float(width), height: Float(field.bottom - field.top)), color: playfieldOverlay)
         for lane in stride(from: 0, through: width, by: 96) {
-            r.fillRect(RenderRect(x: Float(lane), y: Float(field.top), width: 1, height: Float(field.bottom - field.top)), color: RenderColor(18, 38, 70, 100))
+            r.fillRect(RenderRect(x: Float(lane), y: Float(field.top), width: 1, height: Float(field.bottom - field.top)), color: RenderColor(70, 109, 151, 22))
         }
         r.fillRect(RenderRect(x: 0, y: 0, width: Float(width), height: 54), color: UITheme.Color.panel)
     }
@@ -137,8 +151,13 @@ enum SDLNativeGameRenderer {
         let playerP = game.player + game.playerVisualOffset + camera
         let playerColor = game.playerShieldFlash > 0 ? RenderColor(122, 232, 204) :
             (game.playerHitFlash > 0 ? RenderColor(255, 128, 150) : RenderColor(81, 205, 255))
-        r.fillCircle(center: (Float(playerP.x), Float(playerP.y)), radius: 18, color: playerColor)
-        r.fillCircle(center: (Float(playerP.x), Float(playerP.y - 7)), radius: 8, color: game.playerHitFlash > 0 ? RenderColor(255, 246, 248) : RenderColor(232, 250, 255))
+        if let fighter = (r as? SDLRenderer)?.artTexture(named: "thunder_interceptor") {
+            let hitAlpha: UInt8 = game.playerHitFlash > 0 ? 245 : 255
+            r.drawSprite(fighter, in: RenderRect(x: Float(playerP.x - 31), y: Float(playerP.y - 50), width: 62, height: 94), alpha: hitAlpha)
+        } else {
+            r.fillCircle(center: (Float(playerP.x), Float(playerP.y)), radius: 18, color: playerColor)
+            r.fillCircle(center: (Float(playerP.x), Float(playerP.y - 7)), radius: 8, color: game.playerHitFlash > 0 ? RenderColor(255, 246, 248) : RenderColor(232, 250, 255))
+        }
         if game.playerShieldFlash > 0 { r.fillCircle(center: (Float(playerP.x), Float(playerP.y)), radius: 25, color: RenderColor(112, 224, 255, 68)) }
         if game.precisionMode { r.fillCircle(center: (Float(playerP.x), Float(playerP.y)), radius: 5, color: RenderColor(255, 229, 112)) }
         if game.damageEdgeFlash > 0 {

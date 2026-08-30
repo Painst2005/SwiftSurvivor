@@ -2661,7 +2661,7 @@ final class Game: @unchecked Sendable {
     private func announceNewSynergies(previous: Set<String>) {
         let activated = activeSynergyIDs.subtracting(previous)
         guard let definition = BuildSynergyCatalog.all.first(where: { activated.contains($0.id) }) else { return }
-        notifyPickup(title: definition.englishTitle, detail: definition.englishDetail,
+        notifyPickup(title: definition.title(for: language), detail: definition.detail(for: language),
                      tint: definition.id == "frost_ray" ? rgb(137, 228, 255) : (definition.id == "flight_array" ? rgb(255, 220, 120) : rgb(187, 172, 255)))
     }
 

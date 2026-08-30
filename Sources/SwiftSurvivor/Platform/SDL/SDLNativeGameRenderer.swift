@@ -169,7 +169,7 @@ enum SDLNativeGameRenderer {
         let shieldValue = game.reflectorTime > 0 ? 1.0 : min(1, Double(game.armorShieldCharges) / 3.0)
         progress(r, UIProgressBar(rect: UIRect(x: 198, y: 39, width: 104, height: 10), value: shieldValue,
                                   fill: UITheme.Color.shield, back: RenderColor(22, 56, 79)), height: 10)
-        text(r, game.reflectorTime > 0 ? t(game, "SHIELD", "护盾") : "SHIELD x\(game.armorShieldCharges)", 202, 42, UITheme.Color.shield)
+        text(r, game.reflectorTime > 0 ? t(game, "SHIELD", "护盾") : t(game, "SHIELD", "护盾") + " x\(game.armorShieldCharges)", 202, 42, UITheme.Color.shield)
 
         progress(r, UIProgressBar(rect: UIRect(x: 318, y: 39, width: 170, height: 10),
                                   value: Double(game.experience) / Double(max(1, game.experienceGoal)),
@@ -305,7 +305,7 @@ enum SDLNativeGameRenderer {
         let modes = controlModeButtons(width: Double(width), height: Double(height))
         button(r, modes[0], title: "WASD", selected: game.controlMode == .wasd)
         button(r, modes[1], title: t(game, "MOUSE FOLLOW", "鼠标跟随"), selected: game.controlMode == .mouse)
-        text(r, t(game, "MOVE", "移动") + "   WASD / Arrow Keys", Float(width / 2 - 220), 360, UITheme.Color.secondary)
+        text(r, t(game, "MOVE", "移动") + "   " + t(game, "WASD / Arrow Keys", "WASD / 方向键"), Float(width / 2 - 220), 360, UITheme.Color.secondary)
         text(r, t(game, "PRECISION", "精准") + "   Shift", Float(width / 2 - 220), 386, UITheme.Color.secondary)
         text(r, t(game, "OVERLOAD", "超载") + "   Space", Float(width / 2 - 220), 412, UITheme.Color.secondary)
         text(r, t(game, "PAUSE", "暂停") + "   Esc", Float(width / 2 - 220), 438, UITheme.Color.secondary)

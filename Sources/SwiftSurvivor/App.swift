@@ -610,6 +610,8 @@ final class Game: @unchecked Sendable {
     var runCreditsEarned = 0
     var runCoresEarned = 0
     var runAlloyEarned = 0
+    var runRareDropName = ""
+    var runRareDropRarity = 0
     var hangarMessageTitle = ""
     var hangarMessageDetail = ""
     var hangarMessageTimer = 0.0
@@ -1027,6 +1029,8 @@ final class Game: @unchecked Sendable {
         runCreditsEarned = 0
         runCoresEarned = 0
         runAlloyEarned = 0
+        runRareDropName = ""
+        runRareDropRarity = 0
         experience = 0
         experienceGoal = 10
         enemies.removeAll(keepingCapacity: true)
@@ -2462,6 +2466,8 @@ final class Game: @unchecked Sendable {
             let dropSlots = [2, 3, 4]
             let dropIndex = Int.random(in: 0..<dropNames.count, using: &rng)
             let dropRarity = min(3, 1 + Int.random(in: 1...2, using: &rng))
+            runRareDropName = dropNames[dropIndex]
+            runRareDropRarity = dropRarity
             profile.inventory.append(EquipmentState(id: "boss_\(bossDefeats)_\(dropIndex)",
                                                      name: dropNames[dropIndex],
                                                      slot: dropSlots[dropIndex],
@@ -3053,7 +3059,7 @@ final class Game: @unchecked Sendable {
     /// UI layout.  Gameplay keeps the raw pointer so mouse-follow flight is
     /// unaffected by the accessibility scale.
     func uiPoint(for point: Vec2, width: Double, height: Double) -> Vec2 {
-        let scale = min(1.2, max(0.8, Double(profile.uiScale) / 100.0))
+        let scale = min(1.0, min(1.2, max(0.8, Double(profile.uiScale) / 100.0)))
         let offsetX = (width - width * scale) * 0.5
         let offsetY = (height - height * scale) * 0.5
         return Vec2(x: (point.x - offsetX) / scale, y: (point.y - offsetY) / scale)

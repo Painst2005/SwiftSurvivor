@@ -127,15 +127,21 @@ struct UIProgressBar {
 /// never move when a player changes the UI setting.
 final class UITransformRenderer: GameRenderer {
     private let base: GameRenderer
-    private let scale: Float
+    private let geometryScale: Float
+    private let textScale: Float
     private let offsetX: Float
     private let offsetY: Float
 
     init(base: GameRenderer, canvasWidth: Int, canvasHeight: Int, scalePercent: Int) {
         self.base = base
-        self.scale = Float(min(1.2, max(0.8, Double(scalePercent) / 100.0)))
-        self.offsetX = (Float(canvasWidth) - Float(canvasWidth) * self.scale) * 0.5
-        self.offsetY = (Float(canvasHeight) - Float(canvasHeight) * self.scale) * 0.5
+        let requested = Float(min(1.2, max(0.8, Double(scalePercent) / 100.0)))
+        // Enlarging the entire 1280x720 page would crop its outer panels.
+        // Keep geometry inside the authored canvas and let typography carry
+        // the high-scale accessibility gain; compact scales shrink both.
+        self.geometryScale = min(1, requested)
+        self.textScale = requested
+        self.offsetX = (Float(canvasWidth) - Float(canvasWidth) * self.geometryScale) * 0.5
+        self.offsetY = (Float(canvasHeight) - Float(canvasHeight) * self.geometryScale) * 0.5
     }
 
     var drawableSize: (width: Int, height: Int) { base.drawableSize }
@@ -144,21 +150,21 @@ final class UITransformRenderer: GameRenderer {
     func present() { base.present() }
 
     private func point(_ x: Float, _ y: Float) -> (x: Float, y: Float) {
-        (x: offsetX + x * scale, y: offsetY + y * scale)
+        (x: offsetX + x * geometryScale, y: offsetY + y * geometryScale)
     }
 
     private func rect(_ value: RenderRect) -> RenderRect {
-        RenderRect(x: offsetX + value.x * scale,
-                   y: offsetY + value.y * scale,
-                   width: value.width * scale,
-                   height: value.height * scale)
+        RenderRect(x: offsetX + value.x * geometryScale,
+                   y: offsetY + value.y * geometryScale,
+                   width: value.width * geometryScale,
+                   height: value.height * geometryScale)
     }
 
     func fillRect(_ value: RenderRect, color: RenderColor) { base.fillRect(rect(value), color: color) }
 
     func fillCircle(center: (x: Float, y: Float), radius: Float, color: RenderColor) {
         let p = point(center.x, center.y)
-        base.fillCircle(center: p, radius: radius * scale, color: color)
+        base.fillCircle(center: p, radius: radius * geometryScale, color: color)
     }
 
     func line(from start: (x: Float, y: Float), to end: (x: Float, y: Float), color: RenderColor) {
@@ -171,11 +177,11 @@ final class UITransformRenderer: GameRenderer {
 
     func drawText(_ text: String, at position: (x: Float, y: Float), color: RenderColor) {
         let p = point(position.x, position.y)
-        base.drawTextScaled(text, at: p, scale: scale, color: color)
+        base.drawTextScaled(text, at: p, scale: textScale, color: color)
     }
 
     func drawTextScaled(_ text: String, at position: (x: Float, y: Float), scale: Float, color: RenderColor) {
         let p = point(position.x, position.y)
-        base.drawTextScaled(text, at: p, scale: self.scale * scale, color: color)
+        base.drawTextScaled(text, at: p, scale: textScale * scale, color: color)
     }
 }

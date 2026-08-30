@@ -278,15 +278,16 @@ enum SDLNativeGameRenderer {
         }
         if MissionCatalog.all.indices.contains(game.selectedMission) {
             let mission = MissionCatalog.all[game.selectedMission]
-            panel(r, x: 54, y: 180, width: 185, height: 244)
+            panel(r, x: 54, y: 180, width: 185, height: 260)
             text(r, t(game, "SELECTED SECTOR", "当前区域"), 68, 204, UITheme.Color.primary)
             text(r, mission.title(for: game.language), 68, 235, UITheme.Color.text)
             drawWrappedText(r, mission.description(for: game.language), x: 68, y: 268, color: UITheme.Color.secondary, maxCharacters: 20, lineHeight: 18, maxLines: 2)
             text(r, t(game, "DURATION", "时长") + "  \(Int(mission.duration))s", 68, 318, UITheme.Color.muted)
             text(r, t(game, "BOSS", "首领") + "  \(Int(mission.bossTime))s", 68, 342, UITheme.Color.boss)
             let powerDelta = game.combatPower() - mission.recommendedPower
-            text(r, t(game, "YOUR POWER", "当前战力") + "  \(game.combatPower())", 68, 374, UITheme.Color.warning)
-            text(r, powerDelta >= 0 ? t(game, "ADVANTAGE", "优势") : t(game, "CHALLENGE", "挑战"), 68, 398, powerDelta >= 0 ? UITheme.Color.success : UITheme.Color.danger)
+            text(r, t(game, "YOUR POWER", "当前战力") + "  \(game.combatPower())", 68, 364, UITheme.Color.warning)
+            text(r, powerDelta >= 0 ? t(game, "ADVANTAGE", "优势") : t(game, "CHALLENGE", "挑战"), 68, 388, powerDelta >= 0 ? UITheme.Color.success : UITheme.Color.danger)
+            text(r, t(game, "DROPS", "掉落") + "  " + missionDropSummary(mission.id, game: game), 68, 412, UITheme.Color.secondary)
         }
         for (i, card) in modeCards(width: Double(width), height: Double(height)).enumerated() {
             let mode = GameMode(rawValue: i) ?? .campaign
@@ -506,6 +507,17 @@ enum SDLNativeGameRenderer {
         return t(game, "SORT", "排序") + ": " + names[min(max(0, game.vaultSortMode), names.count - 1)]
     }
 
+    private static func missionDropSummary(_ missionID: Int, game: Game) -> String {
+        switch missionID {
+        case 1: return t(game, "CREDITS • CORES", "金币 • 核心")
+        case 2: return t(game, "CORES • ARMOR", "核心 • 装甲")
+        case 3: return t(game, "ALLOY • PRIMARY", "合金 • 主武器")
+        case 4: return t(game, "CORES • DRONE", "核心 • 僚机")
+        case 5: return t(game, "ALLOY • ARMOR", "合金 • 装甲")
+        default: return t(game, "RARE MODULES", "稀有模块")
+        }
+    }
+
     private static func drawShip(_ r: GameRenderer, center: (x: Float, y: Float), scale: Float, accent: RenderColor) {
         let x = center.x, y = center.y
         r.fillCircle(center: (x, y - 34 * scale), radius: 10 * scale, color: RenderColor(235, 250, 255))
@@ -601,14 +613,40 @@ enum SDLNativeGameRenderer {
     private static func drawGameOver(_ r: GameRenderer, game: Game, width: Int, height: Int) {
         panel(r, x: width / 2 - 310, y: height / 2 - 200, width: 620, height: 390)
         text(r, game.runWon ? t(game, "MISSION COMPLETE", "任务完成") : t(game, "SORTIE FAILED", "任务失败"), Float(width / 2 - 110), Float(height / 2 - 168), UITheme.Color.warning)
+        text(r, t(game, "RATING", "评级") + "  " + runGrade(game), Float(width / 2 - 58), Float(height / 2 - 144), game.runWon ? UITheme.Color.success : UITheme.Color.secondary)
         text(r, t(game, "SCORE", "分数") + "  \(game.score)", Float(width / 2 - 70), Float(height / 2 - 126), UITheme.Color.text)
         text(r, t(game, "KILLS", "击杀") + "  \(game.kills)    " + t(game, "BEST COMBO", "最高连击") + "  \(game.comboBest)", Float(width / 2 - 144), Float(height / 2 - 88), UITheme.Color.secondary)
         text(r, t(game, "SURVIVAL", "存活") + "  \(Int(game.survivalTime))s    " + t(game, "BOSS", "首领") + "  " + (game.missionBossDefeated ? t(game, "DOWN", "已击破") : t(game, "ACTIVE", "未击破")), Float(width / 2 - 170), Float(height / 2 - 58), UITheme.Color.secondary)
         text(r, t(game, "RUN REWARDS", "本局奖励"), Float(width / 2 - 140), Float(height / 2 - 12), UITheme.Color.primary)
         text(r, t(game, "CREDITS", "金币") + " +\(game.runCreditsEarned)    " + t(game, "CORES", "核心") + " +\(game.runCoresEarned)    " + t(game, "ALLOY", "合金") + " +\(game.runAlloyEarned)", Float(width / 2 - 190), Float(height / 2 + 18), UITheme.Color.warning)
+        if !game.runRareDropName.isEmpty {
+            let dropName = localizedDropName(game.runRareDropName, game: game)
+            text(r, t(game, "RARE MODULE", "稀有模块") + "  •  " + dropName + "  •  " + game.equipmentQualityName(game.runRareDropRarity), Float(width / 2 - 188), Float(height / 2 + 42), UITheme.Color.boss)
+        }
         let buttons = gameOverButtons(width: Double(width), height: Double(height))
         button(r, buttons[0], title: t(game, "RESTART", "重新开始"), selected: true)
         button(r, buttons[1], title: t(game, "MAIN MENU", "主菜单"), selected: false)
+    }
+
+    private static func runGrade(_ game: Game) -> String {
+        if game.runWon {
+            if game.score >= 25000 { return "S" }
+            if game.score >= 12000 { return "A" }
+            return "B"
+        }
+        if game.score >= 15000 { return "B" }
+        if game.score >= 5000 { return "C" }
+        return "D"
+    }
+
+    private static func localizedDropName(_ name: String, game: Game) -> String {
+        guard game.language == .chinese else { return name }
+        switch name {
+        case "NOVA MISSILE": return "新星导弹"
+        case "FROST PLATING": return "寒霜装甲"
+        case "STORM DRONE": return "风暴僚机"
+        default: return name
+        }
     }
 
     private static func panel(_ r: GameRenderer, x: Int, y: Int, width: Int, height: Int) {

@@ -154,6 +154,7 @@ enum SDLNativeGameRenderer {
             // discarded the useful explanation carried by notificationDetail.
             drawCombatNotification(uiRenderer, game: game, field: field)
         }
+        drawTimedEffectBars(uiRenderer, game: game, width: width)
     }
 
     private static func drawCombatHUD(_ r: GameRenderer, game: Game, field: PlayfieldBounds, width: Int) {
@@ -725,6 +726,42 @@ enum SDLNativeGameRenderer {
         r.fillRect(RenderRect(x: x, y: y, width: 3, height: 54), color: titleColor)
         text(r, game.notificationTitle, x + 14, y + 10, titleColor)
         drawWrappedText(r, game.notificationDetail, x: x + 14, y: y + 31, color: detailColor, maxWidth: 330, lineHeight: 16, maxLines: 1)
+    }
+
+    /// Persistent, compact countdowns make temporary power-up windows useful
+    /// without forcing the player to remember the number in the pickup toast.
+    /// They sit outside the central bullet-dodging area and only appear while
+    /// an effect is actually active.
+    private static func drawTimedEffectBars(_ r: GameRenderer, game: Game, width: Int) {
+        var effects: [(name: String, remaining: Double, duration: Double, tint: RenderColor)] = []
+        if game.laserTime > 0 {
+            effects.append((t(game, "LASER", "激光炮"), game.laserTime, 10, UITheme.Color.energy))
+        }
+        if game.reflectorTime > 0 {
+            effects.append((t(game, "REFLECT", "反射护盾"), game.reflectorTime, 8, UITheme.Color.shield))
+        }
+        if game.spreadTime > 0 {
+            effects.append((t(game, "ARRAY", "弹幕扩展"), game.spreadTime, 12, UITheme.Color.warning))
+        }
+        if game.thunderOverloadTime > 0 {
+            effects.append((t(game, "OVERLOAD", "雷霆超载"), game.thunderOverloadTime, 6, UITheme.Color.primary))
+        }
+        guard !effects.isEmpty else { return }
+
+        let panelWidth: Float = 178
+        let x = Float(width) - panelWidth - 16
+        for (index, effect) in effects.enumerated() {
+            let y = Float(66 + index * 34)
+            r.fillRect(RenderRect(x: x, y: y, width: panelWidth, height: 28), color: RenderColor(10, 22, 40, 214))
+            r.fillRect(RenderRect(x: x, y: y, width: 3, height: 28), color: effect.tint)
+            text(r, effect.name, x + 10, y + 6, UITheme.Color.text)
+            let seconds = max(1, Int(ceil(effect.remaining)))
+            drawRightText(r, "\(seconds)s", right: x + panelWidth - 9, y: y + 6, color: effect.tint)
+            progress(r, UIProgressBar(rect: UIRect(x: Double(x + 10), y: Double(y + 20), width: Double(panelWidth - 20), height: 4),
+                                      value: effect.remaining / effect.duration,
+                                      fill: effect.tint,
+                                      back: RenderColor(34, 53, 71)), height: 4)
+        }
     }
 
     private static func notificationAlpha(_ timeRemaining: Double, fullDuration: Double) -> UInt8 {

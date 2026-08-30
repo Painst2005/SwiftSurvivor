@@ -148,14 +148,19 @@ enum SDLNativeGameRenderer {
             r.fillRect(RenderRect(x: 0, y: Float(field.top), width: 14, height: Float(field.bottom - field.top)), color: RenderColor(255, 55, 80, alpha))
             r.fillRect(RenderRect(x: Float(width - 14), y: Float(field.top), width: 14, height: Float(field.bottom - field.top)), color: RenderColor(255, 55, 80, alpha))
         }
-        if game.notificationTimer > 0 { text(uiRenderer, game.notificationTitle, Float(width / 2 - 150), Float(height - 70), color(game.notificationTint)) }
+        if game.notificationTimer > 0 {
+            // Pick-up and boss callouts used to be a single line at the bottom of
+            // the screen.  That placed them directly on top of the ship and also
+            // discarded the useful explanation carried by notificationDetail.
+            drawCombatNotification(uiRenderer, game: game, field: field)
+        }
     }
 
     private static func drawCombatHUD(_ r: GameRenderer, game: Game, field: PlayfieldBounds, width: Int) {
         text(r, t(game, "THUNDER SWIFT", "雷霆疾影"), 16, 16, UITheme.Color.text)
         text(r, t(game, "STAGE", "关卡") + " \(game.stage)", 190, 16, UITheme.Color.primary)
-        text(r, t(game, "KILLS", "击杀") + " \(game.kills)", Float(width - 190), 16, UITheme.Color.boss)
-        text(r, t(game, "SCORE", "分数") + " \(game.score)", Float(width - 92), 16, UITheme.Color.warning)
+        drawRightText(r, t(game, "SCORE", "分数") + " \(game.score)", right: Float(width - 16), y: 16, color: UITheme.Color.warning)
+        drawRightText(r, t(game, "KILLS", "击杀") + " \(game.kills)", right: Float(width - 196), y: 16, color: UITheme.Color.boss)
 
         let healthRatio = game.health / max(1, game.maxHealth)
         progress(r, UIProgressBar(rect: UIRect(x: 18, y: 39, width: 166, height: 10),
@@ -281,7 +286,7 @@ enum SDLNativeGameRenderer {
             panel(r, x: 54, y: 180, width: 185, height: 260)
             text(r, t(game, "SELECTED SECTOR", "当前区域"), 68, 204, UITheme.Color.primary)
             text(r, mission.title(for: game.language), 68, 235, UITheme.Color.text)
-            drawWrappedText(r, mission.description(for: game.language), x: 68, y: 268, color: UITheme.Color.secondary, maxCharacters: 20, lineHeight: 18, maxLines: 2)
+            drawWrappedText(r, mission.description(for: game.language), x: 68, y: 268, color: UITheme.Color.secondary, maxWidth: 154, lineHeight: 18, maxLines: 2)
             text(r, t(game, "DURATION", "时长") + "  \(Int(mission.duration))s", 68, 318, UITheme.Color.muted)
             text(r, t(game, "BOSS", "首领") + "  \(Int(mission.bossTime))s", 68, 342, UITheme.Color.boss)
             let powerDelta = game.combatPower() - mission.recommendedPower
@@ -292,7 +297,7 @@ enum SDLNativeGameRenderer {
         for (i, card) in modeCards(width: Double(width), height: Double(height)).enumerated() {
             let mode = GameMode(rawValue: i) ?? .campaign
             button(r, card, title: mode.label(for: game.language), selected: i == game.gameMode.rawValue)
-            drawWrappedText(r, mode.description(for: game.language), x: Float(card.x + 10), y: Float(card.y + 52), color: UITheme.Color.secondary, maxCharacters: 22, lineHeight: 14, maxLines: 1)
+            drawWrappedText(r, mode.description(for: game.language), x: Float(card.x + 10), y: Float(card.y + 52), color: UITheme.Color.secondary, maxWidth: Float(card.width - 20), lineHeight: 14, maxLines: 1)
         }
         text(r, t(game, "MODE", "模式"), 260, 414, UITheme.Color.muted)
         button(r, missionLaunchButton(width: Double(width), height: Double(height)), title: t(game, "LAUNCH", "出击"), selected: true)
@@ -409,8 +414,12 @@ enum SDLNativeGameRenderer {
         }
         button(r, hangarBackButton(width: Double(width), height: Double(height)), title: t(game, "BACK", "返回"), selected: false)
         if game.hangarMessageTimer > 0 {
-            text(r, game.hangarMessageTitle, 66, 590, UITheme.Color.success)
-            text(r, game.hangarMessageDetail, 66, 612, UITheme.Color.secondary)
+            let alpha = notificationAlpha(game.hangarMessageTimer, fullDuration: 2.4)
+            let titleColor = RenderColor(UITheme.Color.success.red, UITheme.Color.success.green, UITheme.Color.success.blue, alpha)
+            let detailColor = RenderColor(UITheme.Color.secondary.red, UITheme.Color.secondary.green, UITheme.Color.secondary.blue, alpha)
+            r.fillRect(RenderRect(x: 54, y: 568, width: 465, height: 54), color: RenderColor(8, 18, 34, UInt8(Double(alpha) * 0.88)))
+            text(r, game.hangarMessageTitle, 66, 582, titleColor)
+            drawWrappedText(r, game.hangarMessageDetail, x: 66, y: 604, color: detailColor, maxWidth: 440, lineHeight: 16, maxLines: 1)
         }
     }
 
@@ -446,11 +455,11 @@ enum SDLNativeGameRenderer {
         let tooltipWidth = 276
         let x = Int(min(max(12, UIInteraction.pointer.x + 16), Double(width - tooltipWidth - 12)))
         let y = Int(min(max(60, UIInteraction.pointer.y + 16), Double(height - 126)))
-        panel(r, x: x, y: y, width: tooltipWidth, height: 108)
+        panel(r, x: x, y: y, width: tooltipWidth, height: 126)
         text(r, game.equipmentDisplayName(item), Float(x + 12), Float(y + 22), UITheme.Color.text)
         text(r, game.equipmentQualityName(item.rarity) + "  •  Lv. \(item.level)  •  ★\(item.stars)", Float(x + 12), Float(y + 46), color(equipmentRarityColor(item.rarity)))
         text(r, equipmentShortStat(game, item), Float(x + 12), Float(y + 70), UITheme.Color.secondary)
-        text(r, t(game, "Hover for details", "悬停查看详情"), Float(x + 12), Float(y + 92), UITheme.Color.muted)
+        drawWrappedText(r, t(game, "Effect: ", "效果：") + equipmentShortAffix(game, item), x: Float(x + 12), y: Float(y + 92), color: UITheme.Color.muted, maxWidth: 248, lineHeight: 16, maxLines: 2)
     }
 
     private static func equipmentPower(_ item: EquipmentState) -> Int {
@@ -601,10 +610,11 @@ enum SDLNativeGameRenderer {
         text(r, t(game, "CURRENT BUILD", "当前构筑") + "  " + game.weaponType.label(for: game.language), 98, 186, UITheme.Color.secondary)
         for (i, card) in upgradeCards(width: Double(width), height: Double(height)).enumerated() {
             let option = i < game.upgradeOptions.count ? game.upgradeOptions[i] : UpgradeOption(title: t(game, "MODULE", "模块"), detail: "", kind: 0)
-            button(r, card, title: option.title, selected: card.contains(UIInteraction.pointer))
+            button(r, card, title: "", selected: card.contains(UIInteraction.pointer))
             let rarity = UpgradeRarity(rawValue: option.rarity) ?? .common
             text(r, game.localizedRarity(rarity), Float(card.x + 14), Float(card.y + 16), color(rarityColor(rarity)))
-            text(r, option.detail, Float(card.x + 14), Float(card.y + 72), UITheme.Color.secondary)
+            text(r, option.title, Float(card.x + 14), Float(card.y + 46), UITheme.Color.text)
+            drawWrappedText(r, option.detail, x: Float(card.x + 14), y: Float(card.y + 72), color: UITheme.Color.secondary, maxWidth: Float(card.width - 28), lineHeight: 16, maxLines: 2)
             text(r, "\(i + 1)", Float(card.x + card.width - 24), Float(card.y + 104), UITheme.Color.muted)
         }
         text(r, t(game, "Mouse click or press 1 / 2 / 3", "鼠标点击或按 1 / 2 / 3"), Float(width / 2 - 140), Float(height - 116), UITheme.Color.muted)
@@ -697,17 +707,90 @@ enum SDLNativeGameRenderer {
 
     private static func text(_ r: GameRenderer, _ value: String, _ x: Float, _ y: Float, _ c: RenderColor) { r.drawText(value, at: (x: x, y: y), color: c) }
 
-    private static func drawWrappedText(_ r: GameRenderer, _ value: String, x: Float, y: Float, color: RenderColor, maxCharacters: Int, lineHeight: Float, maxLines: Int) {
-        guard maxCharacters > 0, maxLines > 0 else { return }
-        let characters = Array(value)
-        for line in 0..<maxLines {
-            let start = line * maxCharacters
-            guard start < characters.count else { break }
-            let end = min(characters.count, start + maxCharacters)
-            var output = String(characters[start..<end])
-            if end < characters.count, line == maxLines - 1 { output = String(output.dropLast()) + "…" }
-            text(r, output, x, y + Float(line) * lineHeight, color)
+    private static func drawRightText(_ r: GameRenderer, _ value: String, right: Float, y: Float, color: RenderColor) {
+        text(r, value, right - textWidth(value), y, color)
+    }
+
+    private static func drawCombatNotification(_ r: GameRenderer, game: Game, field: PlayfieldBounds) {
+        let alpha = notificationAlpha(game.notificationTimer, fullDuration: 3.2)
+        let tint = color(game.notificationTint)
+        let titleColor = RenderColor(tint.red, tint.green, tint.blue, alpha)
+        let detailColor = RenderColor(UITheme.Color.text.red, UITheme.Color.text.green, UITheme.Color.text.blue, alpha)
+        let x: Float = 18
+        let y = Float(field.top + 26)
+        r.fillRect(RenderRect(x: x, y: y, width: 360, height: 54), color: RenderColor(7, 17, 34, UInt8(Double(alpha) * 0.9)))
+        r.fillRect(RenderRect(x: x, y: y, width: 3, height: 54), color: titleColor)
+        text(r, game.notificationTitle, x + 14, y + 10, titleColor)
+        drawWrappedText(r, game.notificationDetail, x: x + 14, y: y + 31, color: detailColor, maxWidth: 330, lineHeight: 16, maxLines: 1)
+    }
+
+    private static func notificationAlpha(_ timeRemaining: Double, fullDuration: Double) -> UInt8 {
+        let fadeStart = min(0.55, fullDuration * 0.24)
+        let opacity = timeRemaining < fadeStart ? max(0, timeRemaining / fadeStart) : 1
+        return UInt8(max(0, min(255, Int(opacity * 255))))
+    }
+
+    private static func drawWrappedText(_ r: GameRenderer, _ value: String, x: Float, y: Float, color: RenderColor, maxWidth: Float, lineHeight: Float, maxLines: Int) {
+        for (index, line) in wrappedLines(value, maxWidth: maxWidth, maxLines: maxLines).enumerated() {
+            text(r, line, x, y + Float(index) * lineHeight, color)
         }
+    }
+
+    private static func wrappedLines(_ value: String, maxWidth: Float, maxLines: Int) -> [String] {
+        guard maxWidth > 0, maxLines > 0 else { return [] }
+        let source = Array(value.trimmingCharacters(in: .whitespacesAndNewlines))
+        guard !source.isEmpty else { return [] }
+        var lines: [String] = []
+        var line: [Character] = []
+        var width: Float = 0
+        var lastBreak: Int?
+        var index = 0
+        while index < source.count {
+            let character = source[index]
+            let advance = glyphWidth(character)
+            if width + advance > maxWidth, !line.isEmpty {
+                var emitted: [Character]
+                var remainder: [Character] = []
+                if let breakIndex = lastBreak, breakIndex > 0 {
+                    emitted = Array(line[..<breakIndex])
+                    remainder = Array(Array(line[breakIndex...]).drop(while: { $0 == " " }))
+                } else {
+                    emitted = line
+                }
+                if lines.count == maxLines - 1 {
+                    var shortened = emitted
+                    while !shortened.isEmpty && textWidth(String(shortened) + "…") > maxWidth { shortened.removeLast() }
+                    lines.append(String(shortened) + (index < source.count || !remainder.isEmpty ? "…" : ""))
+                    return lines
+                }
+                lines.append(String(emitted).trimmingCharacters(in: .whitespaces))
+                line = remainder
+                width = textWidth(String(line))
+                lastBreak = line.lastIndex(where: isBreakOpportunity)
+                continue
+            }
+            line.append(character)
+            width += advance
+            if isBreakOpportunity(character) { lastBreak = line.count - 1 }
+            index += 1
+        }
+        if !line.isEmpty && lines.count < maxLines {
+            lines.append(String(line).trimmingCharacters(in: .whitespaces))
+        }
+        return lines
+    }
+
+    private static func isBreakOpportunity(_ character: Character) -> Bool {
+        character == " " || character == "-" || character == "•" || character == "/" || character == "," || character == "，" || character == "。"
+    }
+
+    private static func glyphWidth(_ character: Character) -> Float {
+        if character == " " { return 8 }
+        return character.unicodeScalars.allSatisfy { $0.value < 128 } ? 14 : 20
+    }
+
+    private static func textWidth(_ value: String) -> Float {
+        value.reduce(0) { $0 + glyphWidth($1) }
     }
 
     private static func t(_ game: Game, _ english: String, _ chinese: String) -> String {

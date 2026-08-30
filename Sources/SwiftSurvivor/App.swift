@@ -642,6 +642,7 @@ final class Game: @unchecked Sendable {
         max(1, (visibleVaultIndices.count + 3) / 4)
     }
     var mousePosition = Vec2(x: 500, y: 630)
+    var mousePrimaryDown = false
     var precisionMode = false
     var player = Vec2(x: 500, y: 630)
     var playerRadius = 18.0
@@ -709,6 +710,8 @@ final class Game: @unchecked Sendable {
     var damageEdgeFlash = 0.0
     var nextFeedbackID = 1
     var feedbackDebugIndex = 0
+    var uiDebugOverlay = false
+    var uiAnimationTime = 0.0
     var score = 0
     var kills = 0
     var experience = 0
@@ -1032,6 +1035,7 @@ final class Game: @unchecked Sendable {
 
     func update(delta rawDelta: Double, width: Double, height: Double) {
         let realDelta = min(max(rawDelta, 0), 0.05)
+        uiAnimationTime += realDelta
         if stars.isEmpty { initializeStars(width: width, height: height) }
         if phase == .menu || phase == .saveSlots || phase == .missionSelect || phase == .controls || phase == .hangar || phase == .settings || phase == .archive {
             updateStars(delta: realDelta, height: height)
@@ -2980,6 +2984,36 @@ final class Game: @unchecked Sendable {
         hangarTab = tab
     }
 
+    func toggleEquipmentLock(_ slot: Int) {
+        guard phase == .hangar, profile.equipment.indices.contains(slot) else { return }
+        let nextValue = !profile.equipment[slot].locked
+        profile.equipment[slot].locked = nextValue
+        let itemID = profile.equipment[slot].id
+        for index in profile.inventory.indices where profile.inventory[index].id == itemID {
+            profile.inventory[index].locked = nextValue
+        }
+        persistProfile()
+        hangarMessageTitle = nextValue ? uiText("MODULE LOCKED", "模块已锁定") : uiText("MODULE UNLOCKED", "模块已解锁")
+        hangarMessageDetail = equipmentDisplayName(profile.equipment[slot])
+        hangarMessageTimer = 1.8
+        AudioManager.shared.playSFX("sfx_upgrade")
+    }
+
+    func toggleInventoryLock(_ inventoryIndex: Int) {
+        guard phase == .hangar, profile.inventory.indices.contains(inventoryIndex) else { return }
+        profile.inventory[inventoryIndex].locked.toggle()
+        let itemID = profile.inventory[inventoryIndex].id
+        if let equippedIndex = profile.equipment.firstIndex(where: { $0.id == itemID }) {
+            profile.equipment[equippedIndex].locked = profile.inventory[inventoryIndex].locked
+        }
+        persistProfile()
+        let locked = profile.inventory[inventoryIndex].locked
+        hangarMessageTitle = locked ? uiText("MODULE LOCKED", "模块已锁定") : uiText("MODULE UNLOCKED", "模块已解锁")
+        hangarMessageDetail = equipmentDisplayName(profile.inventory[inventoryIndex])
+        hangarMessageTimer = 1.8
+        AudioManager.shared.playSFX("sfx_upgrade")
+    }
+
     func equipInventoryItem(_ index: Int) {
         guard phase == .hangar, profile.inventory.indices.contains(index) else { return }
         let item = profile.inventory[index]
@@ -3149,8 +3183,9 @@ final class Game: @unchecked Sendable {
                     codexPage = 0
                     return
                 }
+                let codexPageCount = max(1, (CodexCatalog.all.filter { $0.category == codexCategory }.count + 2) / 3)
                 if codexPrevButton(width: width, height: height).contains(point) { codexPage = max(0, codexPage - 1) }
-                else if codexNextButton(width: width, height: height).contains(point) { codexPage += 1 }
+                else if codexNextButton(width: width, height: height).contains(point) { codexPage = min(codexPageCount - 1, codexPage + 1) }
             }
             if archiveBackButton(width: width, height: height).contains(point) { phase = .menu }
         case .controls:
@@ -3179,7 +3214,9 @@ final class Game: @unchecked Sendable {
             }
             if hangarTab == 0 {
                 for (index, card) in hangarCards(width: width, height: height).enumerated() where card.contains(point) {
-                    if equipmentPromoteButton(index, width: width, height: height).contains(point) {
+                    if equipmentLockButton(index, width: width, height: height).contains(point) {
+                        toggleEquipmentLock(index)
+                    } else if equipmentPromoteButton(index, width: width, height: height).contains(point) {
                         promoteEquipment(index)
                     } else {
                         upgradeEquipment(index)
@@ -3194,7 +3231,14 @@ final class Game: @unchecked Sendable {
                 let visible = visibleVaultIndices
                 for (cardIndex, card) in vaultCards(width: width, height: height).enumerated() where card.contains(point) {
                     let absoluteIndex = vaultPage * 4 + cardIndex
-                    if visible.indices.contains(absoluteIndex) { equipInventoryItem(visible[absoluteIndex]) }
+                    if visible.indices.contains(absoluteIndex) {
+                        let inventoryIndex = visible[absoluteIndex]
+                        if vaultLockButton(cardIndex, width: width, height: height).contains(point) {
+                            toggleInventoryLock(inventoryIndex)
+                        } else {
+                            equipInventoryItem(inventoryIndex)
+                        }
+                    }
                     break
                 }
             }

@@ -203,6 +203,7 @@ final class SDLInputManager {
     private var releasedKeys: Set<Int32> = []
     private var quitRequested = false
     private var clickPosition: (x: Float, y: Float)?
+    private var primaryButtonHeld = false
 
     func beginFrame(events: [SDLInputEvent]) {
         pressedKeys.removeAll(keepingCapacity: true)
@@ -219,8 +220,10 @@ final class SDLInputManager {
             case .mouseMotion:
                 mousePosition = (event.x, event.y)
             case .mouseButtonDown:
-                if event.button == 1 { clickPosition = (event.x, event.y) }
-            case .mouseButtonUp, .windowResized:
+                if event.button == 1 { clickPosition = (event.x, event.y); primaryButtonHeld = true }
+            case .mouseButtonUp:
+                if event.button == 1 { primaryButtonHeld = false }
+            case .windowResized:
                 break
             }
         }
@@ -234,6 +237,8 @@ final class SDLInputManager {
     func isPressed(keyCode: Int32) -> Bool { pressedKeys.contains(keyCode) }
     func isPressedQ() -> Bool { pressedKeys.contains(swift_sdl3_keycode_q()) }
     func isPressedFeedbackDebug() -> Bool { pressedKeys.contains(swift_sdl3_keycode_f8()) }
+    func isPressedUIDebug() -> Bool { pressedKeys.contains(swift_sdl3_keycode_f9()) }
+    func isPrimaryButtonHeld() -> Bool { primaryButtonHeld }
     func consumePrimaryClick() -> (x: Float, y: Float)? {
         defer { clickPosition = nil }
         return clickPosition

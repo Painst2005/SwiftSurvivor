@@ -72,11 +72,25 @@ enum UIControlState {
 /// hover behavior.
 enum UIInteraction {
     nonisolated(unsafe) static var pointer = Vec2.zero
+    nonisolated(unsafe) static var time = 0.0
+    nonisolated(unsafe) static var primaryHeld = false
 
     static func state(for rect: UIRect, selected: Bool, enabled: Bool = true) -> UIControlState {
         guard enabled else { return .disabled }
         if selected { return .selected }
+        if primaryHeld, rect.contains(pointer) { return .pressed }
         return rect.contains(pointer) ? .hover : .normal
+    }
+}
+
+enum UIAnimationSystem {
+    static func easeOutCubic(_ value: Double) -> Double {
+        let t = min(1, max(0, value))
+        return 1 - pow(1 - t, 3)
+    }
+
+    static func pulse(time: Double, speed: Double = 4.0, amount: Double = 0.5) -> Double {
+        1 + sin(time * speed) * amount
     }
 }
 

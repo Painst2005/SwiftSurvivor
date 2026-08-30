@@ -71,6 +71,7 @@ enum SDLFullGame {
                 handleInput(input, viewport: viewport)
                 let logicalMouse = viewport.logicalPoint(x: input.mousePosition.x, y: input.mousePosition.y)
                 Game.shared.updateMousePosition(Vec2(x: Double(logicalMouse.x), y: Double(logicalMouse.y)))
+                Game.shared.mousePrimaryDown = input.isPrimaryButtonHeld()
                 clock.advance(realDelta: realDelta) { delta in
                     Game.shared.update(delta: delta, width: Double(logicalWidth), height: Double(logicalHeight))
                 }
@@ -125,6 +126,7 @@ enum SDLFullGame {
         }
         if input.isPressedQ(), Game.shared.phase == .playing { Game.shared.cycleWeapon() }
         if input.isPressedFeedbackDebug() { Game.shared.debugFeedbackTest() }
+        if input.isPressedUIDebug() { Game.shared.uiDebugOverlay.toggle() }
         if Game.shared.phase == .upgrade {
             if input.isPressed(keyCode: 49) { Game.shared.chooseUpgrade(0) }
             if input.isPressed(keyCode: 50) { Game.shared.chooseUpgrade(1) }

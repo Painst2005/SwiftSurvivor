@@ -9,8 +9,9 @@ struct EquipmentState: Codable {
     var stars: Int
     var evolution: Int
     var affix: Int
+    var locked: Bool
 
-    init(id: String, name: String, slot: Int, level: Int, rarity: Int, stars: Int = 1, evolution: Int = 0, affix: Int = 0) {
+    init(id: String, name: String, slot: Int, level: Int, rarity: Int, stars: Int = 1, evolution: Int = 0, affix: Int = 0, locked: Bool = false) {
         self.id = id
         self.name = name
         self.slot = slot
@@ -19,10 +20,11 @@ struct EquipmentState: Codable {
         self.stars = stars
         self.evolution = evolution
         self.affix = affix
+        self.locked = locked
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, slot, level, rarity, stars, evolution, affix
+        case id, name, slot, level, rarity, stars, evolution, affix, locked
     }
 
     init(from decoder: Decoder) throws {
@@ -37,6 +39,7 @@ struct EquipmentState: Codable {
         stars = try container.decodeIfPresent(Int.self, forKey: .stars) ?? 1
         evolution = try container.decodeIfPresent(Int.self, forKey: .evolution) ?? 0
         affix = try container.decodeIfPresent(Int.self, forKey: .affix) ?? 0
+        locked = try container.decodeIfPresent(Bool.self, forKey: .locked) ?? false
     }
 }
 

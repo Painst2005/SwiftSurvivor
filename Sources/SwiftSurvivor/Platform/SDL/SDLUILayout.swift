@@ -71,6 +71,10 @@ func equipmentPromoteButton(_ slot: Int, width: Double, height: Double) -> UIRec
     let card = hangarCards(width: width, height: height)[min(4, max(0, slot))]
     return UIRect(x: card.x + card.width - 92, y: card.y + 87, width: 78, height: 24)
 }
+func equipmentLockButton(_ slot: Int, width: Double, height: Double) -> UIRect {
+    let card = hangarCards(width: width, height: height)[min(4, max(0, slot))]
+    return UIRect(x: card.x + card.width - 64, y: card.y + 10, width: 54, height: 22)
+}
 func hangarBackButton(width: Double, height: Double) -> UIRect { UIRect(x: width / 2 - 120, y: height - 82, width: 240, height: 50) }
 func hangarTabButtons(width: Double, height: Double) -> [UIRect] {
     let left = width / 2 - 170
@@ -84,6 +88,10 @@ func vaultFilterButton(width: Double, height: Double) -> UIRect { UIRect(x: widt
 func vaultSortButton(width: Double, height: Double) -> UIRect { UIRect(x: width / 2 - 160, y: 144, width: 150, height: 30) }
 func vaultPrevButton(width: Double, height: Double) -> UIRect { UIRect(x: width / 2 + 10, y: 144, width: 90, height: 30) }
 func vaultNextButton(width: Double, height: Double) -> UIRect { UIRect(x: width / 2 + 110, y: 144, width: 90, height: 30) }
+func vaultLockButton(_ cardIndex: Int, width: Double, height: Double) -> UIRect {
+    let card = vaultCards(width: width, height: height)[min(3, max(0, cardIndex))]
+    return UIRect(x: card.x + card.width - 64, y: card.y + 10, width: 54, height: 22)
+}
 func shipCards(width: Double, height: Double) -> [UIRect] {
     let left = width / 2 - 335
     return ShipType.allCases.map { UIRect(x: left + Double($0.rawValue) * 136, y: 490, width: 126, height: 68) }

@@ -7,6 +7,11 @@ enum SDLNativeGameRenderer {
         UIInteraction.pointer = game.mousePosition
         UIInteraction.time = game.uiAnimationTime
         UIInteraction.primaryHeld = game.mousePrimaryDown
+        let currentScreen = String(describing: game.phase)
+        if currentScreen != UIInteraction.screenID {
+            UIInteraction.screenID = currentScreen
+            UIInteraction.transitionStart = game.uiAnimationTime
+        }
         renderer.beginFrame(clear: RenderColor(5, 9, 24))
         drawSpace(renderer, game: game, width: width, height: height)
         switch game.phase {
@@ -24,6 +29,12 @@ enum SDLNativeGameRenderer {
         case .archive: drawArchive(renderer, game: game, width: width, height: height)
         }
         if game.uiDebugOverlay { drawUIDebugOverlay(renderer, game: game, width: width, height: height) }
+        let transitionElapsed = game.uiAnimationTime - UIInteraction.transitionStart
+        if transitionElapsed >= 0, transitionElapsed < UITheme.Animation.page {
+            let progress = UIAnimationSystem.easeOutCubic(transitionElapsed / UITheme.Animation.page)
+            let alpha = UInt8(max(0, min(95, 95 * (1 - progress))))
+            renderer.fillRect(RenderRect(x: 0, y: 0, width: Float(width), height: Float(height)), color: RenderColor(2, 6, 15, alpha))
+        }
         renderer.present()
     }
 
@@ -188,6 +199,12 @@ enum SDLNativeGameRenderer {
             let phase = boss.health / max(1, boss.maxHealth) > 0.7 ? 1 : (boss.health / max(1, boss.maxHealth) > 0.3 ? 2 : 3)
             text(r, t(game, "BOSS", "首领") + "  " + bossName + "  •  " + t(game, "PHASE", "阶段") + " \(phase)",
                  Float(width / 2 - 135), 67, UITheme.Color.text)
+        }
+        if game.survivalTime < 8 {
+            let hint = game.controlMode == .mouse
+                ? t(game, "MOUSE FOLLOW  •  SHIFT PRECISION  •  SPACE OVERLOAD", "鼠标跟随  •  Shift 精准  •  Space 超载")
+                : t(game, "WASD MOVE  •  SHIFT PRECISION  •  SPACE OVERLOAD", "WASD 移动  •  Shift 精准  •  Space 超载")
+            text(r, hint, 18, Float(field.bottom - 24), UITheme.Color.muted)
         }
     }
 

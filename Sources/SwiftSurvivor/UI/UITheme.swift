@@ -74,6 +74,8 @@ enum UIInteraction {
     nonisolated(unsafe) static var pointer = Vec2.zero
     nonisolated(unsafe) static var time = 0.0
     nonisolated(unsafe) static var primaryHeld = false
+    nonisolated(unsafe) static var screenID = ""
+    nonisolated(unsafe) static var transitionStart = 0.0
 
     static func state(for rect: UIRect, selected: Bool, enabled: Bool = true) -> UIControlState {
         guard enabled else { return .disabled }

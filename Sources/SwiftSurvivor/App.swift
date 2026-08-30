@@ -75,6 +75,10 @@ func viewportMetrics(pixelWidth: Int32, pixelHeight: Int32) -> ViewportMetrics {
 
 enum GamePhase { case menu, saveSlots, missionSelect, controls, hangar, settings, archive, playing, paused, upgrade, gameOver }
 
+enum UIConfirmationKind {
+    case abandonRun
+}
+
 enum GameLanguage: Int, CaseIterable {
     case english = 0
     case chinese = 1
@@ -594,6 +598,7 @@ final class Game: @unchecked Sendable {
     var phaseBeforeControls: GamePhase = .menu
     var phaseBeforeSettings: GamePhase = .menu
     var phaseBeforeSaveSlots: GamePhase = .menu
+    var confirmation: UIConfirmationKind?
     var selectedMission = 0
     var gameMode: GameMode = .campaign
     var runWon = false
@@ -3044,9 +3049,35 @@ final class Game: @unchecked Sendable {
         mousePosition = point
     }
 
+    /// Convert a screen-space logical point into the coordinate space used by
+    /// UI layout.  Gameplay keeps the raw pointer so mouse-follow flight is
+    /// unaffected by the accessibility scale.
+    func uiPoint(for point: Vec2, width: Double, height: Double) -> Vec2 {
+        let scale = min(1.2, max(0.8, Double(profile.uiScale) / 100.0))
+        let offsetX = (width - width * scale) * 0.5
+        let offsetY = (height - height * scale) * 0.5
+        return Vec2(x: (point.x - offsetX) / scale, y: (point.y - offsetY) / scale)
+    }
+
     func togglePause() {
         if phase == .playing { phase = .paused }
         else if phase == .paused { phase = .playing }
+    }
+
+    func requestAbandonRunConfirmation() {
+        guard phase == .paused else { return }
+        confirmation = .abandonRun
+    }
+
+    func resolveConfirmation(confirmed: Bool) {
+        guard let pending = confirmation else { return }
+        confirmation = nil
+        guard confirmed else { return }
+        switch pending {
+        case .abandonRun:
+            phase = .menu
+            persistProfile()
+        }
     }
 
     func openControls(from source: GamePhase) {
@@ -3124,6 +3155,16 @@ final class Game: @unchecked Sendable {
         // SDLFullGame observes profile changes on its next frame.
     }
 
+    func cycleUIScale() {
+        let values = [80, 90, 100, 110, 120]
+        let current = values.firstIndex(of: profile.uiScale) ?? 2
+        profile.uiScale = values[(current + 1) % values.count]
+        persistProfile()
+        hangarMessageTitle = uiText("UI SCALE (profile.uiScale)%", "界面缩放 (profile.uiScale)%")
+        hangarMessageDetail = uiText("Text and controls will use the new readability scale.", "文字和控件已切换到新的可读性比例。")
+        hangarMessageTimer = 1.8
+    }
+
     func uiText(_ english: String, _ chinese: String) -> String {
         language == .chinese ? chinese : english
     }
@@ -3138,6 +3179,14 @@ final class Game: @unchecked Sendable {
     }
 
     func handleClick(at point: Vec2, width: Double, height: Double) {
+        if confirmation != nil {
+            if confirmationConfirmButton(width: width, height: height).contains(point) {
+                resolveConfirmation(confirmed: true)
+            } else if confirmationCancelButton(width: width, height: height).contains(point) {
+                resolveConfirmation(confirmed: false)
+            }
+            return
+        }
         switch phase {
         case .menu:
             if saveSlotButton(width: width, height: height).contains(point) {
@@ -3202,6 +3251,7 @@ final class Game: @unchecked Sendable {
             else if settingsShakeButton(width: width, height: height).contains(point) { cycleCameraShake() }
             else if settingsWindowModeButton(width: width, height: height).contains(point) { cycleWindowMode() }
             else if settingsResolutionButton(width: width, height: height).contains(point) { cycleResolution() }
+            else if settingsUIScaleButton(width: width, height: height).contains(point) { cycleUIScale() }
             else if settingsBackButton(width: width, height: height).contains(point) { phase = phaseBeforeSettings }
         case .hangar:
             for (index, tab) in hangarTabButtons(width: width, height: height).enumerated() where tab.contains(point) {
@@ -3248,7 +3298,7 @@ final class Game: @unchecked Sendable {
             if buttons[0].contains(point) { phase = .playing }
             else if buttons[1].contains(point) { start(width: width, height: height) }
             else if buttons[2].contains(point) { openSettings(from: .paused) }
-            else if buttons[3].contains(point) { phase = .menu }
+            else if buttons[3].contains(point) { requestAbandonRunConfirmation() }
             else if buttons[4].contains(point) { phase = .menu }
         case .upgrade:
             for (index, card) in upgradeCards(width: width, height: height).enumerated() where card.contains(point) {

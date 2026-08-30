@@ -58,6 +58,9 @@ struct PlayerProfile: Codable {
     var isFullscreen: Bool
     var resolutionWidth: Int
     var resolutionHeight: Int
+    /// UI readability scale in percent.  The value is intentionally discrete
+    /// so it stays portable across window sizes and old save files.
+    var uiScale: Int
     var unlockedMission: Int
     var equipment: [EquipmentState]
     var inventory: [EquipmentState]
@@ -95,6 +98,7 @@ struct PlayerProfile: Codable {
                              isFullscreen: true,
                              resolutionWidth: 1280,
                              resolutionHeight: 720,
+                             uiScale: 100,
                              unlockedMission: 1,
                              equipment: starter,
                              inventory: starter,
@@ -121,6 +125,7 @@ struct PlayerProfile: Codable {
          isFullscreen: Bool = true,
          resolutionWidth: Int = 1280,
          resolutionHeight: Int = 720,
+         uiScale: Int = 100,
          unlockedMission: Int,
          equipment: [EquipmentState],
          inventory: [EquipmentState],
@@ -150,6 +155,7 @@ struct PlayerProfile: Codable {
             self.resolutionWidth = 1280
             self.resolutionHeight = 720
         }
+        self.uiScale = [80, 90, 100, 110, 120].contains(uiScale) ? uiScale : 100
         self.unlockedMission = max(1, unlockedMission)
         self.equipment = equipment
         self.inventory = inventory
@@ -163,7 +169,7 @@ struct PlayerProfile: Codable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case saveVersion, credits, cores, alloy, equippedWeapon, selectedShip, language, controlMode, bgmVolume, sfxVolume, cameraShake, isFullscreen, resolutionWidth, resolutionHeight, unlockedMission, equipment, inventory
+        case saveVersion, credits, cores, alloy, equippedWeapon, selectedShip, language, controlMode, bgmVolume, sfxVolume, cameraShake, isFullscreen, resolutionWidth, resolutionHeight, uiScale, unlockedMission, equipment, inventory
         case totalKills, totalBosses, bestCombo, bestScore, totalRuns, bossDropPity, achievements
     }
 
@@ -190,6 +196,8 @@ struct PlayerProfile: Codable {
             resolutionWidth = 1280
             resolutionHeight = 720
         }
+        let loadedUIScale = try container.decodeIfPresent(Int.self, forKey: .uiScale) ?? 100
+        uiScale = [80, 90, 100, 110, 120].contains(loadedUIScale) ? loadedUIScale : 100
         unlockedMission = max(1, try container.decodeIfPresent(Int.self, forKey: .unlockedMission) ?? 1)
         var loadedEquipment = try container.decodeIfPresent([EquipmentState].self, forKey: .equipment) ?? PlayerProfile.starterEquipment
         var loadedInventory = try container.decodeIfPresent([EquipmentState].self, forKey: .inventory) ?? loadedEquipment
@@ -244,6 +252,7 @@ final class SaveManager: @unchecked Sendable {
     private let activeSlotMarkerURL: URL
     private(set) var activeSlot: Int
     private(set) var profile: PlayerProfile
+    private var summariesCache: [SaveSlotSummary]? = nil
 
     private init() {
         let root = SaveManager.gameRootDirectory()
@@ -271,6 +280,7 @@ final class SaveManager: @unchecked Sendable {
         var normalized = value
         normalized.saveVersion = 5
         profile = normalized
+        summariesCache = nil
         if let data = try? JSONEncoder().encode(normalized) {
             let fileManager = FileManager.default
             let destination = SaveManager.slotURL(root: rootDirectory, slot: activeSlot)
@@ -297,6 +307,7 @@ final class SaveManager: @unchecked Sendable {
         // made immediately after a menu action.
         save(profile)
         activeSlot = slot
+        summariesCache = nil
         let root = rootDirectory
         if let loaded = SaveManager.loadProfile(at: SaveManager.slotURL(root: root, slot: slot))
             ?? SaveManager.loadProfile(at: SaveManager.backupURL(root: root, slot: slot)) {
@@ -310,12 +321,15 @@ final class SaveManager: @unchecked Sendable {
     }
 
     func slotSummaries() -> [SaveSlotSummary] {
-        (0..<Self.slotCount).map { slot in
+        if let summariesCache { return summariesCache }
+        let summaries = (0..<Self.slotCount).map { slot in
             let root = rootDirectory
             let loaded = SaveManager.loadProfile(at: SaveManager.slotURL(root: root, slot: slot))
                 ?? SaveManager.loadProfile(at: SaveManager.backupURL(root: root, slot: slot))
             return SaveSlotSummary(slot: slot, profile: loaded)
         }
+        summariesCache = summaries
+        return summaries
     }
 
     var saveLocation: URL { rootDirectory }

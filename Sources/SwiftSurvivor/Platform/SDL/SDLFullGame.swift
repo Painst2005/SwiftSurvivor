@@ -93,15 +93,18 @@ enum SDLFullGame {
         if let click = input.consumePrimaryClick() {
             let point = viewport.logicalPoint(x: click.x, y: click.y)
             let logicalPoint = Vec2(x: Double(point.x), y: Double(point.y))
-            if Game.shared.phase == .menu && mainMenuButtons(width: Double(viewport.logicalWidth), height: Double(viewport.logicalHeight))[4].contains(logicalPoint) {
+            let uiPoint = Game.shared.uiPoint(for: logicalPoint,
+                                              width: Double(viewport.logicalWidth),
+                                              height: Double(viewport.logicalHeight))
+            if Game.shared.phase == .menu && mainMenuButtons(width: Double(viewport.logicalWidth), height: Double(viewport.logicalHeight))[4].contains(uiPoint) {
                 sdlQuitRequested = true
                 return
             }
-            if Game.shared.phase == .paused && pauseButtons(width: Double(viewport.logicalWidth), height: Double(viewport.logicalHeight))[4].contains(logicalPoint) {
+            if Game.shared.phase == .paused && Game.shared.confirmation == nil && pauseButtons(width: Double(viewport.logicalWidth), height: Double(viewport.logicalHeight))[4].contains(uiPoint) {
                 sdlQuitRequested = true
                 return
             }
-            Game.shared.handleClick(at: logicalPoint, width: Double(viewport.logicalWidth), height: Double(viewport.logicalHeight))
+            Game.shared.handleClick(at: uiPoint, width: Double(viewport.logicalWidth), height: Double(viewport.logicalHeight))
         }
         if input.isPressed(keyCode: 13) {
             switch Game.shared.phase {
@@ -114,14 +117,18 @@ enum SDLFullGame {
             Game.shared.activateThunderOverload()
         }
         if input.isPressed(.pause) {
-            switch Game.shared.phase {
-            case .playing, .paused: Game.shared.togglePause()
-            case .gameOver: Game.shared.phase = .menu
-            case .settings: Game.shared.phase = Game.shared.phaseBeforeSettings
-            case .controls: Game.shared.phase = Game.shared.phaseBeforeControls
-            case .saveSlots: Game.shared.phase = Game.shared.phaseBeforeSaveSlots
-            case .missionSelect, .hangar, .archive: Game.shared.phase = .menu
-            default: break
+            if Game.shared.confirmation != nil {
+                Game.shared.resolveConfirmation(confirmed: false)
+            } else {
+                switch Game.shared.phase {
+                case .playing, .paused: Game.shared.togglePause()
+                case .gameOver: Game.shared.phase = .menu
+                case .settings: Game.shared.phase = Game.shared.phaseBeforeSettings
+                case .controls: Game.shared.phase = Game.shared.phaseBeforeControls
+                case .saveSlots: Game.shared.phase = Game.shared.phaseBeforeSaveSlots
+                case .missionSelect, .hangar, .archive: Game.shared.phase = .menu
+                default: break
+                }
             }
         }
         if input.isPressedQ(), Game.shared.phase == .playing { Game.shared.cycleWeapon() }

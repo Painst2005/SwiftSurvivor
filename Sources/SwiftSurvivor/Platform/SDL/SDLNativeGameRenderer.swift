@@ -4,7 +4,8 @@ import Foundation
 /// of SDL; this layer translates the model into lightweight primitives.
 enum SDLNativeGameRenderer {
     static func draw(_ renderer: GameRenderer, game: Game, width: Int, height: Int) {
-        UIInteraction.pointer = game.mousePosition
+        let uiRenderer = UITransformRenderer(base: renderer, canvasWidth: width, canvasHeight: height, scalePercent: game.profile.uiScale)
+        UIInteraction.pointer = game.uiPoint(for: game.mousePosition, width: Double(width), height: Double(height))
         UIInteraction.time = game.uiAnimationTime
         UIInteraction.primaryHeld = game.mousePrimaryDown
         let currentScreen = String(describing: game.phase)
@@ -16,19 +17,20 @@ enum SDLNativeGameRenderer {
         drawSpace(renderer, game: game, width: width, height: height)
         switch game.phase {
         case .playing, .paused, .upgrade, .gameOver:
-            drawBattle(renderer, game: game, width: width, height: height)
-            if game.phase == .paused { drawPause(renderer, game: game, width: width, height: height) }
-            if game.phase == .upgrade { drawUpgrade(renderer, game: game, width: width, height: height) }
-            if game.phase == .gameOver { drawGameOver(renderer, game: game, width: width, height: height) }
-        case .menu: drawMenu(renderer, game: game, width: width, height: height)
-        case .saveSlots: drawSaveSlots(renderer, game: game, width: width, height: height)
-        case .missionSelect: drawMissionSelect(renderer, game: game, width: width, height: height)
-        case .controls: drawControls(renderer, game: game, width: width, height: height)
-        case .hangar: drawHangar(renderer, game: game, width: width, height: height)
-        case .settings: drawSettings(renderer, game: game, width: width, height: height)
-        case .archive: drawArchive(renderer, game: game, width: width, height: height)
+            drawBattle(renderer, uiRenderer: uiRenderer, game: game, width: width, height: height)
+            if game.phase == .paused { drawPause(uiRenderer, game: game, width: width, height: height) }
+            if game.phase == .upgrade { drawUpgrade(uiRenderer, game: game, width: width, height: height) }
+            if game.phase == .gameOver { drawGameOver(uiRenderer, game: game, width: width, height: height) }
+        case .menu: drawMenu(uiRenderer, game: game, width: width, height: height)
+        case .saveSlots: drawSaveSlots(uiRenderer, game: game, width: width, height: height)
+        case .missionSelect: drawMissionSelect(uiRenderer, game: game, width: width, height: height)
+        case .controls: drawControls(uiRenderer, game: game, width: width, height: height)
+        case .hangar: drawHangar(uiRenderer, game: game, width: width, height: height)
+        case .settings: drawSettings(uiRenderer, game: game, width: width, height: height)
+        case .archive: drawArchive(uiRenderer, game: game, width: width, height: height)
         }
-        if game.uiDebugOverlay { drawUIDebugOverlay(renderer, game: game, width: width, height: height) }
+        if game.confirmation != nil { drawConfirmation(renderer, uiRenderer: uiRenderer, game: game, width: width, height: height) }
+        if game.uiDebugOverlay { drawUIDebugOverlay(uiRenderer, game: game, width: width, height: height) }
         let transitionElapsed = game.uiAnimationTime - UIInteraction.transitionStart
         if transitionElapsed >= 0, transitionElapsed < UITheme.Animation.page {
             let progress = UIAnimationSystem.easeOutCubic(transitionElapsed / UITheme.Animation.page)
@@ -68,10 +70,10 @@ enum SDLNativeGameRenderer {
         text(r, "HOVER WIDGETS  ENABLED", Float(x + 14), Float(y + 139), UITheme.Color.success)
     }
 
-    private static func drawBattle(_ r: GameRenderer, game: Game, width: Int, height: Int) {
+    private static func drawBattle(_ r: GameRenderer, uiRenderer: GameRenderer, game: Game, width: Int, height: Int) {
         let field = playfieldBounds(width: Double(width), height: Double(height))
         let camera = game.combatFeedback.cameraOffset
-        drawCombatHUD(r, game: game, field: field, width: width)
+        drawCombatHUD(uiRenderer, game: game, field: field, width: width)
 
         for enemy in game.enemies {
             let p = enemy.position + enemy.visualOffset + camera
@@ -146,7 +148,7 @@ enum SDLNativeGameRenderer {
             r.fillRect(RenderRect(x: 0, y: Float(field.top), width: 14, height: Float(field.bottom - field.top)), color: RenderColor(255, 55, 80, alpha))
             r.fillRect(RenderRect(x: Float(width - 14), y: Float(field.top), width: 14, height: Float(field.bottom - field.top)), color: RenderColor(255, 55, 80, alpha))
         }
-        if game.notificationTimer > 0 { text(r, game.notificationTitle, Float(width / 2 - 150), Float(height - 70), color(game.notificationTint)) }
+        if game.notificationTimer > 0 { text(uiRenderer, game.notificationTitle, Float(width / 2 - 150), Float(height - 70), color(game.notificationTint)) }
     }
 
     private static func drawCombatHUD(_ r: GameRenderer, game: Game, field: PlayfieldBounds, width: Int) {
@@ -237,9 +239,28 @@ enum SDLNativeGameRenderer {
     }
 
     private static func drawSaveSlots(_ r: GameRenderer, game: Game, width: Int, height: Int) {
-        panel(r, x: width / 2 - 420, y: 78, width: 840, height: height - 130)
-        text(r, t(game, "SAVE SELECT", "选择存档"), Float(width / 2 - 75), 120, RenderColor(230, 245, 255))
-        for (i, card) in saveSlotCards(width: Double(width), height: Double(height)).enumerated() { button(r, card, title: t(game, "SAVE SLOT", "存档") + " \(i + 1)", selected: i == SaveManager.shared.activeSlot) }
+        panel(r, x: width / 2 - 455, y: 58, width: 910, height: height - 105)
+        text(r, t(game, "SAVE SELECT // PILOT DATA", "选择存档 // 飞行员数据"), Float(width / 2 - 160), 94, UITheme.Color.text)
+        text(r, t(game, "Choose a slot to continue. Progress is stored beside the game.", "选择一个存档继续，进度保存在游戏根目录。"), Float(width / 2 - 255), 122, UITheme.Color.muted)
+        let summaries = SaveManager.shared.slotSummaries()
+        for (i, card) in saveSlotCards(width: Double(width), height: Double(height)).enumerated() {
+            button(r, card, title: "", selected: i == SaveManager.shared.activeSlot)
+            text(r, t(game, "SLOT", "存档") + " \(i + 1)", Float(card.x + 14), Float(card.y + 7), UITheme.Color.text)
+            guard summaries.indices.contains(i) else { continue }
+            let summary = summaries[i]
+            if let profile = summary.profile {
+                let active = i == SaveManager.shared.activeSlot
+                text(r, active ? t(game, "ACTIVE", "当前使用") : t(game, "READY", "可用"), Float(card.x + 14), Float(card.y + 20), active ? UITheme.Color.success : UITheme.Color.secondary)
+                text(r, t(game, "SECTOR", "区域") + " \(profile.unlockedMission)", Float(card.x + 14), Float(card.y + 48), UITheme.Color.text)
+                text(r, t(game, "POWER", "战力") + "  \(profileCombatPower(profile))", Float(card.x + 14), Float(card.y + 72), UITheme.Color.warning)
+                text(r, t(game, "RUNS", "出击") + "  \(profile.totalRuns)", Float(card.x + 14), Float(card.y + 96), UITheme.Color.secondary)
+                text(r, t(game, "BEST", "最高分") + "  \(profile.bestScore)", Float(card.x + 14), Float(card.y + 120), UITheme.Color.secondary)
+            } else {
+                text(r, t(game, "EMPTY SLOT", "空存档"), Float(card.x + 14), Float(card.y + 54), UITheme.Color.muted)
+                text(r, t(game, "New pilot data will be created", "选择后将创建新的飞行员数据"), Float(card.x + 14), Float(card.y + 82), UITheme.Color.secondary)
+            }
+        }
+        text(r, t(game, "AUTO-SAVE  •  JSON + BACKUP", "自动保存  •  JSON + 备份"), Float(width / 2 - 124), Float(height - 112), UITheme.Color.success)
         button(r, saveSlotsBackButton(width: Double(width), height: Double(height)), title: t(game, "BACK", "返回"), selected: false)
     }
 
@@ -295,23 +316,26 @@ enum SDLNativeGameRenderer {
     }
 
     private static func drawSettings(_ r: GameRenderer, game: Game, width: Int, height: Int) {
-        panel(r, x: width / 2 - 320, y: 70, width: 640, height: height - 125)
-        text(r, t(game, "SETTINGS", "设置"), Float(width / 2 - 55), 120, UITheme.Color.text)
-        text(r, t(game, "Presentation and accessibility", "画面与可读性设置"), Float(width / 2 - 135), 148, UITheme.Color.muted)
-        text(r, t(game, "LANGUAGE", "语言"), Float(width / 2 - 230), 204, UITheme.Color.secondary)
+        panel(r, x: width / 2 - 320, y: 44, width: 640, height: height - 78)
+        text(r, t(game, "SETTINGS", "设置"), Float(width / 2 - 55), 76, UITheme.Color.text)
+        text(r, t(game, "Presentation and accessibility", "画面与可读性设置"), Float(width / 2 - 135), 102, UITheme.Color.muted)
+        text(r, t(game, "LANGUAGE", "语言"), Float(width / 2 - 230), 140, UITheme.Color.secondary)
         let language = settingsLanguageButtons(width: Double(width), height: Double(height))
         button(r, language[0], title: t(game, "ENGLISH", "英文"), selected: game.language == .english)
         button(r, language[1], title: t(game, "CHINESE", "中文"), selected: game.language == .chinese)
-        text(r, t(game, "AUDIO", "音频"), Float(width / 2 - 230), 296, UITheme.Color.secondary)
+        text(r, t(game, "AUDIO", "音频"), Float(width / 2 - 230), 226, UITheme.Color.secondary)
         button(r, settingsBGMButton(width: Double(width), height: Double(height)), title: "BGM \(game.profile.bgmVolume)%", selected: false)
         button(r, settingsSFXButton(width: Double(width), height: Double(height)), title: "SFX \(game.profile.sfxVolume)%", selected: false)
-        text(r, t(game, "ACCESSIBILITY", "辅助选项"), Float(width / 2 - 230), 366, UITheme.Color.secondary)
+        text(r, t(game, "ACCESSIBILITY", "辅助选项"), Float(width / 2 - 230), 302, UITheme.Color.secondary)
         let shakeNames = [t(game, "OFF", "关闭"), t(game, "LOW", "低"), t(game, "MEDIUM", "中"), t(game, "HIGH", "高")]
         let shakeValue = shakeNames[min(max(0, game.profile.cameraShake), shakeNames.count - 1)]
         button(r, settingsShakeButton(width: Double(width), height: Double(height)), title: t(game, "CAMERA SHAKE", "镜头震动") + ": " + shakeValue, selected: false)
+        text(r, t(game, "DISPLAY", "显示"), Float(width / 2 - 230), 374, UITheme.Color.secondary)
         button(r, settingsWindowModeButton(width: Double(width), height: Double(height)), title: game.profile.isFullscreen ? t(game, "DISPLAY: FULLSCREEN", "显示：全屏") : t(game, "DISPLAY: WINDOWED", "显示：窗口化"), selected: false)
         button(r, settingsResolutionButton(width: Double(width), height: Double(height)), title: t(game, "RESOLUTION", "分辨率") + ": \(game.profile.resolutionWidth)x\(game.profile.resolutionHeight)", selected: false)
-        text(r, t(game, "Changes apply immediately and are saved automatically.", "设置会立即生效并自动保存。"), Float(width / 2 - 190), 602, UITheme.Color.muted)
+        text(r, t(game, "INTERFACE", "界面"), Float(width / 2 - 230), 506, UITheme.Color.secondary)
+        button(r, settingsUIScaleButton(width: Double(width), height: Double(height)), title: t(game, "UI SCALE", "界面缩放") + ": \(game.profile.uiScale)%", selected: false)
+        text(r, t(game, "Changes apply immediately and are saved automatically.", "设置会立即生效并自动保存。"), Float(width / 2 - 190), 584, UITheme.Color.muted)
         button(r, settingsBackButton(width: Double(width), height: Double(height)), title: t(game, "BACK", "返回"), selected: false)
     }
 
@@ -432,6 +456,19 @@ enum SDLNativeGameRenderer {
         100 + item.level * 18 + item.rarity * 24 + item.stars * 12 + item.evolution * 75
     }
 
+    private static func profileCombatPower(_ profile: PlayerProfile) -> Int {
+        var value = 100
+        for item in profile.equipment {
+            value += item.level * 18
+            value += item.rarity * 24
+            value += item.stars * 12
+            value += item.evolution * 75
+        }
+        value += (ShipType(rawValue: profile.selectedShip) ?? .thunder).rawValue * 20
+        value += profile.totalBosses * 12
+        return value
+    }
+
     private static func equipmentShortStat(_ game: Game, _ item: EquipmentState) -> String {
         switch item.slot {
         case 0: return t(game, "MAX HP +8 / LV", "最大生命 +8 / 级")
@@ -530,6 +567,19 @@ enum SDLNativeGameRenderer {
         let buttons = pauseButtons(width: Double(width), height: Double(height))
         let titles = [t(game, "RESUME", "继续"), t(game, "RESTART", "重新开始"), t(game, "SETTINGS", "设置"), t(game, "MAIN MENU", "主菜单"), t(game, "EXIT", "退出")]
         for (i, title) in titles.enumerated() { button(r, buttons[i], title: title, selected: false) }
+    }
+
+    private static func drawConfirmation(_ overlay: GameRenderer, uiRenderer r: GameRenderer, game: Game, width: Int, height: Int) {
+        // The dimmer sits inside the logical canvas, so it remains aligned
+        // with the letterboxed viewport and does not affect gameplay state.
+        overlay.fillRect(RenderRect(x: 0, y: 0, width: Float(width), height: Float(height)), color: RenderColor(2, 5, 14, 176))
+        let dialog = confirmationPanel(width: Double(width), height: Double(height))
+        panel(r, x: Int(dialog.x), y: Int(dialog.y), width: Int(dialog.width), height: Int(dialog.height))
+        text(r, t(game, "ABANDON SORTIE?", "结束本次出击？"), Float(dialog.x + 34), Float(dialog.y + 42), UITheme.Color.warning)
+        text(r, t(game, "Current run progress will be saved before returning.", "返回前会保存当前进度，本局战斗将结束。"), Float(dialog.x + 34), Float(dialog.y + 78), UITheme.Color.secondary)
+        text(r, t(game, "You can launch again from Mission Select.", "你可以从关卡选择再次出击。"), Float(dialog.x + 34), Float(dialog.y + 101), UITheme.Color.muted)
+        button(r, confirmationConfirmButton(width: Double(width), height: Double(height)), title: t(game, "RETURN TO MENU", "返回主菜单"), selected: true)
+        button(r, confirmationCancelButton(width: Double(width), height: Double(height)), title: t(game, "CANCEL", "取消"), selected: false)
     }
 
     private static func drawUpgrade(_ r: GameRenderer, game: Game, width: Int, height: Int) {

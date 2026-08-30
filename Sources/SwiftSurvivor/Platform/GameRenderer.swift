@@ -29,5 +29,14 @@ protocol GameRenderer: AnyObject {
     func line(from start: (x: Float, y: Float), to end: (x: Float, y: Float), color: RenderColor)
     func drawSprite(_ texture: GameTexture, in destination: RenderRect, alpha: UInt8)
     func drawText(_ text: String, at position: (x: Float, y: Float), color: RenderColor)
+    /// Optional typography scaling hook used by the UI accessibility scale.
+    /// Backends that only expose a fixed-size font can keep the default.
+    func drawTextScaled(_ text: String, at position: (x: Float, y: Float), scale: Float, color: RenderColor)
     func present()
+}
+
+extension GameRenderer {
+    func drawTextScaled(_ text: String, at position: (x: Float, y: Float), scale: Float, color: RenderColor) {
+        drawText(text, at: position, color: color)
+    }
 }

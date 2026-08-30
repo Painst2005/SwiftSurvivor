@@ -145,8 +145,12 @@ final class SDLRenderer: GameRenderer {
     }
 
     func drawText(_ text: String, at position: (x: Float, y: Float), color: RenderColor) {
+        drawTextScaled(text, at: position, scale: 1, color: color)
+    }
+
+    func drawTextScaled(_ text: String, at position: (x: Float, y: Float), scale: Float, color: RenderColor) {
         if let bitmapFont {
-            bitmapFont.draw(text, at: position, color: color)
+            bitmapFont.draw(text, at: position, scale: scale, color: color)
         } else {
             // Keep a visible diagnostic fallback if a damaged portable package
             // is missing its font asset.

@@ -59,29 +59,30 @@ final class SDLBitmapFont {
         return SDLBitmapFont(context: platform.context, texture: texture, cellSize: cellSize, columns: columns, glyphIndex: index)
     }
 
-    func draw(_ value: String, at position: (x: Float, y: Float), color: RenderColor) {
+    func draw(_ value: String, at position: (x: Float, y: Float), scale: Float = 1, color: RenderColor) {
         var cursorX = position.x
         // Keep the atlas close to its native 20 px glyph size.  Rendering a
         // 24 px cell down to an 11 px destination makes SDL's linear sampler
         // soften the strokes until they look like missing text.
-        let height: Float = 20
+        let safeScale = min(1.35, max(0.65, scale))
+        let height: Float = 20 * safeScale
         for character in value {
             if character == " " {
-                cursorX += 8
+                cursorX += 8 * safeScale
                 continue
             }
             guard let index = glyphIndex[character] else {
-                cursorX += 11
+                cursorX += 11 * safeScale
                 continue
             }
             let sourceX = Float(index % columns) * cellSize
             let sourceY = Float(index / columns) * cellSize
             let wide = character.unicodeScalars.first.map { $0.value > 0x7f } ?? false
-            let advance: Float = wide ? 20 : 14
+            let advance: Float = (wide ? 20 : 14) * safeScale
             _ = swift_sdl3_draw_texture_region(
                 context, texture.handle,
                 sourceX, sourceY, cellSize, cellSize,
-                cursorX, position.y, 20, height,
+                cursorX, position.y, 20 * safeScale, height,
                 color.red, color.green, color.blue, color.alpha
             )
             cursorX += advance

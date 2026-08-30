@@ -119,3 +119,63 @@ struct UIProgressBar {
     var fill: RenderColor
     var back: RenderColor = RenderColor(20, 35, 57)
 }
+
+/// Lightweight presentation proxy for the UI layer.  Gameplay keeps using
+/// the native logical canvas, while menus/HUD can opt into a comfortable
+/// readability scale without teaching SDL or gameplay about UI transforms.
+/// The transform is deliberately centered so the crosshair and battle field
+/// never move when a player changes the UI setting.
+final class UITransformRenderer: GameRenderer {
+    private let base: GameRenderer
+    private let scale: Float
+    private let offsetX: Float
+    private let offsetY: Float
+
+    init(base: GameRenderer, canvasWidth: Int, canvasHeight: Int, scalePercent: Int) {
+        self.base = base
+        self.scale = Float(min(1.2, max(0.8, Double(scalePercent) / 100.0)))
+        self.offsetX = (Float(canvasWidth) - Float(canvasWidth) * self.scale) * 0.5
+        self.offsetY = (Float(canvasHeight) - Float(canvasHeight) * self.scale) * 0.5
+    }
+
+    var drawableSize: (width: Int, height: Int) { base.drawableSize }
+
+    func beginFrame(clear color: RenderColor) { base.beginFrame(clear: color) }
+    func present() { base.present() }
+
+    private func point(_ x: Float, _ y: Float) -> (x: Float, y: Float) {
+        (x: offsetX + x * scale, y: offsetY + y * scale)
+    }
+
+    private func rect(_ value: RenderRect) -> RenderRect {
+        RenderRect(x: offsetX + value.x * scale,
+                   y: offsetY + value.y * scale,
+                   width: value.width * scale,
+                   height: value.height * scale)
+    }
+
+    func fillRect(_ value: RenderRect, color: RenderColor) { base.fillRect(rect(value), color: color) }
+
+    func fillCircle(center: (x: Float, y: Float), radius: Float, color: RenderColor) {
+        let p = point(center.x, center.y)
+        base.fillCircle(center: p, radius: radius * scale, color: color)
+    }
+
+    func line(from start: (x: Float, y: Float), to end: (x: Float, y: Float), color: RenderColor) {
+        base.line(from: point(start.x, start.y), to: point(end.x, end.y), color: color)
+    }
+
+    func drawSprite(_ texture: GameTexture, in destination: RenderRect, alpha: UInt8) {
+        base.drawSprite(texture, in: rect(destination), alpha: alpha)
+    }
+
+    func drawText(_ text: String, at position: (x: Float, y: Float), color: RenderColor) {
+        let p = point(position.x, position.y)
+        base.drawTextScaled(text, at: p, scale: scale, color: color)
+    }
+
+    func drawTextScaled(_ text: String, at position: (x: Float, y: Float), scale: Float, color: RenderColor) {
+        let p = point(position.x, position.y)
+        base.drawTextScaled(text, at: p, scale: self.scale * scale, color: color)
+    }
+}

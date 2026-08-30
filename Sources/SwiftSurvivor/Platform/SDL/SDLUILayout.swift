@@ -40,17 +40,29 @@ func controlModeButtons(width: Double, height: Double) -> [UIRect] {
 func controlsBackButton(width: Double, height: Double) -> UIRect { UIRect(x: width / 2 - 120, y: height - 92, width: 240, height: 50) }
 func settingsLanguageButtons(width: Double, height: Double) -> [UIRect] {
     let left = width / 2 - 230
-    return [UIRect(x: left, y: 220, width: 220, height: 70), UIRect(x: left + 240, y: 220, width: 220, height: 70)]
+    return [UIRect(x: left, y: 158, width: 220, height: 56), UIRect(x: left + 240, y: 158, width: 220, height: 56)]
 }
-func settingsBGMButton(width: Double, height: Double) -> UIRect { UIRect(x: width / 2 - 230, y: 310, width: 220, height: 52) }
-func settingsSFXButton(width: Double, height: Double) -> UIRect { UIRect(x: width / 2 + 10, y: 310, width: 220, height: 52) }
-func settingsShakeButton(width: Double, height: Double) -> UIRect { UIRect(x: width / 2 - 230, y: 380, width: 460, height: 52) }
-func settingsWindowModeButton(width: Double, height: Double) -> UIRect { UIRect(x: width / 2 - 230, y: 450, width: 460, height: 52) }
-func settingsResolutionButton(width: Double, height: Double) -> UIRect { UIRect(x: width / 2 - 230, y: 518, width: 460, height: 52) }
-func settingsBackButton(width: Double, height: Double) -> UIRect { UIRect(x: width / 2 - 120, y: height - 92, width: 240, height: 50) }
+func settingsBGMButton(width: Double, height: Double) -> UIRect { UIRect(x: width / 2 - 230, y: 242, width: 220, height: 46) }
+func settingsSFXButton(width: Double, height: Double) -> UIRect { UIRect(x: width / 2 + 10, y: 242, width: 220, height: 46) }
+func settingsShakeButton(width: Double, height: Double) -> UIRect { UIRect(x: width / 2 - 230, y: 320, width: 460, height: 46) }
+func settingsWindowModeButton(width: Double, height: Double) -> UIRect { UIRect(x: width / 2 - 230, y: 392, width: 460, height: 46) }
+func settingsResolutionButton(width: Double, height: Double) -> UIRect { UIRect(x: width / 2 - 230, y: 454, width: 460, height: 46) }
+func settingsUIScaleButton(width: Double, height: Double) -> UIRect { UIRect(x: width / 2 - 230, y: 516, width: 460, height: 46) }
+func settingsBackButton(width: Double, height: Double) -> UIRect { UIRect(x: width / 2 - 120, y: height - 82, width: 240, height: 46) }
 func pauseButtons(width: Double, height: Double) -> [UIRect] {
     let left = width / 2 - 145, top = height / 2 - 112
     return (0..<5).map { UIRect(x: left, y: top + Double($0) * 62, width: 290, height: 48) }
+}
+func confirmationPanel(width: Double, height: Double) -> UIRect {
+    UIRect(x: width / 2 - 270, y: height / 2 - 112, width: 540, height: 224)
+}
+func confirmationConfirmButton(width: Double, height: Double) -> UIRect {
+    let panel = confirmationPanel(width: width, height: height)
+    return UIRect(x: panel.x + 34, y: panel.y + panel.height - 66, width: 220, height: 42)
+}
+func confirmationCancelButton(width: Double, height: Double) -> UIRect {
+    let panel = confirmationPanel(width: width, height: height)
+    return UIRect(x: panel.x + panel.width - 254, y: panel.y + panel.height - 66, width: 220, height: 42)
 }
 func gameOverButtons(width: Double, height: Double) -> [UIRect] {
     let left = width / 2 - 145, top = height / 2 + 62

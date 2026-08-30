@@ -116,6 +116,10 @@ enum SDLFullGame {
             switch Game.shared.phase {
             case .playing, .paused: Game.shared.togglePause()
             case .gameOver: Game.shared.phase = .menu
+            case .settings: Game.shared.phase = Game.shared.phaseBeforeSettings
+            case .controls: Game.shared.phase = Game.shared.phaseBeforeControls
+            case .saveSlots: Game.shared.phase = Game.shared.phaseBeforeSaveSlots
+            case .missionSelect, .hangar, .archive: Game.shared.phase = .menu
             default: break
             }
         }

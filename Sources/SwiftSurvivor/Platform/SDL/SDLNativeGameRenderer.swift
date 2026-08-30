@@ -4,6 +4,7 @@ import Foundation
 /// of SDL; this layer translates the model into lightweight primitives.
 enum SDLNativeGameRenderer {
     static func draw(_ renderer: GameRenderer, game: Game, width: Int, height: Int) {
+        UIInteraction.pointer = game.mousePosition
         renderer.beginFrame(clear: RenderColor(5, 9, 24))
         drawSpace(renderer, game: game, width: width, height: height)
         switch game.phase {
@@ -24,45 +25,22 @@ enum SDLNativeGameRenderer {
     }
 
     private static func drawSpace(_ r: GameRenderer, game: Game, width: Int, height: Int) {
-        r.fillRect(RenderRect(x: 0, y: 0, width: Float(width), height: Float(height)), color: RenderColor(6, 10, 25))
+        r.fillRect(RenderRect(x: 0, y: 0, width: Float(width), height: Float(height)), color: UITheme.Color.background)
         for star in game.stars {
             r.fillCircle(center: (Float(star.position.x), Float(star.position.y)), radius: Float(max(1, star.radius)), color: color(star.tint))
         }
         let field = playfieldBounds(width: Double(width), height: Double(height))
-        r.fillRect(RenderRect(x: 0, y: Float(field.top), width: Float(width), height: Float(field.bottom - field.top)), color: RenderColor(8, 17, 43))
+        r.fillRect(RenderRect(x: 0, y: Float(field.top), width: Float(width), height: Float(field.bottom - field.top)), color: UITheme.Color.backgroundRaised)
         for lane in stride(from: 0, through: width, by: 96) {
             r.fillRect(RenderRect(x: Float(lane), y: Float(field.top), width: 1, height: Float(field.bottom - field.top)), color: RenderColor(18, 38, 70, 100))
         }
-        r.fillRect(RenderRect(x: 0, y: 0, width: Float(width), height: 54), color: RenderColor(15, 27, 53))
+        r.fillRect(RenderRect(x: 0, y: 0, width: Float(width), height: 54), color: UITheme.Color.panel)
     }
 
     private static func drawBattle(_ r: GameRenderer, game: Game, width: Int, height: Int) {
         let field = playfieldBounds(width: Double(width), height: Double(height))
         let camera = game.combatFeedback.cameraOffset
-        text(r, t(game, "THUNDER SWIFT", "雷霆疾影"), 16, 16, RenderColor(225, 242, 255))
-        text(r, t(game, "STAGE", "关卡") + " \(game.stage)", 190, 16, RenderColor(126, 190, 255))
-        text(r, t(game, "KILLS", "击杀") + " \(game.kills)", Float(width - 170), 16, RenderColor(235, 187, 255))
-        text(r, t(game, "SCORE", "分数") + " \(game.score)", Float(width - 90), 16, RenderColor(255, 219, 125))
-        bar(r, x: 18, y: 39, width: 190, value: game.healthLag / max(1, game.maxHealth), fill: RenderColor(255, 171, 93, game.healthBarFlash > 0 ? 245 : 165), back: RenderColor(61, 28, 53))
-        bar(r, x: 18, y: 39, width: 190, value: game.health / max(1, game.maxHealth), fill: RenderColor(239, 70, 105), back: RenderColor(0, 0, 0, 0))
-        text(r, t(game, "HP", "生命") + " \(Int(game.health))/\(Int(game.maxHealth))", 22, 42, RenderColor(255, 244, 247))
-        bar(r, x: 225, y: 39, width: 190, value: Double(game.experience) / Double(max(1, game.experienceGoal)), fill: RenderColor(138, 229, 255), back: RenderColor(22, 56, 79))
-        text(r, t(game, "XP", "经验"), 232, 42, RenderColor(215, 245, 255))
-        text(r, t(game, "THUNDER", "雷霆") + " \(Int(game.thunderEnergy))%", 430, 42, RenderColor(106, 239, 255))
-        if game.combo > 1 { text(r, t(game, "COMBO", "连击") + " x\(game.combo)", 640, 16, RenderColor(255, 181, 91)) }
-        if let comboBurst = game.combatFeedback.comboFeedback {
-            let life = max(0, min(1, 1 - comboBurst.elapsed / 0.9))
-            let burstColor = color(comboBurst.tint)
-            let label = "\(comboBurst.count) " + t(game, "COMBO!", "连击!")
-            text(r, label, Float(width / 2 - 42), Float(field.top + 58 - comboBurst.elapsed * 24),
-                 RenderColor(burstColor.red, burstColor.green, burstColor.blue, UInt8(255 * life)))
-        }
-
-        if let boss = game.boss {
-            bar(r, x: Float(width / 2 - 220), y: 64, width: 440, value: boss.health / max(1, boss.maxHealth), fill: RenderColor(226, 71, 226), back: RenderColor(56, 24, 67))
-            let bossName = BossType(rawValue: boss.kind)?.title(for: game.language) ?? t(game, "DREADNOUGHT", "无畏战舰")
-            text(r, t(game, "BOSS", "首领") + "  " + bossName, Float(width / 2 - 110), 67, RenderColor(255, 225, 255))
-        }
+        drawCombatHUD(r, game: game, field: field, width: width)
 
         for enemy in game.enemies {
             let p = enemy.position + enemy.visualOffset + camera
@@ -140,15 +118,85 @@ enum SDLNativeGameRenderer {
         if game.notificationTimer > 0 { text(r, game.notificationTitle, Float(width / 2 - 150), Float(height - 70), color(game.notificationTint)) }
     }
 
+    private static func drawCombatHUD(_ r: GameRenderer, game: Game, field: PlayfieldBounds, width: Int) {
+        text(r, t(game, "THUNDER SWIFT", "雷霆疾影"), 16, 16, UITheme.Color.text)
+        text(r, t(game, "STAGE", "关卡") + " \(game.stage)", 190, 16, UITheme.Color.primary)
+        text(r, t(game, "KILLS", "击杀") + " \(game.kills)", Float(width - 190), 16, UITheme.Color.boss)
+        text(r, t(game, "SCORE", "分数") + " \(game.score)", Float(width - 92), 16, UITheme.Color.warning)
+
+        let healthRatio = game.health / max(1, game.maxHealth)
+        progress(r, UIProgressBar(rect: UIRect(x: 18, y: 39, width: 166, height: 10),
+                                  value: game.healthLag / max(1, game.maxHealth),
+                                  fill: RenderColor(255, 171, 93, game.healthBarFlash > 0 ? 245 : 165),
+                                  back: RenderColor(61, 28, 53)), height: 10)
+        progress(r, UIProgressBar(rect: UIRect(x: 18, y: 39, width: 166, height: 10),
+                                  value: healthRatio, fill: UITheme.Color.danger, back: RenderColor(0, 0, 0, 0)), height: 10)
+        text(r, t(game, "HP", "生命") + " \(Int(game.health))/\(Int(game.maxHealth))", 22, 42, UITheme.Color.text)
+
+        let shieldValue = game.reflectorTime > 0 ? 1.0 : min(1, Double(game.armorShieldCharges) / 3.0)
+        progress(r, UIProgressBar(rect: UIRect(x: 198, y: 39, width: 104, height: 10), value: shieldValue,
+                                  fill: UITheme.Color.shield, back: RenderColor(22, 56, 79)), height: 10)
+        text(r, game.reflectorTime > 0 ? t(game, "SHIELD", "护盾") : "SHIELD x\(game.armorShieldCharges)", 202, 42, UITheme.Color.shield)
+
+        progress(r, UIProgressBar(rect: UIRect(x: 318, y: 39, width: 170, height: 10),
+                                  value: Double(game.experience) / Double(max(1, game.experienceGoal)),
+                                  fill: UITheme.Color.energy, back: RenderColor(22, 56, 79)), height: 10)
+        text(r, t(game, "XP", "经验"), 324, 42, UITheme.Color.text)
+
+        let thunderReady = game.thunderEnergy >= 100
+        progress(r, UIProgressBar(rect: UIRect(x: 505, y: 39, width: 124, height: 10),
+                                  value: game.thunderEnergy / 100,
+                                  fill: thunderReady ? UITheme.Color.warning : UITheme.Color.energy,
+                                  back: RenderColor(22, 56, 79)), height: 10)
+        text(r, thunderReady ? t(game, "OVERLOAD READY", "超载就绪") : t(game, "THUNDER", "雷霆") + " \(Int(game.thunderEnergy))%",
+             511, 42, thunderReady ? UITheme.Color.warning : UITheme.Color.energy)
+
+        if game.combo > 1 { text(r, t(game, "COMBO", "连击") + " x\(game.combo)", 650, 16, UITheme.Color.warning) }
+        if let comboBurst = game.combatFeedback.comboFeedback {
+            let life = max(0, min(1, 1 - comboBurst.elapsed / 0.9))
+            let burstColor = color(comboBurst.tint)
+            let label = "\(comboBurst.count) " + t(game, "COMBO!", "连击!")
+            text(r, label, Float(width / 2 - 42), Float(field.top + 58 - comboBurst.elapsed * 24),
+                 RenderColor(burstColor.red, burstColor.green, burstColor.blue, UInt8(255 * life)))
+        }
+
+        if let boss = game.boss {
+            let ratio = boss.health / max(1, boss.maxHealth)
+            progress(r, UIProgressBar(rect: UIRect(x: Double(width / 2 - 220), y: 64, width: 440, height: 10),
+                                      value: ratio, fill: UITheme.Color.boss, back: RenderColor(56, 24, 67)), height: 10)
+            let bossName = BossType(rawValue: boss.kind)?.title(for: game.language) ?? t(game, "DREADNOUGHT", "无畏战舰")
+            let phase = boss.health / max(1, boss.maxHealth) > 0.7 ? 1 : (boss.health / max(1, boss.maxHealth) > 0.3 ? 2 : 3)
+            text(r, t(game, "BOSS", "首领") + "  " + bossName + "  •  " + t(game, "PHASE", "阶段") + " \(phase)",
+                 Float(width / 2 - 135), 67, UITheme.Color.text)
+        }
+    }
+
     private static func drawMenu(_ r: GameRenderer, game: Game, width: Int, height: Int) {
-        panel(r, x: width / 2 - 300, y: 78, width: 600, height: height - 130)
-        text(r, t(game, "THUNDER SWIFT", "雷霆疾影"), Float(width / 2 - 120), 122, RenderColor(230, 245, 255))
-        text(r, t(game, "NEON SKY // ARCADE FLIGHT SYSTEM", "霓虹天际 // 街机飞行系统"), Float(width / 2 - 155), 160, RenderColor(89, 195, 246))
+        panel(r, x: 32, y: 32, width: width - 64, height: height - 64)
+        text(r, t(game, "HANGAR CONTROL // READY", "机库控制 // 已就绪"), 64, 74, UITheme.Color.primary)
+        text(r, t(game, "THUNDER SWIFT", "雷霆疾影"), 64, 112, UITheme.Color.text)
+        text(r, t(game, "SINGLE PILOT SORTIE SYSTEM", "单人作战出击系统"), 66, 140, UITheme.Color.muted)
+
+        let center = (x: Float(290), y: Float(318))
+        drawShip(r, center: center, scale: 2.5, accent: UITheme.Color.primary)
+        text(r, t(game, "ACTIVE AIRFRAME", "当前机体"), 154, 454, UITheme.Color.muted)
+        let shipName = ShipType(rawValue: game.profile.selectedShip)?.label(for: game.language) ?? t(game, "THUNDER", "雷霆号")
+        text(r, shipName, 154, 478, UITheme.Color.text)
+        text(r, t(game, "COMBAT POWER", "战力") + "  \(game.combatPower())", 154, 504, UITheme.Color.warning)
+
+        r.fillRect(RenderRect(x: 94, y: 184, width: 390, height: 1), color: UITheme.Color.border)
+        text(r, t(game, "SORTIE PROFILE", "出击档案"), 94, 205, UITheme.Color.secondary)
+        text(r, t(game, "BEST SCORE", "最高分") + "  \(game.profile.bestScore)", 94, 232, UITheme.Color.text)
+        text(r, t(game, "BEST COMBO", "最高连击") + "  \(game.profile.bestCombo)", 94, 258, UITheme.Color.text)
+        text(r, t(game, "BOSSES DOWN", "击破首领") + "  \(game.profile.totalBosses)", 94, 284, UITheme.Color.text)
+
         let buttons = mainMenuButtons(width: Double(width), height: Double(height))
         let labels = [t(game, "NEW GAME", "开始游戏"), t(game, "CONTROLS", "操作设置"), t(game, "HANGAR", "机库"), t(game, "SETTINGS", "设置"), t(game, "EXIT", "退出"), t(game, "ARCHIVE", "档案馆")]
         for i in buttons.indices { button(r, buttons[i], title: labels[i], selected: false) }
-        text(r, t(game, "CREDITS", "金币") + " \(game.profile.credits)   " + t(game, "CORES", "核心") + " \(game.profile.cores)   " + t(game, "ALLOY", "合金") + " \(game.profile.alloy)", Float(width / 2 - 170), 250, RenderColor(255, 211, 112))
-        text(r, t(game, "SAVE SLOT", "存档") + " \(SaveManager.shared.activeSlot + 1)  •  " + t(game, "AUTO-SAVE ON", "自动保存开启"), 30, 42, RenderColor(137, 238, 180))
+        text(r, t(game, "CREDITS", "金币") + "  \(game.profile.credits)", 500, 626, UITheme.Color.warning)
+        text(r, t(game, "CORES", "核心") + "  \(game.profile.cores)", 690, 626, UITheme.Color.energy)
+        text(r, t(game, "ALLOY", "合金") + "  \(game.profile.alloy)", 860, 626, UITheme.Color.secondary)
+        text(r, t(game, "SAVE SLOT", "存档") + " \(SaveManager.shared.activeSlot + 1)  •  " + t(game, "AUTO-SAVE ON", "自动保存开启"), 64, 626, UITheme.Color.success)
     }
 
     private static func drawSaveSlots(_ r: GameRenderer, game: Game, width: Int, height: Int) {
@@ -191,11 +239,63 @@ enum SDLNativeGameRenderer {
     }
 
     private static func drawHangar(_ r: GameRenderer, game: Game, width: Int, height: Int) {
-        panel(r, x: width / 2 - 390, y: 52, width: 780, height: height - 100)
-        text(r, t(game, "HANGAR / LOADOUT", "机库 / 装备"), Float(width / 2 - 120), 90, RenderColor(230, 245, 255))
+        panel(r, x: 32, y: 32, width: width - 64, height: height - 64)
+        text(r, t(game, "HANGAR / LOADOUT", "机库 / 装备"), 64, 70, UITheme.Color.text)
+        text(r, t(game, "AIRFRAME CONFIGURATION", "机体配置台"), 66, 96, UITheme.Color.muted)
+        text(r, t(game, "POWER", "战力") + "  \(game.combatPower())", Float(width - 250), 70, UITheme.Color.warning)
+        let resourceSummary = t(game, "CREDITS", "金币") + " \(game.profile.credits)   " + t(game, "CORES", "核心") + " \(game.profile.cores)"
+        text(r, resourceSummary, Float(width - 390), 96, UITheme.Color.secondary)
+
+        drawShip(r, center: (x: 156, y: 282), scale: 2.2, accent: UITheme.Color.primary)
+        text(r, t(game, "SELECT AIRFRAME", "选择机体"), 76, 406, UITheme.Color.muted)
+        for (i, card) in shipCards(width: Double(width), height: Double(height)).enumerated() {
+            let ship = ShipType(rawValue: i) ?? .thunder
+            button(r, card, title: ship.label(for: game.language), selected: ship == game.shipType)
+        }
         for (i, tab) in hangarTabButtons(width: Double(width), height: Double(height)).enumerated() { button(r, tab, title: i == 0 ? t(game, "EQUIPMENT", "装备") : t(game, "VAULT", "仓库"), selected: i == game.hangarTab) }
-        for (i, card) in hangarCards(width: Double(width), height: Double(height)).enumerated() { button(r, card, title: t(game, "MODULE", "模块") + " \(i + 1)", selected: false) }
+        if game.hangarTab == 0 {
+            for (i, card) in hangarCards(width: Double(width), height: Double(height)).enumerated() {
+                guard game.profile.equipment.indices.contains(i) else { continue }
+                let item = game.profile.equipment[i]
+                button(r, card, title: game.equipmentDisplayName(item), selected: false)
+                text(r, t(game, "SLOT", "槽位") + " \(i + 1)", Float(card.x + 12), Float(card.y + 12), UITheme.Color.muted)
+                text(r, game.equipmentQualityName(item.rarity) + "  ★\(item.stars)", Float(card.x + 12), Float(card.y + 34), color(equipmentRarityColor(item.rarity)))
+                text(r, "Lv.\(item.level)  •  \(t(game, "EQUIPPED", "已装备"))", Float(card.x + 12), Float(card.y + 78), UITheme.Color.secondary)
+                let promote = equipmentPromoteButton(i, width: Double(width), height: Double(height))
+                r.fillRect(RenderRect(x: Float(promote.x), y: Float(promote.y), width: Float(promote.width), height: Float(promote.height)), color: UITheme.Color.panelSelected)
+                text(r, item.rarity >= 4 ? t(game, "MAX", "满阶") : t(game, "ADVANCE", "进阶"), Float(promote.x + 9), Float(promote.y + 7), UITheme.Color.text)
+            }
+        } else {
+            for (i, card) in vaultCards(width: Double(width), height: Double(height)).enumerated() {
+                let visible = game.visibleVaultIndices
+                let absoluteIndex = game.vaultPage * 4 + i
+                if visible.indices.contains(absoluteIndex) {
+                    let item = game.profile.inventory[visible[absoluteIndex]]
+                    button(r, card, title: game.equipmentDisplayName(item), selected: false)
+                    text(r, game.equipmentQualityName(item.rarity) + "  Lv.\(item.level)  ★\(item.stars)", Float(card.x + 12), Float(card.y + 38), color(equipmentRarityColor(item.rarity)))
+                    text(r, item.slot == 0 ? t(game, "AIRFRAME", "机体") : t(game, "MODULE", "模块"), Float(card.x + 12), Float(card.y + 78), UITheme.Color.secondary)
+                } else {
+                    r.fillRect(RenderRect(x: Float(card.x), y: Float(card.y), width: Float(card.width), height: Float(card.height)), color: RenderColor(15, 29, 49, 190))
+                    text(r, t(game, "EMPTY SLOT", "空槽位"), Float(card.x + 14), Float(card.y + 48), UITheme.Color.muted)
+                }
+            }
+        }
         button(r, hangarBackButton(width: Double(width), height: Double(height)), title: t(game, "BACK", "返回"), selected: false)
+        if game.hangarMessageTimer > 0 {
+            text(r, game.hangarMessageTitle, 66, 590, UITheme.Color.success)
+            text(r, game.hangarMessageDetail, 66, 612, UITheme.Color.secondary)
+        }
+    }
+
+    private static func drawShip(_ r: GameRenderer, center: (x: Float, y: Float), scale: Float, accent: RenderColor) {
+        let x = center.x, y = center.y
+        r.fillCircle(center: (x, y - 34 * scale), radius: 10 * scale, color: RenderColor(235, 250, 255))
+        r.fillRect(RenderRect(x: x - 9 * scale, y: y - 28 * scale, width: 18 * scale, height: 62 * scale), color: accent)
+        r.fillRect(RenderRect(x: x - 34 * scale, y: y + 4 * scale, width: 68 * scale, height: 9 * scale), color: accent)
+        r.fillRect(RenderRect(x: x - 23 * scale, y: y + 18 * scale, width: 46 * scale, height: 8 * scale), color: RenderColor(196, 237, 255))
+        r.fillCircle(center: (x, y + 37 * scale), radius: 8 * scale, color: RenderColor(255, 155, 92, 220))
+        r.line(from: (x - 28 * scale, y + 13 * scale), to: (x - 42 * scale, y + 30 * scale), color: UITheme.Color.borderHighlight)
+        r.line(from: (x + 28 * scale, y + 13 * scale), to: (x + 42 * scale, y + 30 * scale), color: UITheme.Color.borderHighlight)
     }
 
     private static func drawArchive(_ r: GameRenderer, game: Game, width: Int, height: Int) {
@@ -211,7 +311,7 @@ enum SDLNativeGameRenderer {
         panel(r, x: width / 2 - 310, y: height / 2 - 175, width: 620, height: 350)
         text(r, t(game, "MISSION PAUSED", "战斗暂停"), Float(width / 2 - 85), Float(height / 2 - 140), RenderColor(240, 247, 255))
         let buttons = pauseButtons(width: Double(width), height: Double(height))
-        let titles = [t(game, "RESUME", "继续"), t(game, "RESTART", "重新开始"), t(game, "SETTINGS", "设置"), t(game, "HANGAR", "机库"), t(game, "EXIT", "退出")]
+        let titles = [t(game, "RESUME", "继续"), t(game, "RESTART", "重新开始"), t(game, "SETTINGS", "设置"), t(game, "MAIN MENU", "主菜单"), t(game, "EXIT", "退出")]
         for (i, title) in titles.enumerated() { button(r, buttons[i], title: title, selected: false) }
     }
 
@@ -230,19 +330,45 @@ enum SDLNativeGameRenderer {
     }
 
     private static func panel(_ r: GameRenderer, x: Int, y: Int, width: Int, height: Int) {
-        r.fillRect(RenderRect(x: Float(x), y: Float(y), width: Float(width), height: Float(height)), color: RenderColor(12, 24, 51, 245))
-        r.line(from: (Float(x), Float(y)), to: (Float(x + width), Float(y)), color: RenderColor(53, 151, 214))
+        let component = UIPanel(rect: UIRect(x: Double(x), y: Double(y), width: Double(width), height: Double(height)))
+        r.fillRect(RenderRect(x: Float(component.rect.x), y: Float(component.rect.y), width: Float(component.rect.width), height: Float(component.rect.height)), color: UITheme.Color.panel)
+        r.line(from: (Float(x), Float(y)), to: (Float(x + width), Float(y)), color: UITheme.Color.borderHighlight)
+        r.line(from: (Float(x), Float(y + height)), to: (Float(x + width), Float(y + height)), color: UITheme.Color.border)
+        r.line(from: (Float(x), Float(y)), to: (Float(x), Float(y + height)), color: UITheme.Color.border)
+        r.line(from: (Float(x + width), Float(y)), to: (Float(x + width), Float(y + height)), color: UITheme.Color.border)
     }
 
     private static func button(_ r: GameRenderer, _ rect: UIRect, title: String, selected: Bool) {
-        let c = selected ? RenderColor(40, 137, 206) : RenderColor(24, 55, 90)
-        r.fillRect(RenderRect(x: Float(rect.x), y: Float(rect.y), width: Float(rect.width), height: Float(rect.height)), color: c)
-        text(r, title, Float(rect.x + 12), Float(rect.y + rect.height * 0.5 - 5), RenderColor(236, 246, 255))
+        let component = UIButton(rect: rect, title: title, selected: selected)
+        let state = UIInteraction.state(for: component.rect, selected: component.selected, enabled: component.enabled)
+        let fill: RenderColor
+        let border: RenderColor
+        switch state {
+        case .selected:
+            fill = UITheme.Color.panelSelected; border = UITheme.Color.borderHighlight
+        case .hover:
+            fill = UITheme.Color.panelHover; border = UITheme.Color.primary
+        case .disabled:
+            fill = RenderColor(25, 34, 49, 190); border = RenderColor(57, 70, 86, 180)
+        default:
+            fill = UITheme.Color.panelRaised; border = UITheme.Color.border
+        }
+        r.fillRect(RenderRect(x: Float(rect.x), y: Float(rect.y), width: Float(rect.width), height: Float(rect.height)), color: fill)
+        r.line(from: (Float(rect.x), Float(rect.y)), to: (Float(rect.x + rect.width), Float(rect.y)), color: border)
+        r.line(from: (Float(rect.x), Float(rect.y + rect.height)), to: (Float(rect.x + rect.width), Float(rect.y + rect.height)), color: border)
+        let labelColor = state == .disabled ? UITheme.Color.muted : UITheme.Color.text
+        text(r, component.title, Float(rect.x + 14), Float(rect.y + rect.height * 0.5 - 5), labelColor)
     }
 
     private static func bar(_ r: GameRenderer, x: Float, y: Float, width: Float, value: Double, fill: RenderColor, back: RenderColor) {
-        r.fillRect(RenderRect(x: x, y: y, width: width, height: 10), color: back)
-        r.fillRect(RenderRect(x: x, y: y, width: width * Float(min(1, max(0, value))), height: 10), color: fill)
+        progress(r, UIProgressBar(rect: UIRect(x: Double(x), y: Double(y), width: Double(width), height: 10), value: value, fill: fill, back: back), height: 10)
+    }
+
+    private static func progress(_ r: GameRenderer, _ bar: UIProgressBar, height: Float) {
+        let rect = bar.rect
+        r.fillRect(RenderRect(x: Float(rect.x), y: Float(rect.y), width: Float(rect.width), height: height), color: bar.back)
+        r.fillRect(RenderRect(x: Float(rect.x), y: Float(rect.y), width: Float(rect.width) * Float(min(1, max(0, bar.value))), height: height), color: bar.fill)
+        r.line(from: (Float(rect.x), Float(rect.y)), to: (Float(rect.x + rect.width), Float(rect.y)), color: UITheme.Color.border)
     }
 
     private static func text(_ r: GameRenderer, _ value: String, _ x: Float, _ y: Float, _ c: RenderColor) { r.drawText(value, at: (x: x, y: y), color: c) }

@@ -3203,7 +3203,7 @@ final class Game: @unchecked Sendable {
             let buttons = pauseButtons(width: width, height: height)
             if buttons[0].contains(point) { phase = .playing }
             else if buttons[1].contains(point) { start(width: width, height: height) }
-            else if buttons[2].contains(point) { openControls(from: .paused) }
+            else if buttons[2].contains(point) { openSettings(from: .paused) }
             else if buttons[3].contains(point) { phase = .menu }
             else if buttons[4].contains(point) { phase = .menu }
         case .upgrade:

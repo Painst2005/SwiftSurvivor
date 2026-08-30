@@ -209,6 +209,15 @@ enum SDLNativeGameRenderer {
         text(r, thunderReady ? t(game, "OVERLOAD READY", "超载就绪") : t(game, "THUNDER", "雷霆") + " \(Int(game.thunderEnergy))%",
              511, 42, thunderReady ? UITheme.Color.warning : UITheme.Color.energy)
 
+        // Persistent combat attributes belong in the HUD, not behind the
+        // pause overlay.  Keep this compact row left of boss and timed-effect
+        // panels so it never occupies the central dodge space.
+        let weaponSummary = game.weaponType.label(for: game.language) + "  Lv.\(game.weaponLevel)"
+        text(r, weaponSummary, 18, 60, UITheme.Color.text)
+        text(r, t(game, "SHOTS", "弹幕") + " +\(game.projectileCountBonus)", 198, 60, UITheme.Color.secondary)
+        text(r, t(game, "PIERCE", "穿透") + " +\(game.projectilePenetration)", 338, 60, UITheme.Color.secondary)
+        text(r, t(game, "CRIT", "暴击") + " \(Int(game.criticalChance * 100))%", 475, 60, UITheme.Color.warning)
+
         if game.combo > 1 { text(r, t(game, "COMBO", "连击") + " x\(game.combo)", 650, 16, UITheme.Color.warning) }
         if let comboBurst = game.combatFeedback.comboFeedback {
             let life = max(0, min(1, 1 - comboBurst.elapsed / 0.9))
@@ -220,12 +229,12 @@ enum SDLNativeGameRenderer {
 
         if let boss = game.boss {
             let ratio = boss.health / max(1, boss.maxHealth)
-            progress(r, UIProgressBar(rect: UIRect(x: Double(width / 2 - 220), y: 64, width: 440, height: 10),
+            progress(r, UIProgressBar(rect: UIRect(x: Double(width / 2 - 220), y: 92, width: 440, height: 10),
                                       value: ratio, fill: UITheme.Color.boss, back: RenderColor(56, 24, 67)), height: 10)
             let bossName = BossType(rawValue: boss.kind)?.title(for: game.language) ?? t(game, "DREADNOUGHT", "无畏战舰")
             let phase = boss.health / max(1, boss.maxHealth) > 0.7 ? 1 : (boss.health / max(1, boss.maxHealth) > 0.3 ? 2 : 3)
             text(r, t(game, "BOSS", "首领") + "  " + bossName + "  •  " + t(game, "PHASE", "阶段") + " \(phase)",
-                 Float(width / 2 - 135), 67, UITheme.Color.text)
+                 Float(width / 2 - 135), 95, UITheme.Color.text)
         }
         if game.survivalTime < 8 {
             let hint = game.controlMode == .mouse
@@ -595,10 +604,6 @@ enum SDLNativeGameRenderer {
     private static func drawPause(_ r: GameRenderer, game: Game, width: Int, height: Int) {
         panel(r, x: width / 2 - 310, y: height / 2 - 175, width: 620, height: 350)
         text(r, t(game, "MISSION PAUSED", "战斗暂停"), Float(width / 2 - 85), Float(height / 2 - 140), RenderColor(240, 247, 255))
-        text(r, t(game, "CURRENT BUILD", "当前构筑"), Float(width / 2 - 282), Float(height / 2 - 94), UITheme.Color.primary)
-        text(r, game.weaponType.label(for: game.language) + "  Lv. \(game.weaponLevel)", Float(width / 2 - 282), Float(height / 2 - 66), UITheme.Color.text)
-        text(r, t(game, "PROJECTILES", "子弹") + " +\(game.projectileCountBonus)   " + t(game, "PIERCE", "穿透") + " +\(game.projectilePenetration)", Float(width / 2 - 282), Float(height / 2 - 40), UITheme.Color.secondary)
-        text(r, t(game, "CRIT", "暴击") + " \(Int(game.criticalChance * 100))%   " + t(game, "THUNDER", "雷霆") + " \(Int(game.thunderEnergy))%", Float(width / 2 - 282), Float(height / 2 - 14), UITheme.Color.warning)
         let buttons = pauseButtons(width: Double(width), height: Double(height))
         let titles = [t(game, "RESUME", "继续"), t(game, "RESTART", "重新开始"), t(game, "SETTINGS", "设置"), t(game, "MAIN MENU", "主菜单"), t(game, "EXIT", "退出")]
         for (i, title) in titles.enumerated() { button(r, buttons[i], title: title, selected: false) }

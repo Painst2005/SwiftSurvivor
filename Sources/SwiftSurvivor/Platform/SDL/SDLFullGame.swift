@@ -96,15 +96,15 @@ enum SDLFullGame {
             let uiPoint = Game.shared.uiPoint(for: logicalPoint,
                                               width: Double(viewport.logicalWidth),
                                               height: Double(viewport.logicalHeight))
-            if Game.shared.phase == .menu && mainMenuButtons(width: Double(viewport.logicalWidth), height: Double(viewport.logicalHeight))[4].contains(uiPoint) {
-                sdlQuitRequested = true
-                return
-            }
             if Game.shared.phase == .paused && Game.shared.confirmation == nil && pauseButtons(width: Double(viewport.logicalWidth), height: Double(viewport.logicalHeight))[4].contains(uiPoint) {
                 sdlQuitRequested = true
                 return
             }
             Game.shared.handleClick(at: uiPoint, width: Double(viewport.logicalWidth), height: Double(viewport.logicalHeight))
+            if Game.shared.exitRequested {
+                sdlQuitRequested = true
+                return
+            }
         }
         if input.isPressed(keyCode: 13) {
             switch Game.shared.phase {

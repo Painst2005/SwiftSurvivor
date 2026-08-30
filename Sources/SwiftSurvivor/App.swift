@@ -594,6 +594,10 @@ final class Game: @unchecked Sendable {
     static let shared = Game()
 
     var phase: GamePhase = .menu
+    /// Set by the menu's visible Exit action.  SDLFullGame consumes this after
+    /// normal UI hit testing so the rendered action and its behavior cannot
+    /// drift apart.
+    var exitRequested = false
     var controlMode: ControlMode = .wasd
     var phaseBeforeControls: GamePhase = .menu
     var phaseBeforeSettings: GamePhase = .menu
@@ -3204,7 +3208,7 @@ final class Game: @unchecked Sendable {
             else if buttons[1].contains(point) { openControls(from: .menu) }
             else if buttons[2].contains(point) { openHangar() }
             else if buttons[3].contains(point) { openSettings(from: .menu) }
-            else if buttons[4].contains(point) { phase = .menu }
+            else if buttons[4].contains(point) { exitRequested = true }
             else if buttons[5].contains(point) { openArchive() }
         case .saveSlots:
             for (index, card) in saveSlotCards(width: width, height: height).enumerated() where card.contains(point) {

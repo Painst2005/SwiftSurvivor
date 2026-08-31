@@ -123,7 +123,7 @@ enum SDLNativeGameRenderer {
             r.fillRect(RenderRect(x: Float(p.x - enemy.radius), y: Float(p.y - enemy.radius - 8), width: Float(enemy.radius * 2), height: 3), color: RenderColor(55, 24, 47))
             r.fillRect(RenderRect(x: Float(p.x - enemy.radius), y: Float(p.y - enemy.radius - 8), width: Float(max(0, enemy.radius * 2 * enemy.health / max(1, enemy.maxHealth))), height: 3), color: RenderColor(255, 134, 126))
             if enemy.attackWarningActive {
-                r.line(from: (Float(enemy.warningTargetX), Float(field.top)), to: (Float(enemy.warningTargetX), Float(field.bottom)), color: RenderColor(255, 79, 125, 160))
+                drawWarningBeam(r, x: Float(enemy.warningTargetX), top: Float(field.top), bottom: Float(field.bottom), active: false)
             }
         }
         if let boss = game.boss {
@@ -134,6 +134,7 @@ enum SDLNativeGameRenderer {
             if let texture = (r as? SDLRenderer)?.artTexture(named: "boss_thunder_carrier") {
                 r.drawSprite(texture, in: RenderRect(x: Float(p.x - 174), y: Float(p.y - 98), width: 348, height: 196),
                              alpha: boss.hitFlash > 0 ? 218 : 255)
+                drawBossDamageTextures(r, boss: boss, position: p, time: game.uiAnimationTime)
                 drawGeneratedBossState(r, boss: boss, position: p, leftTurret: left, rightTurret: right,
                                        phaseGlow: phaseGlow, time: game.uiAnimationTime)
             } else {
@@ -151,14 +152,19 @@ enum SDLNativeGameRenderer {
             }
             if boss.laserWarningTimer > 0 || boss.laserActiveTimer > 0 {
                 let active = boss.laserActiveTimer > 0
-                r.fillRect(RenderRect(x: Float(boss.laserX + camera.x - (active ? 12 : 3)), y: Float(field.top + camera.y), width: Float(active ? 24 : 6), height: Float(field.bottom - field.top)), color: active ? RenderColor(255, 71, 142, 175) : RenderColor(183, 48, 92, 130))
+                drawWarningBeam(r, x: Float(boss.laserX + camera.x), top: Float(field.top + camera.y),
+                                bottom: Float(field.bottom + camera.y), active: active)
             }
         }
         for bullet in game.bullets {
             let p = bullet.position + camera
-            let radius = Float(max(2, bullet.radius))
-            r.fillCircle(center: (Float(p.x), Float(p.y)), radius: radius, color: color(bullet.tint))
-            if bullet.playerOwned { r.line(from: (Float(p.x), Float(p.y + Double(radius) * 2)), to: (Float(p.x), Float(p.y - Double(radius) * 2)), color: color(bullet.tint)) }
+            if let name = bulletTextureName(bullet), let texture = (r as? SDLRenderer)?.artTexture(named: name) {
+                let size = bulletTextureSize(bullet)
+                r.drawSprite(texture, in: RenderRect(x: Float(p.x) - size.0 * 0.5, y: Float(p.y) - size.1 * 0.5,
+                                                     width: size.0, height: size.1), alpha: 255)
+            } else {
+                r.fillCircle(center: (Float(p.x), Float(p.y)), radius: Float(max(2, bullet.radius)), color: color(bullet.tint))
+            }
         }
         for pickup in game.powerUps {
             let c: RenderColor = pickup.kind == 0 ? RenderColor(89, 236, 255) : (pickup.kind == 1 ? RenderColor(126, 196, 255) : RenderColor(255, 214, 110))
@@ -166,19 +172,16 @@ enum SDLNativeGameRenderer {
             r.fillRect(RenderRect(x: Float(p.x - 10), y: Float(p.y - 10), width: 20, height: 20), color: c)
             text(r, pickup.kind == 0 ? "L" : (pickup.kind == 1 ? "S" : "+") , Float(p.x - 3), Float(p.y - 6), RenderColor(17, 33, 60))
         }
-        for particle in game.particles {
+        let lowPriorityParticleStride = max(1, (game.particles.count + 599) / 600)
+        for (particleIndex, particle) in game.particles.enumerated() {
+            let criticalVisual = particle.kind == .coreFlash || particle.kind == .shield || particle.kind == .shockwave
+            if !criticalVisual && particleIndex % lowPriorityParticleStride != 0 { continue }
             let life = max(0, min(1, particle.life / max(0.001, particle.maxLife)))
             let p = particle.position + camera
-            let particleColor = color(particle.tint)
-            switch particle.kind {
-            case .coreFlash:
-                r.fillCircle(center: (Float(p.x), Float(p.y)), radius: Float(max(4, particle.radius * (1 + (1 - life) * 1.8))), color: RenderColor(255, 248, 228, UInt8(220 * life)))
-            case .shockwave:
-                r.fillCircle(center: (Float(p.x), Float(p.y)), radius: Float(particle.radius * (1 + (1 - life) * 4)), color: RenderColor(particleColor.red, particleColor.green, particleColor.blue, UInt8(70 * life)))
-            case .smoke:
-                r.fillCircle(center: (Float(p.x), Float(p.y)), radius: Float(particle.radius * (1 + (1 - life) * 0.6)), color: RenderColor(particleColor.red, particleColor.green, particleColor.blue, UInt8(70 * life)))
-            default:
-                r.fillCircle(center: (Float(p.x), Float(p.y)), radius: Float(max(1, particle.radius)), color: RenderColor(particleColor.red, particleColor.green, particleColor.blue, UInt8(255 * life)))
+            if let texture = (r as? SDLRenderer)?.artTexture(named: particleTextureName(particle.kind)) {
+                let side = particleTextureSide(particle, life: life)
+                r.drawSprite(texture, in: RenderRect(x: Float(p.x) - side * 0.5, y: Float(p.y) - side * 0.5,
+                                                     width: side, height: side), alpha: UInt8(min(255, max(18, 255 * life))))
             }
         }
         if let bossDeath = game.combatFeedback.bossDeath {
@@ -203,6 +206,10 @@ enum SDLNativeGameRenderer {
         } else {
             r.fillCircle(center: (Float(playerP.x), Float(playerP.y)), radius: 18, color: playerColor)
             r.fillCircle(center: (Float(playerP.x), Float(playerP.y - 7)), radius: 8, color: game.playerHitFlash > 0 ? RenderColor(255, 246, 248) : RenderColor(232, 250, 255))
+        }
+        if game.playerHitFlash > 0, let damage = (r as? SDLRenderer)?.artTexture(named: "vfx_damage_armor") {
+            r.drawSprite(damage, in: RenderRect(x: Float(playerP.x - 39), y: Float(playerP.y - 39), width: 78, height: 78),
+                         alpha: UInt8(min(245, 90 + game.playerHitFlash * 1200)))
         }
         if game.playerShieldFlash > 0 { r.fillCircle(center: (Float(playerP.x), Float(playerP.y)), radius: 25, color: RenderColor(112, 224, 255, 68)) }
         if game.precisionMode { r.fillCircle(center: (Float(playerP.x), Float(playerP.y)), radius: 5, color: RenderColor(255, 229, 112)) }
@@ -234,6 +241,88 @@ enum SDLNativeGameRenderer {
         }
     }
 
+    private static func bulletTextureName(_ bullet: Bullet) -> String? {
+        if bullet.playerOwned {
+            switch WeaponType(rawValue: bullet.weaponStyle) ?? .cannon {
+            case .cannon, .scatter: return "vfx_bullet_player_plasma"
+            case .laser: return "vfx_bullet_player_laser"
+            case .missile: return "vfx_bullet_missile"
+            case .electromagnetic: return "vfx_bullet_electromagnetic"
+            }
+        }
+        switch BulletType(rawValue: bullet.bulletType) ?? .normal {
+        case .boss, .explosive: return "vfx_bullet_boss_orb"
+        case .piercing, .laser: return "vfx_bullet_enemy_sniper"
+        default: return bullet.radius >= 7 ? "vfx_bullet_enemy_heavy" : "vfx_bullet_enemy_normal"
+        }
+    }
+
+    private static func bulletTextureSize(_ bullet: Bullet) -> (Float, Float) {
+        if bullet.playerOwned {
+            switch WeaponType(rawValue: bullet.weaponStyle) ?? .cannon {
+            case .cannon: return (16, 34)
+            case .scatter: return (14, 28)
+            case .laser: return (17, 44)
+            case .missile: return (22, 42)
+            case .electromagnetic: return (30, 30)
+            }
+        }
+        switch BulletType(rawValue: bullet.bulletType) ?? .normal {
+        case .boss, .explosive: return (34, 34)
+        case .piercing, .laser: return (15, 42)
+        default: return bullet.radius >= 7 ? (25, 36) : (17, 28)
+        }
+    }
+
+    private static func particleTextureName(_ kind: FeedbackParticleKind) -> String {
+        switch kind {
+        case .spark: return "vfx_hit_kinetic"
+        case .coreFlash: return "vfx_explosion_core"
+        case .debris: return "vfx_hit_plasma"
+        case .smoke: return "vfx_boss_smoke"
+        case .shield: return "vfx_hit_shield"
+        case .shockwave: return "vfx_hit_critical"
+        }
+    }
+
+    private static func particleTextureSide(_ particle: Particle, life: Double) -> Float {
+        let radius = Float(particle.radius)
+        switch particle.kind {
+        case .spark: return min(34, max(16, radius * 7))
+        case .coreFlash: return min(104, max(46, radius * 5.5))
+        case .debris: return min(42, max(18, radius * 6))
+        case .smoke: return min(78, max(30, radius * Float(7.5 + (1 - life) * 2)))
+        case .shield: return min(48, max(22, radius * 7))
+        case .shockwave: return min(170, max(48, radius * Float(5 + (1 - life) * 12)))
+        }
+    }
+
+    private static func drawWarningBeam(_ r: GameRenderer, x: Float, top: Float, bottom: Float, active: Bool) {
+        guard let texture = (r as? SDLRenderer)?.artTexture(named: "vfx_warning_beam") else { return }
+        let width: Float = active ? 34 : 18
+        r.drawSprite(texture, in: RenderRect(x: x - width * 0.5, y: top, width: width, height: max(1, bottom - top)),
+                     alpha: active ? 245 : 158)
+    }
+
+    private static func drawBossDamageTextures(_ r: GameRenderer, boss: Boss, position p: Vec2, time: Double) {
+        let healthRatio = boss.health / max(1, boss.maxHealth)
+        if healthRatio < 0.72, let cracks = (r as? SDLRenderer)?.artTexture(named: "vfx_boss_cracks") {
+            r.drawSprite(cracks, in: RenderRect(x: Float(p.x - 83), y: Float(p.y - 46), width: 108, height: 72), alpha: 205)
+        }
+        if healthRatio < 0.48, let smoke = (r as? SDLRenderer)?.artTexture(named: "vfx_boss_smoke") {
+            let pulse = Float(1 + sin(time * 3.5) * 0.05)
+            r.drawSprite(smoke, in: RenderRect(x: Float(p.x + 23) - 62 * pulse, y: Float(p.y - 52) - 42 * pulse,
+                                              width: 124 * pulse, height: 84 * pulse), alpha: 190)
+        }
+        if boss.phase >= 3, let electric = (r as? SDLRenderer)?.artTexture(named: "vfx_boss_electric") {
+            r.drawSprite(electric, in: RenderRect(x: Float(p.x - 72), y: Float(p.y - 52), width: 144, height: 104),
+                         alpha: UInt8(175 + Int((sin(time * 11) + 1) * 35)))
+        }
+        if boss.weakPointOpen, let reactor = (r as? SDLRenderer)?.artTexture(named: "vfx_boss_reactor") {
+            r.drawSprite(reactor, in: RenderRect(x: Float(p.x - 42), y: Float(p.y - 36), width: 84, height: 72), alpha: 225)
+        }
+    }
+
     private static func enemySpriteSide(for enemy: Enemy) -> Float {
         let base: Float
         switch EnemyType(rawValue: enemy.type) ?? .fighter {
@@ -253,9 +342,9 @@ enum SDLNativeGameRenderer {
     private static func drawGeneratedBossState(_ r: GameRenderer, boss: Boss, position p: Vec2,
                                                leftTurret: Vec2, rightTurret: Vec2,
                                                phaseGlow: Double, time: Double) {
-        if phaseGlow > 0 {
-            r.fillCircle(center: (Float(p.x), Float(p.y)), radius: 78,
-                         color: RenderColor(255, 176, 232, UInt8(min(92, phaseGlow * 150))))
+        if phaseGlow > 0, let flash = (r as? SDLRenderer)?.artTexture(named: "vfx_hit_critical") {
+            r.drawSprite(flash, in: RenderRect(x: Float(p.x - 78), y: Float(p.y - 78), width: 156, height: 156),
+                         alpha: UInt8(min(180, phaseGlow * 260)))
         }
         if boss.leftTurretHealth <= 0 {
             drawDestroyedBossPart(r, at: leftTurret)
@@ -263,24 +352,13 @@ enum SDLNativeGameRenderer {
         if boss.rightTurretHealth <= 0 {
             drawDestroyedBossPart(r, at: rightTurret)
         }
-        let pulse = Float(1 + sin(time * (boss.phase >= 3 ? 10 : 6)) * 0.12)
-        if boss.weakPointOpen {
-            r.fillCircle(center: (Float(p.x), Float(p.y)), radius: 24 * pulse, color: RenderColor(88, 224, 255, 76))
-            r.fillCircle(center: (Float(p.x), Float(p.y)), radius: 12 * pulse, color: RenderColor(207, 250, 255, 224))
-        }
-        if boss.phase >= 3 {
-            let alpha = UInt8(140 + Int((sin(time * 13) + 1) * 42))
-            r.line(from: (Float(p.x - 42), Float(p.y - 30)), to: (Float(p.x - 22), Float(p.y - 11)),
-                   color: RenderColor(116, 232, 255, alpha))
-            r.line(from: (Float(p.x + 24), Float(p.y + 17)), to: (Float(p.x + 48), Float(p.y + 38)),
-                   color: RenderColor(116, 232, 255, alpha))
-        }
+        _ = time
     }
 
     private static func drawDestroyedBossPart(_ r: GameRenderer, at p: Vec2) {
-        r.fillCircle(center: (Float(p.x), Float(p.y)), radius: 25, color: RenderColor(18, 15, 25, 218))
-        r.line(from: (Float(p.x - 15), Float(p.y - 15)), to: (Float(p.x + 15), Float(p.y + 15)), color: RenderColor(255, 115, 83, 210))
-        r.line(from: (Float(p.x + 15), Float(p.y - 15)), to: (Float(p.x - 15), Float(p.y + 15)), color: RenderColor(255, 115, 83, 210))
+        if let damage = (r as? SDLRenderer)?.artTexture(named: "vfx_boss_cracks") {
+            r.drawSprite(damage, in: RenderRect(x: Float(p.x - 40), y: Float(p.y - 32), width: 80, height: 64), alpha: 235)
+        }
     }
 
     /// Resource-failure fallback. Normal gameplay uses generated image sprites;
@@ -469,16 +547,16 @@ enum SDLNativeGameRenderer {
         switch boss.currentAttack {
         case .aimBurst:
             let target = boss.attackTarget + camera
-            r.line(from: (Float(origin.x), Float(origin.y)), to: (Float(target.x), Float(target.y)), color: warning)
+            drawWarningBeam(r, x: Float(target.x), top: Float(field.top), bottom: Float(field.bottom), active: false)
         case .spread:
             for angle in [-0.52, -0.26, 0.0, 0.26, 0.52] {
                 let end = origin + Vec2(x: sin(angle) * 245, y: cos(angle) * 245)
-                r.line(from: (Float(origin.x), Float(origin.y)), to: (Float(end.x), Float(end.y)), color: warning)
+                drawWarningBeam(r, x: Float(end.x), top: Float(origin.y), bottom: Float(field.bottom), active: false)
             }
         case .sideCrossfire:
             let target = boss.attackTarget + camera
-            r.line(from: (Float(p.x - 102), Float(p.y + 18)), to: (Float(target.x), Float(target.y)), color: warning)
-            r.line(from: (Float(p.x + 102), Float(p.y + 18)), to: (Float(target.x), Float(target.y)), color: warning)
+            drawWarningBeam(r, x: Float(target.x - 18), top: Float(field.top), bottom: Float(field.bottom), active: false)
+            drawWarningBeam(r, x: Float(target.x + 18), top: Float(field.top), bottom: Float(field.bottom), active: false)
         case .laserSweep:
             let left = min(boss.laserX, boss.laserTargetX) + camera.x
             let sweepWidth = abs(boss.laserTargetX - boss.laserX)
@@ -487,10 +565,13 @@ enum SDLNativeGameRenderer {
             r.line(from: (Float(boss.laserX + camera.x), Float(field.top + camera.y)),
                    to: (Float(boss.laserTargetX + camera.x), Float(field.top + camera.y)), color: warning)
         case .slowField:
-            r.fillCircle(center: (Float(origin.x), Float(origin.y)), radius: 76, color: RenderColor(210, 92, 244, 32))
+            if let effect = (r as? SDLRenderer)?.artTexture(named: "vfx_hit_electric") {
+                r.drawSprite(effect, in: RenderRect(x: Float(origin.x - 76), y: Float(origin.y - 76), width: 152, height: 152), alpha: 110)
+            }
         case .spiral:
-            r.fillCircle(center: (Float(origin.x), Float(origin.y)), radius: 62, color: RenderColor(255, 72, 151, 38))
-            r.line(from: (Float(origin.x - 74), Float(origin.y)), to: (Float(origin.x + 74), Float(origin.y)), color: warning)
+            if let effect = (r as? SDLRenderer)?.artTexture(named: "vfx_hit_critical") {
+                r.drawSprite(effect, in: RenderRect(x: Float(origin.x - 68), y: Float(origin.y - 68), width: 136, height: 136), alpha: 105)
+            }
         }
     }
 

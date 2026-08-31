@@ -40,9 +40,19 @@ enum UITheme {
     }
 
     enum Typography {
-        static let title: Float = 1.0
-        static let body: Float = 1.0
-        static let caption: Float = 1.0
+        // The bitmap atlas is authored around a 20 px glyph. These restrained
+        // ratios create hierarchy without blurring it through extreme scaling.
+        static let display: Float = 1.30
+        static let pageTitle: Float = 1.18
+        static let sectionTitle: Float = 1.02
+        static let body: Float = 0.90
+        static let label: Float = 0.78
+        static let caption: Float = 0.72
+        static let number: Float = 1.12
+        static let compactNumber: Float = 0.92
+
+        static let bodyLineHeight: Float = 19
+        static let compactLineHeight: Float = 16
     }
 
     enum Animation {
@@ -104,6 +114,37 @@ enum UIAnimationSystem {
 struct UILabel {
     var value: String
     var color: RenderColor = UITheme.Color.text
+    var scale: Float = UITheme.Typography.body
+    var alignment: UITextAlignment = .leading
+    var maxWidth: Float? = nil
+}
+
+enum UITextAlignment { case leading, center, trailing }
+
+enum UITextRole {
+    case display, pageTitle, sectionTitle, body, secondary, label, caption, number, warning, danger
+
+    var scale: Float {
+        switch self {
+        case .display: return UITheme.Typography.display
+        case .pageTitle: return UITheme.Typography.pageTitle
+        case .sectionTitle: return UITheme.Typography.sectionTitle
+        case .number: return UITheme.Typography.number
+        case .body, .secondary, .warning, .danger: return UITheme.Typography.body
+        case .label: return UITheme.Typography.label
+        case .caption: return UITheme.Typography.caption
+        }
+    }
+
+    var defaultColor: RenderColor {
+        switch self {
+        case .secondary: return UITheme.Color.secondary
+        case .label, .caption: return UITheme.Color.muted
+        case .warning: return UITheme.Color.warning
+        case .danger: return UITheme.Color.danger
+        default: return UITheme.Color.text
+        }
+    }
 }
 
 struct UIPanel {

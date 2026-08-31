@@ -354,9 +354,9 @@ enum SDLNativeGameRenderer {
     private static func drawMenu(_ r: GameRenderer, game: Game, width: Int, height: Int) {
         panel(r, x: 32, y: 32, width: width - 64, height: height - 64)
         r.fillRect(RenderRect(x: 33, y: 33, width: Float(width - 66), height: 4), color: UITheme.Color.primaryDeep)
-        text(r, t(game, "THUNDER SWIFT", "雷霆疾影"), 64, 72, UITheme.Color.text)
-        text(r, t(game, "TACTICAL SORTIE CONTROL", "战术出击控制系统"), 64, 104, UITheme.Color.primary)
-        text(r, t(game, "LOCAL PILOT TERMINAL  •  SYSTEM READY", "本地飞行员终端  •  系统就绪"), 64, 132, UITheme.Color.muted)
+        styledText(r, t(game, "THUNDER SWIFT", "雷霆疾影"), x: 64, y: 68, role: .display)
+        styledText(r, t(game, "TACTICAL SORTIE CONTROL", "战术出击控制系统"), x: 64, y: 103, role: .sectionTitle, color: UITheme.Color.primary)
+        styledText(r, t(game, "LOCAL PILOT TERMINAL  •  SYSTEM READY", "本地飞行员终端  •  系统就绪"), x: 64, y: 132, role: .caption)
         drawRightText(r, t(game, "SDL3 BUILD", "SDL3 版本") + "  //  ONLINE", right: Float(width - 64), y: 74, color: UITheme.Color.success)
         drawRightText(r, t(game, "SLOT", "存档") + " \(SaveManager.shared.activeSlot + 1)  •  " + t(game, "AUTO-SAVE", "自动保存"),
                       right: Float(width - 64), y: 105, color: UITheme.Color.secondary)
@@ -411,8 +411,8 @@ enum SDLNativeGameRenderer {
 
     private static func drawSaveSlots(_ r: GameRenderer, game: Game, width: Int, height: Int) {
         panel(r, x: width / 2 - 455, y: 58, width: 910, height: height - 105)
-        text(r, t(game, "SAVE SELECT // PILOT DATA", "选择存档 // 飞行员数据"), Float(width / 2 - 160), 94, UITheme.Color.text)
-        text(r, t(game, "Choose a slot to continue. Progress is stored beside the game.", "选择一个存档继续，进度保存在游戏根目录。"), Float(width / 2 - 255), 122, UITheme.Color.muted)
+        centeredText(r, t(game, "SAVE SELECT // PILOT DATA", "选择存档 // 飞行员数据"), centerX: Float(width / 2), y: 90, role: .pageTitle, shadow: true)
+        centeredText(r, t(game, "Choose a slot to continue. Progress is stored beside the game.", "选择一个存档继续，进度保存在游戏根目录。"), centerX: Float(width / 2), y: 122, role: .secondary)
         let summaries = SaveManager.shared.slotSummaries()
         for (i, card) in saveSlotCards(width: Double(width), height: Double(height)).enumerated() {
             button(r, card, title: "", selected: i == SaveManager.shared.activeSlot)
@@ -437,8 +437,8 @@ enum SDLNativeGameRenderer {
 
     private static func drawMissionSelect(_ r: GameRenderer, game: Game, width: Int, height: Int) {
         panel(r, x: 32, y: 44, width: width - 64, height: height - 86)
-        text(r, t(game, "MISSION SELECT // FLIGHT PLAN", "选择关卡 // 航线计划"), 64, 72, UITheme.Color.text)
-        text(r, t(game, "Select a sector, review drops, then launch.", "选择区域，查看掉落，然后出击。"), 66, 98, UITheme.Color.muted)
+        styledText(r, t(game, "MISSION SELECT // FLIGHT PLAN", "选择关卡 // 航线计划"), x: 64, y: 66, role: .pageTitle, shadow: true)
+        styledText(r, t(game, "Select a sector, review drops, then launch.", "选择区域，查看掉落，然后出击。"), x: 66, y: 98, role: .secondary)
         for (i, card) in missionCards(width: Double(width), height: Double(height)).enumerated() {
             let mission = MissionCatalog.all[i]
             let unlocked = i < game.unlockedMissionCount
@@ -474,8 +474,8 @@ enum SDLNativeGameRenderer {
         panel(r, x: width / 2 - 320, y: 70, width: 640, height: height - 125)
         sectionHeader(r, title: t(game, "HOW TO PLAY", "操作说明"), subtitle: t(game, "KEYBOARD FLIGHT", "键盘操纵"),
                       x: width / 2 - 280, y: 112, width: 560)
-        text(r, t(game, "The fighter is controlled by keyboard. Mouse input is reserved for menus.", "战机仅使用键盘操纵，鼠标只用于菜单选择。"),
-             Float(width / 2 - 250), 154, UITheme.Color.muted)
+        centeredText(r, t(game, "The fighter is controlled by keyboard. Mouse input is reserved for menus.", "战机仅使用键盘操纵，鼠标只用于菜单选择。"),
+                     centerX: Float(width / 2), y: 154, role: .secondary)
 
         drawStatTile(r, x: width / 2 - 260, y: 198, width: 245, height: 84,
                      label: t(game, "MOVE", "移动"), value: t(game, "WASD / ARROWS", "WASD / 方向键"), tint: UITheme.Color.primary)
@@ -489,15 +489,15 @@ enum SDLNativeGameRenderer {
                      label: t(game, "SWITCH WEAPON", "切换武器"), value: "Q", tint: UITheme.Color.boss)
         drawStatTile(r, x: width / 2 + 15, y: 402, width: 245, height: 84,
                      label: t(game, "PAUSE / BACK", "暂停 / 返回"), value: "ESC", tint: UITheme.Color.secondary)
-        text(r, t(game, "Hold Shift to slow down and reveal the real hitbox.", "按住 Shift 可降低移动速度，并显示战机的真实碰撞核心。"),
-             Float(width / 2 - 248), 514, UITheme.Color.secondary)
+        centeredText(r, t(game, "Hold Shift to slow down and reveal the real hitbox.", "按住 Shift 可降低移动速度，并显示战机的真实碰撞核心。"),
+                     centerX: Float(width / 2), y: 514, role: .secondary)
         button(r, controlsBackButton(width: Double(width), height: Double(height)), title: t(game, "BACK", "返回"), selected: false)
     }
 
     private static func drawSettings(_ r: GameRenderer, game: Game, width: Int, height: Int) {
         panel(r, x: width / 2 - 320, y: 44, width: 640, height: height - 78)
-        text(r, t(game, "SETTINGS", "设置"), Float(width / 2 - 55), 76, UITheme.Color.text)
-        text(r, t(game, "Presentation and accessibility", "画面与可读性设置"), Float(width / 2 - 135), 102, UITheme.Color.muted)
+        centeredText(r, t(game, "SETTINGS", "设置"), centerX: Float(width / 2), y: 70, role: .pageTitle, shadow: true)
+        centeredText(r, t(game, "Presentation and accessibility", "画面与可读性设置"), centerX: Float(width / 2), y: 102, role: .secondary)
         text(r, t(game, "LANGUAGE", "语言"), Float(width / 2 - 230), 140, UITheme.Color.secondary)
         let language = settingsLanguageButtons(width: Double(width), height: Double(height))
         button(r, language[0], title: t(game, "ENGLISH", "英文"), selected: game.language == .english)
@@ -520,8 +520,8 @@ enum SDLNativeGameRenderer {
 
     private static func drawHangar(_ r: GameRenderer, game: Game, width: Int, height: Int) {
         panel(r, x: 32, y: 32, width: width - 64, height: height - 64)
-        text(r, t(game, "HANGAR / LOADOUT", "机库 / 装备"), 64, 70, UITheme.Color.text)
-        text(r, t(game, "AIRFRAME CONFIGURATION", "机体配置台"), 66, 96, UITheme.Color.muted)
+        styledText(r, t(game, "HANGAR / LOADOUT", "机库 / 装备"), x: 64, y: 64, role: .pageTitle, shadow: true)
+        styledText(r, t(game, "AIRFRAME CONFIGURATION", "机体配置台"), x: 66, y: 96, role: .secondary)
         text(r, t(game, "POWER", "战力") + "  \(game.combatPower())", Float(width - 250), 70, UITheme.Color.warning)
         let resourceSummary = t(game, "CREDITS", "金币") + " \(game.profile.credits)   " + t(game, "CORES", "核心") + " \(game.profile.cores)"
         text(r, resourceSummary, Float(width - 390), 96, UITheme.Color.secondary)
@@ -713,7 +713,7 @@ enum SDLNativeGameRenderer {
 
     private static func drawArchive(_ r: GameRenderer, game: Game, width: Int, height: Int) {
         panel(r, x: width / 2 - 340, y: 74, width: 680, height: height - 115)
-        text(r, t(game, "ARCHIVE // RECORDS", "档案馆 // 记录"), Float(width / 2 - 80), 100, UITheme.Color.text)
+        centeredText(r, t(game, "ARCHIVE // RECORDS", "档案馆 // 记录"), centerX: Float(width / 2), y: 94, role: .pageTitle, shadow: true)
         let tabs = archiveTabButtons(width: Double(width), height: Double(height))
         button(r, tabs[0], title: t(game, "ACHIEVEMENTS", "成就"), selected: game.archiveTab == 0)
         button(r, tabs[1], title: t(game, "CODEX", "图鉴"), selected: game.archiveTab == 1)
@@ -852,8 +852,8 @@ enum SDLNativeGameRenderer {
     }
 
     private static func sectionHeader(_ r: GameRenderer, title: String, subtitle: String, x: Int, y: Int, width: Int) {
-        text(r, title, Float(x), Float(y), UITheme.Color.text)
-        drawRightText(r, subtitle, right: Float(x + width), y: Float(y), color: UITheme.Color.muted)
+        styledText(r, title, x: Float(x), y: Float(y - 2), role: .sectionTitle)
+        styledRightText(r, subtitle, right: Float(x + width), y: Float(y + 1), role: .caption)
         r.fillRect(RenderRect(x: Float(x), y: Float(y + 24), width: Float(width), height: 1), color: UITheme.Color.border)
         r.fillRect(RenderRect(x: Float(x), y: Float(y + 24), width: Float(min(74, width)), height: 2), color: UITheme.Color.primaryDeep)
     }
@@ -862,8 +862,10 @@ enum SDLNativeGameRenderer {
                                      label: String, value: String, tint: RenderColor) {
         r.fillRect(RenderRect(x: Float(x), y: Float(y), width: Float(width), height: Float(height)), color: UITheme.Color.panelSoft)
         r.fillRect(RenderRect(x: Float(x), y: Float(y), width: 3, height: Float(height)), color: tint)
-        text(r, label, Float(x + 14), Float(y + 13), UITheme.Color.muted)
-        r.drawTextScaled(value, at: (x: Float(x + 14), y: Float(y + height - 33)), scale: 1.18, color: tint)
+        styledText(r, ellipsized(label, maxWidth: Float(width - 28), scale: UITextRole.label.scale),
+                   x: Float(x + 14), y: Float(y + 12), role: .label)
+        styledText(r, ellipsized(value, maxWidth: Float(width - 28), scale: UITextRole.number.scale),
+                   x: Float(x + 14), y: Float(y + height - 35), role: .number, color: tint, shadow: true)
     }
 
     private static func button(_ r: GameRenderer, _ rect: UIRect, title: String, selected: Bool, emphasis: Bool = false) {
@@ -894,7 +896,10 @@ enum SDLNativeGameRenderer {
         r.line(from: (Float(rect.x), Float(rect.y)), to: (Float(rect.x + rect.width), Float(rect.y)), color: border)
         r.line(from: (Float(rect.x), Float(rect.y + rect.height)), to: (Float(rect.x + rect.width), Float(rect.y + rect.height)), color: border)
         let labelColor = state == .disabled ? UITheme.Color.muted : UITheme.Color.text
-        text(r, component.title, Float(rect.x + (emphasis ? 20 : 16)), Float(rect.y + rect.height * 0.5 - 5), labelColor)
+        let titleInset: Float = emphasis ? 20 : 16
+        let visibleTitle = ellipsized(component.title, maxWidth: Float(rect.width) - titleInset - 12, scale: UITextRole.body.scale)
+        styledText(r, visibleTitle, x: Float(rect.x) + titleInset, y: Float(rect.y + rect.height * 0.5 - 7),
+                   role: .body, color: labelColor, shadow: emphasis)
     }
 
     private static func bar(_ r: GameRenderer, x: Float, y: Float, width: Float, value: Double, fill: RenderColor, back: RenderColor) {
@@ -910,6 +915,27 @@ enum SDLNativeGameRenderer {
 
     private static func text(_ r: GameRenderer, _ value: String, _ x: Float, _ y: Float, _ c: RenderColor) { r.drawText(value, at: (x: x, y: y), color: c) }
 
+    private static func styledText(_ r: GameRenderer, _ value: String, x: Float, y: Float, role: UITextRole,
+                                   color: RenderColor? = nil, shadow: Bool = false) {
+        let tint = color ?? role.defaultColor
+        if shadow {
+            r.drawTextScaled(value, at: (x: x + 1, y: y + 2), scale: role.scale,
+                             color: RenderColor(1, 5, 11, min(170, tint.alpha)))
+        }
+        r.drawTextScaled(value, at: (x: x, y: y), scale: role.scale, color: tint)
+    }
+
+    private static func centeredText(_ r: GameRenderer, _ value: String, centerX: Float, y: Float, role: UITextRole,
+                                     color: RenderColor? = nil, shadow: Bool = false) {
+        styledText(r, value, x: centerX - textWidth(value, scale: role.scale) * 0.5, y: y,
+                   role: role, color: color, shadow: shadow)
+    }
+
+    private static func styledRightText(_ r: GameRenderer, _ value: String, right: Float, y: Float, role: UITextRole,
+                                        color: RenderColor? = nil) {
+        styledText(r, value, x: right - textWidth(value, scale: role.scale), y: y, role: role, color: color)
+    }
+
     private static func drawRightText(_ r: GameRenderer, _ value: String, right: Float, y: Float, color: RenderColor) {
         text(r, value, right - textWidth(value), y, color)
     }
@@ -918,13 +944,16 @@ enum SDLNativeGameRenderer {
         let alpha = notificationAlpha(game.notificationTimer, fullDuration: 3.2)
         let tint = color(game.notificationTint)
         let titleColor = RenderColor(tint.red, tint.green, tint.blue, alpha)
-        let detailColor = RenderColor(UITheme.Color.text.red, UITheme.Color.text.green, UITheme.Color.text.blue, alpha)
+        let detailColor = RenderColor(UITheme.Color.secondary.red, UITheme.Color.secondary.green, UITheme.Color.secondary.blue, alpha)
         let x: Float = 18
         let y = Float(field.top + 26)
-        r.fillRect(RenderRect(x: x, y: y, width: 360, height: 54), color: RenderColor(7, 17, 34, UInt8(Double(alpha) * 0.9)))
-        r.fillRect(RenderRect(x: x, y: y, width: 3, height: 54), color: titleColor)
-        text(r, game.notificationTitle, x + 14, y + 10, titleColor)
-        drawWrappedText(r, game.notificationDetail, x: x + 14, y: y + 31, color: detailColor, maxWidth: 330, lineHeight: 16, maxLines: 1)
+        r.fillRect(RenderRect(x: x + 4, y: y + 5, width: 382, height: 66), color: RenderColor(1, 5, 12, UInt8(Double(alpha) * 0.46)))
+        r.fillRect(RenderRect(x: x, y: y, width: 382, height: 66), color: RenderColor(7, 17, 34, UInt8(Double(alpha) * 0.90)))
+        r.fillRect(RenderRect(x: x, y: y, width: 4, height: 66), color: titleColor)
+        styledText(r, ellipsized(game.notificationTitle, maxWidth: 345, scale: UITextRole.sectionTitle.scale),
+                   x: x + 15, y: y + 9, role: .sectionTitle, color: titleColor, shadow: true)
+        drawWrappedText(r, game.notificationDetail, x: x + 15, y: y + 36, color: detailColor,
+                        maxWidth: 350, lineHeight: UITheme.Typography.compactLineHeight, maxLines: 2)
     }
 
     /// Persistent, compact countdowns make temporary power-up windows useful
@@ -1028,8 +1057,17 @@ enum SDLNativeGameRenderer {
         return character.unicodeScalars.allSatisfy { $0.value < 128 } ? 14 : 20
     }
 
-    private static func textWidth(_ value: String) -> Float {
-        value.reduce(0) { $0 + glyphWidth($1) }
+    private static func textWidth(_ value: String, scale: Float = 1) -> Float {
+        value.reduce(0) { $0 + glyphWidth($1) } * scale
+    }
+
+    private static func ellipsized(_ value: String, maxWidth: Float, scale: Float = 1) -> String {
+        guard textWidth(value, scale: scale) > maxWidth else { return value }
+        var result = Array(value)
+        while !result.isEmpty && textWidth(String(result) + "…", scale: scale) > maxWidth {
+            result.removeLast()
+        }
+        return result.isEmpty ? "" : String(result).trimmingCharacters(in: .whitespaces) + "…"
     }
 
     private static func t(_ game: Game, _ english: String, _ chinese: String) -> String {

@@ -1,12 +1,20 @@
 import Foundation
 
 func mainMenuButtons(width: Double, height: Double) -> [UIRect] {
-    let left = width / 2 - 145, top = height / 2 - 80
-    var buttons = (0..<5).map { UIRect(x: left, y: top + Double($0) * 54, width: 290, height: 48) }
-    buttons.append(UIRect(x: left, y: top + 5 * 54, width: 290, height: 48))
-    return buttons
+    let left = width * 0.43
+    let available = width - left - 64
+    let gap = 18.0
+    let columnWidth = (available - gap) * 0.5
+    return [
+        UIRect(x: left, y: 210, width: available, height: 62),
+        UIRect(x: left, y: 290, width: columnWidth, height: 54),
+        UIRect(x: left + columnWidth + gap, y: 290, width: columnWidth, height: 54),
+        UIRect(x: left, y: 360, width: columnWidth, height: 54),
+        UIRect(x: left, y: 430, width: available, height: 50),
+        UIRect(x: left + columnWidth + gap, y: 360, width: columnWidth, height: 54)
+    ]
 }
-func saveSlotButton(width: Double, height: Double) -> UIRect { UIRect(x: 28, y: 28, width: 270, height: 92) }
+func saveSlotButton(width: Double, height: Double) -> UIRect { UIRect(x: 64, y: 540, width: max(300, width * 0.34), height: 62) }
 func saveSlotCards(width: Double, height: Double) -> [UIRect] {
     let left = width / 2 - 350
     return (0..<SaveManager.slotCount).map { UIRect(x: left + Double($0) * 235, y: 230, width: 220, height: 190) }
@@ -50,7 +58,7 @@ func settingsResolutionButton(width: Double, height: Double) -> UIRect { UIRect(
 func settingsUIScaleButton(width: Double, height: Double) -> UIRect { UIRect(x: width / 2 - 230, y: 516, width: 460, height: 46) }
 func settingsBackButton(width: Double, height: Double) -> UIRect { UIRect(x: width / 2 - 120, y: height - 82, width: 240, height: 46) }
 func pauseButtons(width: Double, height: Double) -> [UIRect] {
-    let left = width / 2 - 145, top = height / 2 - 112
+    let left = width / 2 - 145, top = height / 2 - 130
     return (0..<5).map { UIRect(x: left, y: top + Double($0) * 62, width: 290, height: 48) }
 }
 func confirmationPanel(width: Double, height: Double) -> UIRect {
@@ -65,7 +73,7 @@ func confirmationCancelButton(width: Double, height: Double) -> UIRect {
     return UIRect(x: panel.x + panel.width - 254, y: panel.y + panel.height - 66, width: 220, height: 42)
 }
 func gameOverButtons(width: Double, height: Double) -> [UIRect] {
-    let left = width / 2 - 145, top = height / 2 + 62
+    let left = width / 2 - 145, top = height / 2 + 95
     return [UIRect(x: left, y: top, width: 290, height: 50), UIRect(x: left, y: top + 62, width: 290, height: 50)]
 }
 func upgradeCards(width: Double, height: Double) -> [UIRect] {

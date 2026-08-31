@@ -64,7 +64,8 @@ enum SDLNativeGameRenderer {
                 r.fillRect(RenderRect(x: Float(lane), y: Float(field.top), width: 1, height: Float(field.bottom - field.top)), color: RenderColor(70, 109, 151, 22))
             }
         }
-        r.fillRect(RenderRect(x: 0, y: 0, width: Float(width), height: 54), color: UITheme.Color.panel)
+        r.fillRect(RenderRect(x: 0, y: 0, width: Float(width), height: 82), color: RenderColor(10, 21, 38, 230))
+        r.fillRect(RenderRect(x: 0, y: 80, width: Float(width), height: 2), color: RenderColor(83, 136, 154, 86))
     }
 
     private static func drawUIDebugOverlay(_ r: GameRenderer, game: Game, width: Int, height: Int) {
@@ -245,6 +246,10 @@ enum SDLNativeGameRenderer {
     }
 
     private static func drawCombatHUD(_ r: GameRenderer, game: Game, field: PlayfieldBounds, width: Int) {
+        r.fillRect(RenderRect(x: 10, y: 8, width: 294, height: 43), color: UITheme.Color.panelSoft)
+        r.fillRect(RenderRect(x: 312, y: 8, width: 326, height: 43), color: UITheme.Color.panelSoft)
+        r.fillRect(RenderRect(x: Float(max(646, width - 338)), y: 8, width: Float(min(328, width - max(646, width - 338) - 10)), height: 43), color: UITheme.Color.panelSoft)
+        r.fillRect(RenderRect(x: 10, y: 56, width: Float(min(780, width - 20)), height: 24), color: RenderColor(12, 28, 46, 205))
         text(r, t(game, "THUNDER SWIFT", "雷霆疾影"), 16, 16, UITheme.Color.text)
         text(r, t(game, "STAGE", "关卡") + " \(game.stage)", 190, 16, UITheme.Color.primary)
         drawRightText(r, t(game, "SCORE", "分数") + " \(game.score)", right: Float(width - 16), y: 16, color: UITheme.Color.warning)
@@ -350,24 +355,60 @@ enum SDLNativeGameRenderer {
 
     private static func drawMenu(_ r: GameRenderer, game: Game, width: Int, height: Int) {
         panel(r, x: 32, y: 32, width: width - 64, height: height - 64)
-        text(r, t(game, "HANGAR CONTROL // READY", "机库控制 // 已就绪"), 64, 74, UITheme.Color.primary)
-        text(r, t(game, "THUNDER SWIFT", "雷霆疾影"), 64, 112, UITheme.Color.text)
-        text(r, t(game, "SINGLE PILOT SORTIE SYSTEM", "单人作战出击系统"), 66, 140, UITheme.Color.muted)
+        r.fillRect(RenderRect(x: 33, y: 33, width: Float(width - 66), height: 4), color: UITheme.Color.primaryDeep)
+        text(r, t(game, "THUNDER SWIFT", "雷霆疾影"), 64, 72, UITheme.Color.text)
+        text(r, t(game, "TACTICAL SORTIE CONTROL", "战术出击控制系统"), 64, 104, UITheme.Color.primary)
+        text(r, t(game, "LOCAL PILOT TERMINAL  •  SYSTEM READY", "本地飞行员终端  •  系统就绪"), 64, 132, UITheme.Color.muted)
+        drawRightText(r, t(game, "SDL3 BUILD", "SDL3 版本") + "  //  ONLINE", right: Float(width - 64), y: 74, color: UITheme.Color.success)
+        drawRightText(r, t(game, "SLOT", "存档") + " \(SaveManager.shared.activeSlot + 1)  •  " + t(game, "AUTO-SAVE", "自动保存"),
+                      right: Float(width - 64), y: 105, color: UITheme.Color.secondary)
 
-        r.fillRect(RenderRect(x: 94, y: 184, width: 390, height: 1), color: UITheme.Color.border)
-        text(r, t(game, "PILOT RECORD", "飞行档案"), 94, 205, UITheme.Color.secondary)
-        text(r, t(game, "BEST SCORE", "最高分") + "  \(game.profile.bestScore)", 94, 232, UITheme.Color.text)
-        text(r, t(game, "BEST COMBO", "最高连击") + "  \(game.profile.bestCombo)", 94, 258, UITheme.Color.text)
-        text(r, t(game, "BOSSES DOWN", "击破首领") + "  \(game.profile.totalBosses)", 94, 284, UITheme.Color.text)
-        text(r, t(game, "COMBAT POWER", "战力") + "  \(game.combatPower())", 94, 316, UITheme.Color.warning)
+        let leftWidth = Int(max(300, Double(width) * 0.34))
+        let rightX = Int(Double(width) * 0.43) - 16
+        panel(r, x: 56, y: 170, width: leftWidth + 16, height: 346)
+        sectionHeader(r, title: t(game, "PILOT STATUS", "飞行员状态"), subtitle: t(game, "CAREER OVERVIEW", "生涯概览"), x: 76, y: 194, width: leftWidth - 24)
+        let tileWidth = max(128, (leftWidth - 40) / 2)
+        drawStatTile(r, x: 76, y: 232, width: tileWidth, height: 86,
+                     label: t(game, "COMBAT POWER", "当前战力"), value: "\(game.combatPower())", tint: UITheme.Color.warning)
+        drawStatTile(r, x: 88 + tileWidth, y: 232, width: tileWidth, height: 86,
+                     label: t(game, "BEST SCORE", "最高分"), value: "\(game.profile.bestScore)", tint: UITheme.Color.primary)
+        drawStatTile(r, x: 76, y: 330, width: tileWidth, height: 86,
+                     label: t(game, "BEST COMBO", "最高连击"), value: "×\(game.profile.bestCombo)", tint: UITheme.Color.energy)
+        drawStatTile(r, x: 88 + tileWidth, y: 330, width: tileWidth, height: 86,
+                     label: t(game, "BOSSES DOWN", "击破首领"), value: "\(game.profile.totalBosses)", tint: UITheme.Color.boss)
+        text(r, t(game, "FLIGHT RECORD", "出击记录") + "  \(game.profile.totalRuns)", 78, 451, UITheme.Color.secondary)
+        text(r, t(game, "CAMPAIGN SECTOR", "战役进度") + "  \(game.profile.unlockedMission)/\(MissionCatalog.all.count)", 78, 478, UITheme.Color.secondary)
+
+        panel(r, x: rightX, y: 170, width: width - rightX - 56, height: 326)
+        sectionHeader(r, title: t(game, "OPERATIONS", "作战操作"), subtitle: t(game, "SELECT A SYSTEM", "选择功能"), x: rightX + 18, y: 194, width: width - rightX - 92)
 
         let buttons = mainMenuButtons(width: Double(width), height: Double(height))
-        let labels = [t(game, "NEW GAME", "开始游戏"), t(game, "CONTROLS", "操作设置"), t(game, "HANGAR", "机库"), t(game, "SETTINGS", "设置"), t(game, "EXIT", "退出"), t(game, "ARCHIVE", "档案馆")]
-        for i in buttons.indices { button(r, buttons[i], title: labels[i], selected: false) }
-        text(r, t(game, "CREDITS", "金币") + "  \(game.profile.credits)", 500, 626, UITheme.Color.warning)
-        text(r, t(game, "CORES", "核心") + "  \(game.profile.cores)", 690, 626, UITheme.Color.energy)
-        text(r, t(game, "ALLOY", "合金") + "  \(game.profile.alloy)", 860, 626, UITheme.Color.secondary)
-        text(r, t(game, "SAVE SLOT", "存档") + " \(SaveManager.shared.activeSlot + 1)  •  " + t(game, "AUTO-SAVE ON", "自动保存开启"), 64, 626, UITheme.Color.success)
+        let labels = [t(game, "01  START SORTIE", "01  开始出击"), t(game, "02  CONTROLS", "02  操作设置"),
+                      t(game, "03  HANGAR", "03  机库整备"), t(game, "04  SETTINGS", "04  系统设置"),
+                      t(game, "06  EXIT GAME", "06  退出游戏"), t(game, "05  ARCHIVE", "05  档案馆")]
+        for i in buttons.indices { button(r, buttons[i], title: labels[i], selected: false, emphasis: i == 0) }
+
+        let saveButton = saveSlotButton(width: Double(width), height: Double(height))
+        button(r, saveButton, title: "", selected: false)
+        text(r, t(game, "PILOT DATA", "飞行员存档") + "  //  " + t(game, "SLOT", "存档") + " \(SaveManager.shared.activeSlot + 1)",
+             Float(saveButton.x + 18), Float(saveButton.y + 15), UITheme.Color.text)
+        text(r, t(game, "Open save manager", "打开存档管理") + "  •  JSON + BACKUP",
+             Float(saveButton.x + 18), Float(saveButton.y + 39), UITheme.Color.muted)
+
+        let resourcesX = rightX
+        let resourcesWidth = width - rightX - 56
+        panel(r, x: resourcesX, y: 516, width: resourcesWidth, height: 86)
+        let resourceWidth = (resourcesWidth - 44) / 3
+        drawStatTile(r, x: resourcesX + 10, y: 526, width: resourceWidth, height: 66,
+                     label: t(game, "CREDITS", "金币"), value: "\(game.profile.credits)", tint: UITheme.Color.warning)
+        drawStatTile(r, x: resourcesX + 17 + resourceWidth, y: 526, width: resourceWidth, height: 66,
+                     label: t(game, "CORES", "核心"), value: "\(game.profile.cores)", tint: UITheme.Color.energy)
+        drawStatTile(r, x: resourcesX + 24 + resourceWidth * 2, y: 526, width: resourceWidth, height: 66,
+                     label: t(game, "ALLOY", "合金"), value: "\(game.profile.alloy)", tint: UITheme.Color.secondary)
+
+        r.line(from: (64, 628), to: (Float(width - 64), 628), color: UITheme.Color.border)
+        text(r, t(game, "ENTER / LEFT CLICK  CONFIRM", "Enter / 鼠标左键确认"), 64, 647, UITheme.Color.muted)
+        drawRightText(r, t(game, "ESC  BACK", "Esc  返回"), right: Float(width - 64), y: 647, color: UITheme.Color.muted)
     }
 
     private static func drawSaveSlots(_ r: GameRenderer, game: Game, width: Int, height: Int) {
@@ -427,7 +468,7 @@ enum SDLNativeGameRenderer {
             drawWrappedText(r, mode.description(for: game.language), x: Float(card.x + 10), y: Float(card.y + 52), color: UITheme.Color.secondary, maxWidth: Float(card.width - 20), lineHeight: 14, maxLines: 1)
         }
         text(r, t(game, "MODE", "模式"), 260, 414, UITheme.Color.muted)
-        button(r, missionLaunchButton(width: Double(width), height: Double(height)), title: t(game, "LAUNCH", "出击"), selected: true)
+        button(r, missionLaunchButton(width: Double(width), height: Double(height)), title: t(game, "LAUNCH", "出击"), selected: false, emphasis: true)
         button(r, missionBackButton(width: Double(width), height: Double(height)), title: t(game, "BACK", "返回"), selected: false)
     }
 
@@ -708,11 +749,15 @@ enum SDLNativeGameRenderer {
     }
 
     private static func drawPause(_ r: GameRenderer, game: Game, width: Int, height: Int) {
-        panel(r, x: width / 2 - 310, y: height / 2 - 175, width: 620, height: 350)
-        text(r, t(game, "MISSION PAUSED", "战斗暂停"), Float(width / 2 - 85), Float(height / 2 - 140), RenderColor(240, 247, 255))
+        r.fillRect(RenderRect(x: 0, y: 0, width: Float(width), height: Float(height)), color: RenderColor(3, 8, 17, 168))
+        panel(r, x: width / 2 - 310, y: height / 2 - 225, width: 620, height: 450)
+        sectionHeader(r, title: t(game, "MISSION PAUSED", "战斗暂停"), subtitle: t(game, "TACTICAL MENU", "战术菜单"),
+                      x: width / 2 - 278, y: height / 2 - 190, width: 556)
+        text(r, t(game, "Combat simulation suspended. Select an action.", "战斗已暂停，请选择下一步操作。"),
+             Float(width / 2 - 190), Float(height / 2 - 155), UITheme.Color.muted)
         let buttons = pauseButtons(width: Double(width), height: Double(height))
         let titles = [t(game, "RESUME", "继续"), t(game, "RESTART", "重新开始"), t(game, "SETTINGS", "设置"), t(game, "MAIN MENU", "主菜单"), t(game, "EXIT", "退出")]
-        for (i, title) in titles.enumerated() { button(r, buttons[i], title: title, selected: false) }
+        for (i, title) in titles.enumerated() { button(r, buttons[i], title: title, selected: false, emphasis: i == 0) }
     }
 
     private static func drawConfirmation(_ overlay: GameRenderer, uiRenderer r: GameRenderer, game: Game, width: Int, height: Int) {
@@ -724,13 +769,15 @@ enum SDLNativeGameRenderer {
         text(r, t(game, "ABANDON SORTIE?", "结束本次出击？"), Float(dialog.x + 34), Float(dialog.y + 42), UITheme.Color.warning)
         text(r, t(game, "Current run progress will be saved before returning.", "返回前会保存当前进度，本局战斗将结束。"), Float(dialog.x + 34), Float(dialog.y + 78), UITheme.Color.secondary)
         text(r, t(game, "You can launch again from Mission Select.", "你可以从关卡选择再次出击。"), Float(dialog.x + 34), Float(dialog.y + 101), UITheme.Color.muted)
-        button(r, confirmationConfirmButton(width: Double(width), height: Double(height)), title: t(game, "RETURN TO MENU", "返回主菜单"), selected: true)
+        button(r, confirmationConfirmButton(width: Double(width), height: Double(height)), title: t(game, "RETURN TO MENU", "返回主菜单"), selected: false, emphasis: true)
         button(r, confirmationCancelButton(width: Double(width), height: Double(height)), title: t(game, "CANCEL", "取消"), selected: false)
     }
 
     private static func drawUpgrade(_ r: GameRenderer, game: Game, width: Int, height: Int) {
+        r.fillRect(RenderRect(x: 0, y: 0, width: Float(width), height: Float(height)), color: RenderColor(3, 8, 17, 158))
         panel(r, x: 70, y: 90, width: width - 140, height: height - 170)
-        text(r, t(game, "MODULE AVAILABLE", "新模块可用"), Float(width / 2 - 105), 124, UITheme.Color.warning)
+        sectionHeader(r, title: t(game, "MODULE AVAILABLE", "新模块可用"), subtitle: t(game, "CHOOSE ONE", "三选一"),
+                      x: 98, y: 124, width: width - 196)
         text(r, t(game, "Choose one upgrade. Combat is paused.", "选择一项强化，战斗已暂停。"), Float(width / 2 - 160), 151, UITheme.Color.muted)
         text(r, t(game, "CURRENT BUILD", "当前构筑") + "  " + game.weaponType.label(for: game.language), 98, 186, UITheme.Color.secondary)
         text(r, t(game, "FOCUS", "流派") + "  " + game.buildFocusLabel(), 98, 208, UITheme.Color.primary)
@@ -738,6 +785,7 @@ enum SDLNativeGameRenderer {
             let option = i < game.upgradeOptions.count ? game.upgradeOptions[i] : UpgradeOption(title: t(game, "MODULE", "模块"), detail: "", kind: 0)
             button(r, card, title: "", selected: card.contains(UIInteraction.pointer))
             let rarity = UpgradeRarity(rawValue: option.rarity) ?? .common
+            r.fillRect(RenderRect(x: Float(card.x), y: Float(card.y), width: Float(card.width), height: 3), color: color(rarityColor(rarity)))
             text(r, game.localizedRarity(rarity), Float(card.x + 14), Float(card.y + 16), color(rarityColor(rarity)))
             text(r, option.title, Float(card.x + 14), Float(card.y + 46), UITheme.Color.text)
             drawWrappedText(r, option.detail, x: Float(card.x + 14), y: Float(card.y + 72), color: UITheme.Color.secondary, maxWidth: Float(card.width - 28), lineHeight: 16, maxLines: 2)
@@ -747,20 +795,22 @@ enum SDLNativeGameRenderer {
     }
 
     private static func drawGameOver(_ r: GameRenderer, game: Game, width: Int, height: Int) {
-        panel(r, x: width / 2 - 310, y: height / 2 - 200, width: 620, height: 390)
-        text(r, game.runWon ? t(game, "MISSION COMPLETE", "任务完成") : t(game, "SORTIE FAILED", "任务失败"), Float(width / 2 - 110), Float(height / 2 - 168), UITheme.Color.warning)
-        text(r, t(game, "RATING", "评级") + "  " + runGrade(game), Float(width / 2 - 58), Float(height / 2 - 144), game.runWon ? UITheme.Color.success : UITheme.Color.secondary)
-        text(r, t(game, "SCORE", "分数") + "  \(game.score)", Float(width / 2 - 70), Float(height / 2 - 126), UITheme.Color.text)
-        text(r, t(game, "KILLS", "击杀") + "  \(game.kills)    " + t(game, "BEST COMBO", "最高连击") + "  \(game.comboBest)", Float(width / 2 - 144), Float(height / 2 - 88), UITheme.Color.secondary)
-        text(r, t(game, "SURVIVAL", "存活") + "  \(Int(game.survivalTime))s    " + t(game, "BOSS", "首领") + "  " + (game.missionBossDefeated ? t(game, "DOWN", "已击破") : t(game, "ACTIVE", "未击破")), Float(width / 2 - 170), Float(height / 2 - 58), UITheme.Color.secondary)
-        text(r, t(game, "RUN REWARDS", "本局奖励"), Float(width / 2 - 140), Float(height / 2 - 12), UITheme.Color.primary)
-        text(r, t(game, "CREDITS", "金币") + " +\(game.runCreditsEarned)    " + t(game, "CORES", "核心") + " +\(game.runCoresEarned)    " + t(game, "ALLOY", "合金") + " +\(game.runAlloyEarned)", Float(width / 2 - 190), Float(height / 2 + 18), UITheme.Color.warning)
+        r.fillRect(RenderRect(x: 0, y: 0, width: Float(width), height: Float(height)), color: RenderColor(3, 8, 17, 176))
+        panel(r, x: width / 2 - 310, y: height / 2 - 215, width: 620, height: 430)
+        sectionHeader(r, title: game.runWon ? t(game, "MISSION COMPLETE", "任务完成") : t(game, "SORTIE FAILED", "任务失败"),
+                      subtitle: t(game, "SORTIE REPORT", "出击报告"), x: width / 2 - 278, y: height / 2 - 168, width: 556)
+        text(r, t(game, "RATING", "评级") + "  " + runGrade(game), Float(width / 2 - 58), Float(height / 2 - 132), game.runWon ? UITheme.Color.success : UITheme.Color.secondary)
+        text(r, t(game, "SCORE", "分数") + "  \(game.score)", Float(width / 2 - 70), Float(height / 2 - 104), UITheme.Color.text)
+        text(r, t(game, "KILLS", "击杀") + "  \(game.kills)    " + t(game, "BEST COMBO", "最高连击") + "  \(game.comboBest)", Float(width / 2 - 144), Float(height / 2 - 62), UITheme.Color.secondary)
+        text(r, t(game, "SURVIVAL", "存活") + "  \(Int(game.survivalTime))s    " + t(game, "BOSS", "首领") + "  " + (game.missionBossDefeated ? t(game, "DOWN", "已击破") : t(game, "ACTIVE", "未击破")), Float(width / 2 - 170), Float(height / 2 - 34), UITheme.Color.secondary)
+        text(r, t(game, "RUN REWARDS", "本局奖励"), Float(width / 2 - 140), Float(height / 2 + 10), UITheme.Color.primary)
+        text(r, t(game, "CREDITS", "金币") + " +\(game.runCreditsEarned)    " + t(game, "CORES", "核心") + " +\(game.runCoresEarned)    " + t(game, "ALLOY", "合金") + " +\(game.runAlloyEarned)", Float(width / 2 - 190), Float(height / 2 + 40), UITheme.Color.warning)
         if !game.runRareDropName.isEmpty {
             let dropName = localizedDropName(game.runRareDropName, game: game)
-            text(r, t(game, "RARE MODULE", "稀有模块") + "  •  " + dropName + "  •  " + game.equipmentQualityName(game.runRareDropRarity), Float(width / 2 - 188), Float(height / 2 + 42), UITheme.Color.boss)
+            text(r, t(game, "RARE MODULE", "稀有模块") + "  •  " + dropName + "  •  " + game.equipmentQualityName(game.runRareDropRarity), Float(width / 2 - 188), Float(height / 2 + 64), UITheme.Color.boss)
         }
         let buttons = gameOverButtons(width: Double(width), height: Double(height))
-        button(r, buttons[0], title: t(game, "RESTART", "重新开始"), selected: true)
+        button(r, buttons[0], title: t(game, "RESTART", "重新开始"), selected: false, emphasis: true)
         button(r, buttons[1], title: t(game, "MAIN MENU", "主菜单"), selected: false)
     }
 
@@ -787,6 +837,7 @@ enum SDLNativeGameRenderer {
 
     private static func panel(_ r: GameRenderer, x: Int, y: Int, width: Int, height: Int) {
         let component = UIPanel(rect: UIRect(x: Double(x), y: Double(y), width: Double(width), height: Double(height)))
+        r.fillRect(RenderRect(x: Float(x + 5), y: Float(y + 6), width: Float(width), height: Float(height)), color: RenderColor(1, 5, 12, 82))
         r.fillRect(RenderRect(x: Float(component.rect.x), y: Float(component.rect.y), width: Float(component.rect.width), height: Float(component.rect.height)), color: UITheme.Color.panel)
         // A muted edge hierarchy reads as a single glass-like surface instead
         // of a grid of bright boxes.
@@ -797,7 +848,22 @@ enum SDLNativeGameRenderer {
         r.line(from: (Float(x + width), Float(y)), to: (Float(x + width), Float(y + height)), color: UITheme.Color.border)
     }
 
-    private static func button(_ r: GameRenderer, _ rect: UIRect, title: String, selected: Bool) {
+    private static func sectionHeader(_ r: GameRenderer, title: String, subtitle: String, x: Int, y: Int, width: Int) {
+        text(r, title, Float(x), Float(y), UITheme.Color.text)
+        drawRightText(r, subtitle, right: Float(x + width), y: Float(y), color: UITheme.Color.muted)
+        r.fillRect(RenderRect(x: Float(x), y: Float(y + 24), width: Float(width), height: 1), color: UITheme.Color.border)
+        r.fillRect(RenderRect(x: Float(x), y: Float(y + 24), width: Float(min(74, width)), height: 2), color: UITheme.Color.primaryDeep)
+    }
+
+    private static func drawStatTile(_ r: GameRenderer, x: Int, y: Int, width: Int, height: Int,
+                                     label: String, value: String, tint: RenderColor) {
+        r.fillRect(RenderRect(x: Float(x), y: Float(y), width: Float(width), height: Float(height)), color: UITheme.Color.panelSoft)
+        r.fillRect(RenderRect(x: Float(x), y: Float(y), width: 3, height: Float(height)), color: tint)
+        text(r, label, Float(x + 14), Float(y + 13), UITheme.Color.muted)
+        r.drawTextScaled(value, at: (x: Float(x + 14), y: Float(y + height - 33)), scale: 1.18, color: tint)
+    }
+
+    private static func button(_ r: GameRenderer, _ rect: UIRect, title: String, selected: Bool, emphasis: Bool = false) {
         let component = UIButton(rect: rect, title: title, selected: selected)
         let state = UIInteraction.state(for: component.rect, selected: component.selected, enabled: component.enabled)
         let fill: RenderColor
@@ -808,19 +874,24 @@ enum SDLNativeGameRenderer {
             fill = UITheme.Color.panelSelected; border = RenderColor(125, 191, 205, UInt8(min(225, 185 * pulse)))
         case .hover:
             let pulse = UIAnimationSystem.pulse(time: UIInteraction.time, speed: 4.0, amount: 0.025)
-            fill = UITheme.Color.panelHover; border = RenderColor(126, 184, 199, UInt8(min(210, 170 * pulse)))
+            fill = emphasis ? RenderColor(49, 113, 125, 248) : UITheme.Color.panelHover
+            border = RenderColor(126, 184, 199, UInt8(min(210, 170 * pulse)))
         case .pressed:
             fill = UITheme.Color.panelSelected; border = RenderColor(UITheme.Color.warning.red, UITheme.Color.warning.green, UITheme.Color.warning.blue, 185)
         case .disabled:
             fill = RenderColor(25, 34, 49, 190); border = RenderColor(57, 70, 86, 180)
         default:
-            fill = UITheme.Color.panelRaised; border = UITheme.Color.border
+            fill = emphasis ? UITheme.Color.primaryDeep : UITheme.Color.panelRaised
+            border = emphasis ? UITheme.Color.primary : UITheme.Color.border
         }
         r.fillRect(RenderRect(x: Float(rect.x), y: Float(rect.y), width: Float(rect.width), height: Float(rect.height)), color: fill)
+        if emphasis || state == .hover || state == .selected {
+            r.fillRect(RenderRect(x: Float(rect.x), y: Float(rect.y), width: 4, height: Float(rect.height)), color: emphasis ? UITheme.Color.energy : UITheme.Color.primary)
+        }
         r.line(from: (Float(rect.x), Float(rect.y)), to: (Float(rect.x + rect.width), Float(rect.y)), color: border)
         r.line(from: (Float(rect.x), Float(rect.y + rect.height)), to: (Float(rect.x + rect.width), Float(rect.y + rect.height)), color: border)
         let labelColor = state == .disabled ? UITheme.Color.muted : UITheme.Color.text
-        text(r, component.title, Float(rect.x + 14), Float(rect.y + rect.height * 0.5 - 5), labelColor)
+        text(r, component.title, Float(rect.x + (emphasis ? 20 : 16)), Float(rect.y + rect.height * 0.5 - 5), labelColor)
     }
 
     private static func bar(_ r: GameRenderer, x: Float, y: Float, width: Float, value: Double, fill: RenderColor, back: RenderColor) {

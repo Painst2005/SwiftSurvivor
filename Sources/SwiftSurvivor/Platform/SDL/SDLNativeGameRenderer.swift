@@ -1348,7 +1348,7 @@ enum SDLNativeGameRenderer {
             effects.append((t(game, "MOVE +30%", "移速 +30%"), game.shieldBreakSpeedTime, 3, UITheme.Color.shield))
         }
         if game.bloodLeechTime > 0 {
-            effects.append((t(game, "MICRO LEECH", "微量吸血"), game.bloodLeechTime, 8, UITheme.Color.danger))
+            effects.append((t(game, "BLOODLUST", "嗜血如命"), game.bloodLeechTime, 8, UITheme.Color.danger))
         }
         if game.thunderOverloadTime > 0 {
             effects.append((t(game, "OVERLOAD", "雷霆超载"), game.thunderOverloadTime, 6, UITheme.Color.primary))

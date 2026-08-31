@@ -2422,7 +2422,7 @@ final class Game: @unchecked Sendable {
         default:
             bloodLeechTime = max(bloodLeechTime, 8)
             score += 240
-            notifyPickup(title: uiText("MICRO BLOOD PUMP", "微型血泵"),
+            notifyPickup(title: uiText("BLOODLUST", "嗜血如命"),
                          detail: uiText("Hits restore trace hull integrity • 8 seconds", "命中缓慢修复机体 • 持续 8 秒"), tint: rgb(255, 126, 136))
         }
     }

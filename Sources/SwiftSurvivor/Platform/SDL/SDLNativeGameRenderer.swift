@@ -116,21 +116,10 @@ enum SDLNativeGameRenderer {
         if let boss = game.boss {
             let p = boss.position + boss.visualOffset + camera
             let phaseGlow = boss.phaseFlash > 0 ? 0.58 : 0
-            r.fillCircle(center: (Float(p.x), Float(p.y)), radius: 56, color: highlighted(RenderColor(96, 39, 139), amount: max(phaseGlow, boss.hitFlash > 0 ? 0.75 : 0)))
-            r.fillCircle(center: (Float(p.x), Float(p.y)), radius: 36, color: highlighted(RenderColor(221, 84, 207), amount: max(phaseGlow, boss.hitFlash > 0 ? 0.92 : 0)))
             let left = p + Vec2(x: -102, y: 18)
             let right = p + Vec2(x: 102, y: 18)
-            r.line(from: (Float(p.x - 38), Float(p.y + 4)), to: (Float(left.x), Float(left.y)), color: RenderColor(149, 90, 182))
-            r.line(from: (Float(p.x + 38), Float(p.y + 4)), to: (Float(right.x), Float(right.y)), color: RenderColor(149, 90, 182))
-            r.fillCircle(center: (Float(left.x), Float(left.y)), radius: 22,
-                         color: boss.leftTurretHealth > 0 ? RenderColor(232, 104, 165) : RenderColor(60, 51, 73))
-            r.fillCircle(center: (Float(right.x), Float(right.y)), radius: 22,
-                         color: boss.rightTurretHealth > 0 ? RenderColor(255, 151, 92) : RenderColor(60, 51, 73))
-            if boss.weakPointOpen {
-                let pulse = 11 + sin(Float(game.uiAnimationTime * 8)) * 2
-                r.fillCircle(center: (Float(p.x), Float(p.y)), radius: pulse + 5, color: RenderColor(125, 235, 255, 90))
-                r.fillCircle(center: (Float(p.x), Float(p.y)), radius: pulse, color: RenderColor(220, 252, 255))
-            }
+            drawThunderCarrierBoss(r, boss: boss, position: p, leftTurret: left, rightTurret: right,
+                                   highlightAmount: max(phaseGlow, boss.hitFlash > 0 ? 0.82 : 0), time: game.uiAnimationTime)
             if game.uiDebugOverlay {
                 r.fillCircle(center: (Float(p.x), Float(p.y)), radius: 50, color: RenderColor(85, 255, 150, 24))
                 r.fillCircle(center: (Float(left.x), Float(left.y)), radius: 26, color: RenderColor(255, 230, 90, 36))
@@ -305,6 +294,94 @@ enum SDLNativeGameRenderer {
     private static func enemyEngine(_ r: GameRenderer, x: Float, y: Float, scale: Float, tint: RenderColor) {
         r.fillCircle(center: (x, y), radius: max(2, 3.4 * scale), color: RenderColor(tint.red, tint.green, tint.blue, 150))
         r.line(from: (x, y - 2 * scale), to: (x, y - 9 * scale), color: RenderColor(255, 184, 104, 190))
+    }
+
+    /// Original heavy-carrier silhouette inspired by the readable construction
+    /// language of classic vertical shooters: broad armored shoulders, separate
+    /// weapon pods and a bright central reactor. No external game artwork is used.
+    private static func drawThunderCarrierBoss(_ r: GameRenderer, boss: Boss, position p: Vec2,
+                                               leftTurret: Vec2, rightTurret: Vec2,
+                                               highlightAmount: Double, time: Double) {
+        let x = Float(p.x), y = Float(p.y)
+        let lx = Float(leftTurret.x), ly = Float(leftTurret.y)
+        let rx = Float(rightTurret.x), ry = Float(rightTurret.y)
+        let phaseAccent: RenderColor = boss.phase >= 3 ? RenderColor(255, 89, 172) :
+            (boss.phase == 2 ? RenderColor(255, 142, 92) : RenderColor(167, 102, 231))
+        let armor = highlighted(RenderColor(56, 45, 79), amount: highlightAmount)
+        let armorRaised = highlighted(RenderColor(91, 61, 119), amount: highlightAmount)
+        let seam = highlighted(phaseAccent, amount: highlightAmount * 0.55)
+        let reactorPulse = Float(1 + sin(time * (boss.phase >= 3 ? 10 : 6)) * 0.10)
+
+        // Rear engine bank and broad silhouette shadow.
+        r.fillRect(RenderRect(x: x - 68, y: y - 33, width: 136, height: 73), color: RenderColor(19, 17, 31, 238))
+        for offset in [-44.0, -15.0, 15.0, 44.0] {
+            enemyEngine(r, x: x + Float(offset), y: y - 35, scale: 1.35 * reactorPulse, tint: phaseAccent)
+        }
+
+        // Swept armored shoulders create the wide, threatening boss footprint.
+        r.fillRect(RenderRect(x: x - 91, y: y - 21, width: 55, height: 43), color: armor)
+        r.fillRect(RenderRect(x: x + 36, y: y - 21, width: 55, height: 43), color: armor)
+        r.line(from: (x - 91, y - 21), to: (x - 119, y + 20), color: armorRaised)
+        r.line(from: (x + 91, y - 21), to: (x + 119, y + 20), color: armorRaised)
+        r.line(from: (x - 91, y + 22), to: (x - 119, y + 20), color: seam)
+        r.line(from: (x + 91, y + 22), to: (x + 119, y + 20), color: seam)
+        r.fillRect(RenderRect(x: x - 77, y: y - 12, width: 31, height: 12), color: armorRaised)
+        r.fillRect(RenderRect(x: x + 46, y: y - 12, width: 31, height: 12), color: armorRaised)
+
+        // Central armored spine, lower prow and segmented plating.
+        r.fillRect(RenderRect(x: x - 39, y: y - 46, width: 78, height: 86), color: armor)
+        r.fillRect(RenderRect(x: x - 29, y: y - 35, width: 58, height: 66), color: armorRaised)
+        r.line(from: (x - 39, y + 28), to: (x, y + 59), color: seam)
+        r.line(from: (x + 39, y + 28), to: (x, y + 59), color: seam)
+        r.line(from: (x, y + 59), to: (x, y + 32), color: seam)
+        r.fillRect(RenderRect(x: x - 4, y: y - 43, width: 8, height: 74), color: RenderColor(seam.red, seam.green, seam.blue, 160))
+        r.fillRect(RenderRect(x: x - 31, y: y - 17, width: 62, height: 3), color: seam)
+        r.fillRect(RenderRect(x: x - 31, y: y + 13, width: 62, height: 3), color: seam)
+
+        // Independent turret arms mirror their actual destructible hitboxes.
+        r.line(from: (x - 66, y + 3), to: (lx + 18, ly - 2), color: armorRaised)
+        r.line(from: (x + 66, y + 3), to: (rx - 18, ry - 2), color: armorRaised)
+        drawBossTurret(r, x: lx, y: ly, alive: boss.leftTurretHealth > 0, accent: RenderColor(232, 104, 165), facingOffset: -1)
+        drawBossTurret(r, x: rx, y: ry, alive: boss.rightTurretHealth > 0, accent: RenderColor(255, 151, 92), facingOffset: 1)
+
+        // The reactor remains readable at bullet-hell scale. Armor shutters
+        // retract visually once the weak point is exposed.
+        if boss.weakPointOpen {
+            r.fillCircle(center: (x, y), radius: 24 * reactorPulse, color: RenderColor(102, 229, 255, 74))
+            r.fillCircle(center: (x, y), radius: 15 * reactorPulse, color: RenderColor(199, 249, 255))
+            r.fillCircle(center: (x, y), radius: 7 * reactorPulse, color: RenderColor(255, 255, 240))
+        } else {
+            r.fillCircle(center: (x, y), radius: 16, color: RenderColor(36, 27, 53))
+            r.fillCircle(center: (x, y), radius: 9 * reactorPulse, color: phaseAccent)
+            r.line(from: (x - 26, y - 20), to: (x - 8, y - 5), color: armor)
+            r.line(from: (x + 26, y - 20), to: (x + 8, y - 5), color: armor)
+        }
+
+        // Damage state: broken armor seams and electrical flicker intensify by phase.
+        if boss.phase >= 2 {
+            r.line(from: (x - 65, y - 19), to: (x - 51, y - 4), color: RenderColor(255, 178, 92, 210))
+            r.line(from: (x + 54, y + 1), to: (x + 69, y + 17), color: RenderColor(255, 178, 92, 210))
+        }
+        if boss.phase >= 3 {
+            let flicker = UInt8(140 + Int((sin(time * 13) + 1) * 45))
+            r.line(from: (x - 26, y - 32), to: (x - 12, y - 20), color: RenderColor(126, 229, 255, flicker))
+            r.line(from: (x + 18, y + 26), to: (x + 32, y + 40), color: RenderColor(126, 229, 255, flicker))
+        }
+    }
+
+    private static func drawBossTurret(_ r: GameRenderer, x: Float, y: Float, alive: Bool, accent: RenderColor, facingOffset: Float) {
+        let base = alive ? RenderColor(66, 48, 82) : RenderColor(39, 38, 47)
+        let edge = alive ? accent : RenderColor(88, 75, 89)
+        r.fillRect(RenderRect(x: x - 23, y: y - 17, width: 46, height: 34), color: base)
+        r.fillRect(RenderRect(x: x - 15, y: y - 12, width: 30, height: 24), color: edge)
+        r.fillCircle(center: (x, y - 1), radius: 8, color: alive ? RenderColor(245, 211, 233) : RenderColor(72, 67, 76))
+        if alive {
+            r.fillRect(RenderRect(x: x - 13 + facingOffset * 2, y: y + 12, width: 7, height: 25), color: accent)
+            r.fillRect(RenderRect(x: x + 6 + facingOffset * 2, y: y + 12, width: 7, height: 25), color: accent)
+        } else {
+            r.line(from: (x - 17, y - 13), to: (x + 17, y + 13), color: RenderColor(16, 14, 21))
+            r.line(from: (x + 17, y - 13), to: (x - 17, y + 13), color: RenderColor(16, 14, 21))
+        }
     }
 
     private static func drawBossTelegraph(_ r: GameRenderer, boss: Boss, position p: Vec2,

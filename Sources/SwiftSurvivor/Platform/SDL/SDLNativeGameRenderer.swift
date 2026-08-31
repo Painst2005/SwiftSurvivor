@@ -106,7 +106,7 @@ enum SDLNativeGameRenderer {
                 r.fillCircle(center: (Float(p.x), Float(p.y)), radius: Float(max(8, enemy.radius + 4)), color: warningColor)
                 text(r, enemy.eliteWarningTimer > 0 ? "!" : "E", Float(p.x - 4), Float(p.y - enemy.radius - 20), warningColor)
             }
-            r.fillCircle(center: (Float(p.x), Float(p.y)), radius: Float(max(6, enemy.radius)), color: c)
+            drawEnemyModel(r, enemy: enemy, position: p, body: c, time: game.uiAnimationTime)
             r.fillRect(RenderRect(x: Float(p.x - enemy.radius), y: Float(p.y - enemy.radius - 8), width: Float(enemy.radius * 2), height: 3), color: RenderColor(55, 24, 47))
             r.fillRect(RenderRect(x: Float(p.x - enemy.radius), y: Float(p.y - enemy.radius - 8), width: Float(max(0, enemy.radius * 2 * enemy.health / max(1, enemy.maxHealth))), height: 3), color: RenderColor(255, 134, 126))
             if enemy.attackWarningActive {
@@ -211,6 +211,100 @@ enum SDLNativeGameRenderer {
             drawCombatNotification(uiRenderer, game: game, field: field)
         }
         drawTimedEffectBars(uiRenderer, game: game, width: width)
+    }
+
+    /// Enemy silhouettes are assembled from inexpensive renderer primitives.
+    /// Their collision remains the original circle; these shapes are purely
+    /// visual and make combat roles readable without adding texture switches.
+    private static func drawEnemyModel(_ r: GameRenderer, enemy: Enemy, position p: Vec2, body: RenderColor, time: Double) {
+        let x = Float(p.x), y = Float(p.y)
+        let s = Float(max(0.78, enemy.radius / 20.0))
+        let dark = RenderColor(UInt8(Double(body.red) * 0.34), UInt8(Double(body.green) * 0.34), UInt8(Double(body.blue) * 0.38), body.alpha)
+        let edge = highlighted(body, amount: enemy.isElite ? 0.34 : 0.12)
+        let enginePulse = Float(1 + sin(time * 9 + enemy.phase) * 0.16)
+        let type = EnemyType(rawValue: enemy.type) ?? .fighter
+
+        switch type {
+        case .fighter:
+            // Compact interceptor: forward nose, straight wings, twin engines.
+            r.line(from: (x, y - 17 * s), to: (x, y + 19 * s), color: edge)
+            r.line(from: (x, y + 14 * s), to: (x - 20 * s, y - 9 * s), color: edge)
+            r.line(from: (x, y + 14 * s), to: (x + 20 * s, y - 9 * s), color: edge)
+            r.fillRect(RenderRect(x: x - 14 * s, y: y - 9 * s, width: 28 * s, height: 8 * s), color: dark)
+            r.fillRect(RenderRect(x: x - 5 * s, y: y - 13 * s, width: 10 * s, height: 27 * s), color: body)
+            r.fillCircle(center: (x, y + 6 * s), radius: 3.5 * s, color: RenderColor(255, 184, 194))
+            enemyEngine(r, x: x - 7 * s, y: y - 13 * s, scale: s * enginePulse, tint: body)
+            enemyEngine(r, x: x + 7 * s, y: y - 13 * s, scale: s * enginePulse, tint: body)
+
+        case .diver:
+            // Swept arrowhead visually communicates speed and commitment.
+            r.line(from: (x, y + 22 * s), to: (x, y - 22 * s), color: edge)
+            r.line(from: (x, y + 18 * s), to: (x - 22 * s, y - 16 * s), color: edge)
+            r.line(from: (x, y + 18 * s), to: (x + 22 * s, y - 16 * s), color: edge)
+            r.line(from: (x - 22 * s, y - 16 * s), to: (x - 5 * s, y - 9 * s), color: dark)
+            r.line(from: (x + 22 * s, y - 16 * s), to: (x + 5 * s, y - 9 * s), color: dark)
+            r.fillRect(RenderRect(x: x - 4 * s, y: y - 15 * s, width: 8 * s, height: 31 * s), color: body)
+            r.fillCircle(center: (x, y + 5 * s), radius: 4 * s, color: RenderColor(255, 222, 135))
+            enemyEngine(r, x: x, y: y - 18 * s, scale: 1.35 * s * enginePulse, tint: RenderColor(255, 103, 77))
+
+        case .turret:
+            // Broad armored gunship with an unmistakable twin cannon battery.
+            r.fillRect(RenderRect(x: x - 23 * s, y: y - 9 * s, width: 46 * s, height: 20 * s), color: dark)
+            r.fillRect(RenderRect(x: x - 15 * s, y: y - 14 * s, width: 30 * s, height: 27 * s), color: body)
+            r.fillCircle(center: (x, y - 2 * s), radius: 8 * s, color: edge)
+            r.fillCircle(center: (x, y - 2 * s), radius: 4 * s, color: RenderColor(255, 224, 142))
+            r.fillRect(RenderRect(x: x - 18 * s, y: y + 8 * s, width: 5 * s, height: 18 * s), color: edge)
+            r.fillRect(RenderRect(x: x + 13 * s, y: y + 8 * s, width: 5 * s, height: 18 * s), color: edge)
+            enemyEngine(r, x: x - 8 * s, y: y - 15 * s, scale: s * enginePulse, tint: body)
+            enemyEngine(r, x: x + 8 * s, y: y - 15 * s, scale: s * enginePulse, tint: body)
+
+        case .sniper:
+            // Long central rail and optical core identify the telegraphed shot.
+            r.line(from: (x - 18 * s, y + 11 * s), to: (x, y - 19 * s), color: edge)
+            r.line(from: (x + 18 * s, y + 11 * s), to: (x, y - 19 * s), color: edge)
+            r.fillRect(RenderRect(x: x - 5 * s, y: y - 17 * s, width: 10 * s, height: 34 * s), color: dark)
+            r.fillRect(RenderRect(x: x - 2 * s, y: y + 8 * s, width: 4 * s, height: 18 * s), color: edge)
+            let charge = enemy.attackWarningActive ? RenderColor(255, 75, 132) : RenderColor(205, 181, 255)
+            r.fillCircle(center: (x, y + 7 * s), radius: enemy.attackWarningActive ? 7 * s : 5 * s, color: charge)
+            r.line(from: (x - 18 * s, y + 11 * s), to: (x - 7 * s, y + 3 * s), color: body)
+            r.line(from: (x + 18 * s, y + 11 * s), to: (x + 7 * s, y + 3 * s), color: body)
+            enemyEngine(r, x: x, y: y - 18 * s, scale: s * enginePulse, tint: body)
+
+        case .shield:
+            // Projector ring surrounds a small support craft.
+            r.fillCircle(center: (x, y), radius: 25 * s, color: RenderColor(body.red, body.green, body.blue, 45))
+            r.fillCircle(center: (x, y), radius: 20 * s, color: dark)
+            r.fillCircle(center: (x, y), radius: 14 * s, color: body)
+            r.fillRect(RenderRect(x: x - 22 * s, y: y - 2 * s, width: 44 * s, height: 4 * s), color: edge)
+            r.fillRect(RenderRect(x: x - 2 * s, y: y - 22 * s, width: 4 * s, height: 44 * s), color: edge)
+            r.fillCircle(center: (x, y), radius: 6 * s, color: RenderColor(191, 255, 238))
+
+        case .kamikaze:
+            // Small dart with an oversized unstable core and hot exhaust.
+            r.line(from: (x, y + 21 * s), to: (x - 15 * s, y - 16 * s), color: edge)
+            r.line(from: (x, y + 21 * s), to: (x + 15 * s, y - 16 * s), color: edge)
+            r.line(from: (x - 15 * s, y - 16 * s), to: (x, y - 9 * s), color: dark)
+            r.line(from: (x + 15 * s, y - 16 * s), to: (x, y - 9 * s), color: dark)
+            r.fillCircle(center: (x, y), radius: (6 + Float(sin(time * 12 + enemy.phase)) * 1.5) * s,
+                         color: RenderColor(255, 224, 167))
+            enemyEngine(r, x: x, y: y - 16 * s, scale: 1.5 * s * enginePulse, tint: RenderColor(255, 70, 78))
+
+        case .carrier:
+            // Heavy carrier: wide hull, side bays and a luminous launch deck.
+            r.fillRect(RenderRect(x: x - 31 * s, y: y - 10 * s, width: 62 * s, height: 25 * s), color: dark)
+            r.fillRect(RenderRect(x: x - 18 * s, y: y - 19 * s, width: 36 * s, height: 39 * s), color: body)
+            r.fillRect(RenderRect(x: x - 35 * s, y: y - 4 * s, width: 13 * s, height: 24 * s), color: edge)
+            r.fillRect(RenderRect(x: x + 22 * s, y: y - 4 * s, width: 13 * s, height: 24 * s), color: edge)
+            r.fillRect(RenderRect(x: x - 11 * s, y: y + 4 * s, width: 22 * s, height: 12 * s), color: RenderColor(49, 24, 66))
+            r.fillCircle(center: (x, y - 8 * s), radius: 7 * s, color: RenderColor(241, 171, 255))
+            enemyEngine(r, x: x - 15 * s, y: y - 21 * s, scale: 1.1 * s * enginePulse, tint: body)
+            enemyEngine(r, x: x + 15 * s, y: y - 21 * s, scale: 1.1 * s * enginePulse, tint: body)
+        }
+    }
+
+    private static func enemyEngine(_ r: GameRenderer, x: Float, y: Float, scale: Float, tint: RenderColor) {
+        r.fillCircle(center: (x, y), radius: max(2, 3.4 * scale), color: RenderColor(tint.red, tint.green, tint.blue, 150))
+        r.line(from: (x, y - 2 * scale), to: (x, y - 9 * scale), color: RenderColor(255, 184, 104, 190))
     }
 
     private static func drawBossTelegraph(_ r: GameRenderer, boss: Boss, position p: Vec2,

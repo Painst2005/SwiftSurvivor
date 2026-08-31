@@ -141,6 +141,11 @@ enum GameMode: Int, CaseIterable {
     }
 }
 
+enum EndlessWavePhase {
+    case combat
+    case boss
+}
+
 struct MissionDefinition {
     let id: Int
     let title: String
@@ -505,6 +510,9 @@ struct Enemy {
     var warningTimer: Double = 0
     var warningTargetX: Double = 0
     var attackWarningActive: Bool = false
+    /// 0 = dense low-damage bullet column, 1 = instantaneous heavy laser.
+    var warningAttackKind: Int = 0
+    var dangerLaserTimer: Double = 0
     var diveStarted: Bool = false
     var spawnTimer: Double = 4.5
     // Presentation-only response. Collision and movement always use position.
@@ -705,6 +713,9 @@ final class Game: @unchecked Sendable {
     var armorDamageReduction = 0.0
     var waveTimer = 1.2
     var waveIndex = 0
+    var endlessWaveNumber = 1
+    var endlessWavePhase: EndlessWavePhase = .combat
+    var endlessWaveTimeRemaining = 36.0
     var survivalTime = 0.0
     var stage = 1
     var nextBossTime = 42.0
@@ -802,7 +813,7 @@ final class Game: @unchecked Sendable {
     var activeDifficultyMultiplier: Double {
         switch gameMode {
         case .campaign: return activeMission.difficulty
-        case .endless: return 1.0
+        case .endless: return endlessEnemyHealthMultiplier
         case .blitz: return 1.28
         case .zen: return 0.46
         }
@@ -820,10 +831,28 @@ final class Game: @unchecked Sendable {
     var activeEnemyDamageMultiplier: Double {
         switch gameMode {
         case .campaign: return 0.92 + activeMission.difficulty * 0.18
-        case .endless: return 1.0
+        case .endless: return endlessEnemyDamageMultiplier
         case .blitz: return 1.12
         case .zen: return 0.30
         }
+    }
+
+    /// Endless scaling deliberately uses separate, readable curves instead of
+    /// multiplying every statistic by one aggressive factor. Wave one is the
+    /// baseline; health grows 15%, damage 10%, fire rate 6.5%, and boss health
+    /// 18% per cleared wave, each with a safety cap for very long sessions.
+    private var endlessWaveExponent: Double { Double(max(0, endlessWaveNumber - 1)) }
+    var endlessEnemyHealthMultiplier: Double {
+        gameMode == .endless ? min(12, pow(1.15, endlessWaveExponent)) : 1
+    }
+    var endlessEnemyDamageMultiplier: Double {
+        gameMode == .endless ? min(6, pow(1.10, endlessWaveExponent)) : 1
+    }
+    var endlessFireRateMultiplier: Double {
+        gameMode == .endless ? min(2.5, pow(1.065, endlessWaveExponent)) : 1
+    }
+    var endlessBossHealthMultiplier: Double {
+        gameMode == .endless ? min(30, pow(1.18, endlessWaveExponent)) : 1
     }
 
     var activePlayerDamageMultiplier: Double {
@@ -1028,6 +1057,9 @@ final class Game: @unchecked Sendable {
         secondaryFireTimer = max(2.8, 4.6 - Double(secondaryLevel) * 0.12)
         waveTimer = 1.20
         waveIndex = 0
+        endlessWaveNumber = 1
+        endlessWavePhase = .combat
+        endlessWaveTimeRemaining = 36.0
         survivalTime = 0
         stage = 1
         nextBossTime = activeBossTime
@@ -1129,7 +1161,7 @@ final class Game: @unchecked Sendable {
         let delta = gameplayDelta
 
         survivalTime += delta
-        stage = gameMode == .campaign ? activeMission.id : Int(survivalTime / 45.0) + 1
+        stage = gameMode == .campaign ? activeMission.id : (gameMode == .endless ? endlessWaveNumber : Int(survivalTime / 45.0) + 1)
         fireRateBoostTime = max(0, fireRateBoostTime - delta)
         shieldBreakSpeedTime = max(0, shieldBreakSpeedTime - delta)
         bloodLeechTime = max(0, bloodLeechTime - delta)
@@ -1165,7 +1197,19 @@ final class Game: @unchecked Sendable {
         player.x = min(max(player.x, field.left + playerRadius + 10), field.right - playerRadius - 10)
         player.y = min(max(player.y, field.top + playerRadius + 10), field.bottom - playerRadius - 12)
 
-        if stageClearTimer <= 0, boss == nil {
+        if gameMode == .endless, stageClearTimer <= 0, endlessWavePhase == .combat {
+            endlessWaveTimeRemaining = max(0, endlessWaveTimeRemaining - delta)
+            if endlessWaveTimeRemaining <= 0, boss == nil {
+                endlessWavePhase = .boss
+                stageBannerTimer = 2.2
+                stageBannerTitle = uiText("WAVE \(endlessWaveNumber) BOSS", "第 \(endlessWaveNumber) 波首领")
+                stageBannerDetail = uiText("NORMAL FLOW COMPLETE  •  BOSS INBOUND", "常规战结束  •  首领正在接近")
+                spawnBoss(field: field)
+            }
+        }
+
+        let normalWaveSpawningAllowed = gameMode != .endless || endlessWavePhase == .combat
+        if stageClearTimer <= 0, boss == nil, normalWaveSpawningAllowed {
             waveTimer -= delta
             if waveTimer <= 0 {
                 spawnWave(field: field)
@@ -1173,10 +1217,9 @@ final class Game: @unchecked Sendable {
             }
         }
 
-        let canSpawnAnotherBoss = gameMode == .endless || !missionBossSpawned
+        let canSpawnAnotherBoss = gameMode != .endless && !missionBossSpawned
         if stageClearTimer <= 0, survivalTime >= nextBossTime, boss == nil, canSpawnAnotherBoss {
             spawnBoss(field: field)
-            if gameMode == .endless { nextBossTime += 45 }
         }
 
         let modeObjectiveComplete = activeKillGoal == 0 || kills >= activeKillGoal
@@ -1381,12 +1424,19 @@ final class Game: @unchecked Sendable {
         // value cannot surface on Windows as the 0xc000001d boss-spawn crash.
         let safeStage = min(10_000, max(1, stage))
         let safeTime = survivalTime.isFinite ? min(1_000_000, max(0, survivalTime)) : 0
-        let rawDifficulty = activeDifficultyMultiplier
+        // Endless bosses have their own 18% per-wave curve below. Reusing the
+        // normal-enemy health curve here would compound both curves and create
+        // an unintended ~36% jump per wave.
+        let rawDifficulty = gameMode == .endless ? 1.0 : activeDifficultyMultiplier
         let safeDifficulty = rawDifficulty.isFinite ? min(100, max(0.05, rawDifficulty)) : 1
         let bossCount = BossCatalog.all.count
         guard bossCount > 0 else { return }
         missionBossSpawned = true
-        let hp = min(100_000_000, (650 + Double(safeStage - 1) * 180 + safeTime * 2.2) * safeDifficulty * ThunderCarrierBossDefinition.healthMultiplier)
+        let baseBossHealth = gameMode == .endless
+            ? 650.0
+            : 650 + Double(safeStage - 1) * 180 + safeTime * 2.2
+        let hp = min(100_000_000, baseBossHealth * safeDifficulty
+            * ThunderCarrierBossDefinition.healthMultiplier * endlessBossHealthMultiplier)
         var newBoss = Boss(position: Vec2(x: field.centerX, y: -100), health: hp, maxHealth: hp, age: 0, shootTimer: 1.6)
         let safeMission = min(100_000, max(0, selectedMission))
         let safeDefeats = min(100_000, max(0, bossDefeats))
@@ -1701,6 +1751,7 @@ final class Game: @unchecked Sendable {
         for index in enemies.indices.reversed() {
             let enemyType = EnemyType(rawValue: enemies[index].type) ?? .fighter
             enemies[index].age += delta
+            enemies[index].dangerLaserTimer = max(0, enemies[index].dangerLaserTimer - delta)
             switch enemyType {
             case .fighter:
                 enemies[index].position.y += enemies[index].speed * delta
@@ -1726,16 +1777,38 @@ final class Game: @unchecked Sendable {
                     enemies[index].attackWarningActive = true
                     enemies[index].warningTimer = 0.95
                     enemies[index].warningTargetX = player.x
-                    enemies[index].shootTimer = 3.7
+                    enemies[index].warningAttackKind = Int.random(in: 0..<100, using: &rng) < 68 ? 0 : 1
+                    enemies[index].shootTimer = 3.7 / endlessFireRateMultiplier
                 }
                 if enemies[index].attackWarningActive {
                     enemies[index].warningTimer -= delta
                     if enemies[index].warningTimer <= 0 {
-                    let sniperEmitter = BulletEmitter(pattern: .aimed, count: 1, speed: 430, damage: 14 * activeEnemyDamageMultiplier,
-                                                          radius: 6, lifetime: 5.5, tint: rgb(255, 102, 133),
-                                                          bulletType: .aimed, modifiers: [.constantVelocity, .lockDirection])
-                        emitPattern(sniperEmitter, from: enemies[index].position + Vec2(x: 0, y: 18),
-                                    target: Vec2(x: enemies[index].warningTargetX, y: field.bottom + 100))
+                        if enemies[index].warningAttackKind == 0 {
+                            // A compact train enters exactly on the telegraphed
+                            // lane. Individual bullets are weak, but the column
+                            // rewards leaving the lane before the warning ends.
+                            for shot in 0..<10 {
+                                spawnBullet(Bullet(position: Vec2(x: enemies[index].warningTargetX,
+                                                                  y: field.top - 12 - Double(shot) * 23),
+                                                   velocity: Vec2(x: 0, y: 390), radius: 5,
+                                                   damage: 4.0 * activeEnemyDamageMultiplier,
+                                                   life: 5.5, playerOwned: false,
+                                                   tint: rgb(255, 125, 118),
+                                                   bulletType: BulletType.normal.rawValue,
+                                                   modifiers: [.constantVelocity, .lockDirection],
+                                                   minForwardSpeed: 70,
+                                                   baseVelocity: Vec2(x: 0, y: 390)))
+                            }
+                        } else {
+                            // The beam is intentionally brief and high impact.
+                            // Its damage is applied once, never once per frame.
+                            enemies[index].dangerLaserTimer = 0.18
+                            if abs(player.x - enemies[index].warningTargetX) <= coreRadius + 18 {
+                                damagePlayer(amount: 32 * activeEnemyDamageMultiplier)
+                            }
+                            addCameraShake(strength: 5.5)
+                            AudioManager.shared.playSFX("sfx_laser")
+                        }
                         enemies[index].attackWarningActive = false
                     }
                 }
@@ -1772,7 +1845,7 @@ final class Game: @unchecked Sendable {
                 enemies[index].eliteAttackTimer -= delta
                 if enemies[index].eliteWarningTimer <= 0, enemies[index].eliteAttackTimer <= 0 {
                     enemies[index].eliteWarningTimer = 0.72
-                    enemies[index].eliteAttackTimer = 4.4
+                    enemies[index].eliteAttackTimer = 4.4 / endlessFireRateMultiplier
                 }
                 if enemies[index].eliteWarningTimer > 0 {
                     enemies[index].eliteWarningTimer -= delta
@@ -1825,7 +1898,7 @@ final class Game: @unchecked Sendable {
                                                 splitSpread: 0.20)
                     emitPattern(emitter, from: enemies[index].position, target: pattern == .aimed ? player : nil)
                     let baseCooldown = enemyType == .turret ? 1.65 : Double.random(in: 1.9...3.2, using: &rng)
-                    enemies[index].shootTimer = baseCooldown * (enemies[index].isElite ? 0.86 : 1.0)
+                    enemies[index].shootTimer = baseCooldown * (enemies[index].isElite ? 0.86 : 1.0) / endlessFireRateMultiplier
                 }
             }
 
@@ -1968,7 +2041,7 @@ final class Game: @unchecked Sendable {
                 let definition = phaseDefinition.attacks[currentBoss.attackPatternIndex % phaseDefinition.attacks.count]
                 currentBoss.attackPatternIndex += 1
                 currentBoss.attackStage = .recovery
-                currentBoss.attackTimer = definition.recovery + (turretsDisabled ? 0.32 : 0)
+                currentBoss.attackTimer = (definition.recovery + (turretsDisabled ? 0.32 : 0)) / endlessFireRateMultiplier
                 currentBoss.movement = .hover
                 currentBoss.warningTimer = 0
             }
@@ -2880,6 +2953,17 @@ final class Game: @unchecked Sendable {
         stageBannerTitle = uiText("BOSS DOWN", "Boss 已击破")
         stageBannerDetail = uiText("REWARD CACHE  •  +\(experienceReward) XP  •  HULL REPAIRED",
                                    "奖励缓存  •  +\(experienceReward) 经验  •  机体已修复")
+        if gameMode == .endless {
+            endlessWaveNumber = min(10_000, endlessWaveNumber + 1)
+            stage = endlessWaveNumber
+            endlessWavePhase = .combat
+            endlessWaveTimeRemaining = 36.0
+            missionBossSpawned = false
+            missionBossDefeated = false
+            stageBannerTitle = uiText("WAVE \(endlessWaveNumber - 1) CLEARED", "第 \(endlessWaveNumber - 1) 波完成")
+            stageBannerDetail = uiText("WAVE \(endlessWaveNumber)  •  ENEMIES EVOLVING",
+                                       "第 \(endlessWaveNumber) 波  •  敌军强度提升")
+        }
         waveTimer = 1.25
         addCameraShake(strength: 18)
         notifyPickup(title: "BOSS REWARD CACHE", detail: dropDetail, tint: rgb(255, 211, 112))

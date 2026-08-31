@@ -87,6 +87,9 @@ enum SDLGameplaySlice {
             if enemy.attackWarningActive {
                 renderer.line(from: (x: Float(enemy.warningTargetX), y: Float(field.top)), to: (x: Float(enemy.warningTargetX), y: Float(field.bottom)), color: RenderColor(255, 79, 125, 150))
             }
+            if enemy.dangerLaserTimer > 0 {
+                renderer.fillRect(RenderRect(x: Float(enemy.warningTargetX - 15), y: Float(field.top), width: 30, height: Float(field.bottom - field.top)), color: RenderColor(255, 86, 108, 235))
+            }
         }
         if let boss = game.boss {
             renderer.fillRect(RenderRect(x: Float(boss.position.x) - 78, y: Float(boss.position.y) - 28, width: 156, height: 56), color: RenderColor(192, 53, 219))

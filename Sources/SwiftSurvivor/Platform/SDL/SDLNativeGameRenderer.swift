@@ -125,6 +125,9 @@ enum SDLNativeGameRenderer {
             if enemy.attackWarningActive {
                 drawWarningBeam(r, x: Float(enemy.warningTargetX), top: Float(field.top), bottom: Float(field.bottom), active: false)
             }
+            if enemy.dangerLaserTimer > 0 {
+                drawWarningBeam(r, x: Float(enemy.warningTargetX), top: Float(field.top), bottom: Float(field.bottom), active: true)
+            }
         }
         if let boss = game.boss {
             let p = boss.position + boss.visualOffset + camera
@@ -602,7 +605,10 @@ enum SDLNativeGameRenderer {
         r.fillRect(RenderRect(x: Float(max(646, width - 338)), y: 8, width: Float(min(328, width - max(646, width - 338) - 10)), height: 43), color: UITheme.Color.panelSoft)
         r.fillRect(RenderRect(x: 10, y: 56, width: Float(min(780, width - 20)), height: 24), color: RenderColor(12, 28, 46, 205))
         text(r, t(game, "THUNDER SWIFT", "雷霆疾影"), 16, 16, UITheme.Color.text)
-        text(r, t(game, "STAGE", "关卡") + " \(game.stage)", 190, 16, UITheme.Color.primary)
+        let progressLabel = game.gameMode == .endless
+            ? t(game, "WAVE", "波次") + " \(game.endlessWaveNumber)  •  " + (game.endlessWavePhase == .boss ? t(game, "BOSS", "首领") : t(game, "COMBAT", "战斗"))
+            : t(game, "STAGE", "关卡") + " \(game.stage)"
+        text(r, progressLabel, 190, 16, UITheme.Color.primary)
         drawRightText(r, t(game, "SCORE", "分数") + " \(game.score)", right: Float(width - 16), y: 16, color: UITheme.Color.warning)
         drawRightText(r, t(game, "KILLS", "击杀") + " \(game.kills)", right: Float(width - 196), y: 16, color: UITheme.Color.boss)
 

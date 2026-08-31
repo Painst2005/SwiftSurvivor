@@ -20,6 +20,8 @@ enum CombatEvent {
     case playerHit
     case shieldHit
     case shieldBreak
+    case bossPhaseChanged
+    case bossWeakPointHit
     case bossPartDestroyed
     case bossKilled
     case playerKilled
@@ -216,6 +218,19 @@ final class CombatFeedbackSystem {
             requestHitStop(config.hitStopHeavy)
             game.notifyFeedback(title: "SHIELD BREAK", chineseTitle: "护盾破裂", tint: rgb(114, 222, 255))
             playSound(level: .heavy, name: "sfx_explosion")
+        case .bossPhaseChanged:
+            spawnShockwave(at: context.position, tint: context.tint, game: game)
+            spawnExplosion(at: context.position, direction: context.direction, tint: context.tint, level: .heavy, game: game)
+            requestShake(.heavy, game: game)
+            requestHitStop(config.hitStopHeavy)
+            playSound(level: .heavy, name: "sfx_boss")
+        case .bossWeakPointHit:
+            flashBoss(duration: 0.105, offset: context.direction * 2.8, game: game)
+            spawnSparks(at: context.position, direction: context.direction, tint: rgb(156, 241, 255), count: 10, game: game)
+            appendDamage(context, critical: true, game: game)
+            requestShake(.light, game: game)
+            requestHitStop(0.010)
+            playSound(level: .medium, name: "sfx_hit")
         case .bossPartDestroyed:
             flashBoss(duration: 0.16, offset: context.direction * 5, game: game)
             spawnExplosion(at: context.position, direction: context.direction, tint: context.tint, level: .heavy, game: game)
@@ -373,7 +388,7 @@ final class CombatFeedbackSystem {
     private func updateBossDeath(realDelta: Double, game: Game) {
         guard var sequence = bossDeath else { return }
         sequence.elapsed += realDelta
-        let stages: [Double] = [0.13, 0.28, 0.46, 0.68]
+        let stages: [Double] = [0.16, 0.38, 0.66, 0.98, 1.34, 1.72, 2.04]
         while sequence.burstStage < stages.count, sequence.elapsed >= stages[sequence.burstStage] {
             let angle = Double(sequence.burstStage) * 2.1
             let offset = Vec2(x: cos(angle) * (42 + Double(sequence.burstStage) * 25), y: sin(angle) * 20)
@@ -381,7 +396,7 @@ final class CombatFeedbackSystem {
                            level: sequence.burstStage == stages.count - 1 ? .critical : .heavy, game: game)
             sequence.burstStage += 1
         }
-        if sequence.elapsed > 1.12 {
+        if sequence.elapsed > 2.24 {
             bossDeath = nil
         } else {
             bossDeath = sequence

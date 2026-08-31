@@ -74,14 +74,20 @@ enum SDLNativeGameRenderer {
             if bullet.playerOwned { playerBullets += 1 } else { enemyBullets += 1 }
         }
         let x = max(8, width - 288)
-        let y = max(64, height - 174)
-        panel(r, x: x, y: y, width: 270, height: 154)
+        let y = max(64, height - 214)
+        panel(r, x: x, y: y, width: 270, height: 194)
         text(r, "UI DEBUG  •  F9", Float(x + 14), Float(y + 22), UITheme.Color.warning)
         text(r, "SCREEN  \(String(describing: game.phase))", Float(x + 14), Float(y + 47), UITheme.Color.text)
         text(r, "FPS  \(Int(game.measuredFPS))   MOUSE  \(Int(game.mousePosition.x)),\(Int(game.mousePosition.y))", Float(x + 14), Float(y + 70), UITheme.Color.secondary)
         text(r, "ENEMIES  \(game.enemies.count)   BULLETS  \(playerBullets)/\(enemyBullets)", Float(x + 14), Float(y + 93), UITheme.Color.secondary)
         text(r, "PARTICLES  \(game.particles.count)   DAMAGE  \(game.damageNumbers.count)", Float(x + 14), Float(y + 116), UITheme.Color.secondary)
-        text(r, "HOVER WIDGETS  ENABLED", Float(x + 14), Float(y + 139), UITheme.Color.success)
+        if let boss = game.boss {
+            text(r, "BOSS  P\(boss.phase)  \(boss.lifecycle)  \(boss.currentAttack)", Float(x + 14), Float(y + 139), UITheme.Color.boss)
+            text(r, "ATTACK  \(boss.attackStage)  \(String(format: "%.2f", boss.attackTimer))s", Float(x + 14), Float(y + 162), UITheme.Color.secondary)
+        } else {
+            text(r, "BOSS  INACTIVE", Float(x + 14), Float(y + 139), UITheme.Color.muted)
+        }
+        text(r, "F7 BOSS  F8 FEEDBACK  F9 UI", Float(x + 14), Float(y + 185), UITheme.Color.success)
     }
 
     private static func drawBattle(_ r: GameRenderer, uiRenderer: GameRenderer, game: Game, width: Int, height: Int) {
@@ -108,8 +114,31 @@ enum SDLNativeGameRenderer {
         }
         if let boss = game.boss {
             let p = boss.position + boss.visualOffset + camera
-            r.fillCircle(center: (Float(p.x), Float(p.y)), radius: 54, color: highlighted(RenderColor(119, 44, 159), amount: boss.hitFlash > 0 ? 0.75 : 0))
-            r.fillCircle(center: (Float(p.x), Float(p.y)), radius: 35, color: highlighted(RenderColor(237, 102, 221), amount: boss.hitFlash > 0 ? 0.92 : 0))
+            let phaseGlow = boss.phaseFlash > 0 ? 0.58 : 0
+            r.fillCircle(center: (Float(p.x), Float(p.y)), radius: 56, color: highlighted(RenderColor(96, 39, 139), amount: max(phaseGlow, boss.hitFlash > 0 ? 0.75 : 0)))
+            r.fillCircle(center: (Float(p.x), Float(p.y)), radius: 36, color: highlighted(RenderColor(221, 84, 207), amount: max(phaseGlow, boss.hitFlash > 0 ? 0.92 : 0)))
+            let left = p + Vec2(x: -102, y: 18)
+            let right = p + Vec2(x: 102, y: 18)
+            r.line(from: (Float(p.x - 38), Float(p.y + 4)), to: (Float(left.x), Float(left.y)), color: RenderColor(149, 90, 182))
+            r.line(from: (Float(p.x + 38), Float(p.y + 4)), to: (Float(right.x), Float(right.y)), color: RenderColor(149, 90, 182))
+            r.fillCircle(center: (Float(left.x), Float(left.y)), radius: 22,
+                         color: boss.leftTurretHealth > 0 ? RenderColor(232, 104, 165) : RenderColor(60, 51, 73))
+            r.fillCircle(center: (Float(right.x), Float(right.y)), radius: 22,
+                         color: boss.rightTurretHealth > 0 ? RenderColor(255, 151, 92) : RenderColor(60, 51, 73))
+            if boss.weakPointOpen {
+                let pulse = 11 + sin(Float(game.uiAnimationTime * 8)) * 2
+                r.fillCircle(center: (Float(p.x), Float(p.y)), radius: pulse + 5, color: RenderColor(125, 235, 255, 90))
+                r.fillCircle(center: (Float(p.x), Float(p.y)), radius: pulse, color: RenderColor(220, 252, 255))
+            }
+            if game.uiDebugOverlay {
+                r.fillCircle(center: (Float(p.x), Float(p.y)), radius: 50, color: RenderColor(85, 255, 150, 24))
+                r.fillCircle(center: (Float(left.x), Float(left.y)), radius: 26, color: RenderColor(255, 230, 90, 36))
+                r.fillCircle(center: (Float(right.x), Float(right.y)), radius: 26, color: RenderColor(255, 230, 90, 36))
+                r.fillCircle(center: (Float(p.x), Float(p.y)), radius: 18, color: RenderColor(112, 228, 255, 48))
+            }
+            if boss.attackStage == .telegraph {
+                drawBossTelegraph(r, boss: boss, position: p, field: field, camera: camera)
+            }
             if boss.laserWarningTimer > 0 || boss.laserActiveTimer > 0 {
                 let active = boss.laserActiveTimer > 0
                 r.fillRect(RenderRect(x: Float(boss.laserX + camera.x - (active ? 12 : 3)), y: Float(field.top + camera.y), width: Float(active ? 24 : 6), height: Float(field.bottom - field.top)), color: active ? RenderColor(255, 71, 142, 175) : RenderColor(183, 48, 92, 130))
@@ -183,6 +212,38 @@ enum SDLNativeGameRenderer {
         drawTimedEffectBars(uiRenderer, game: game, width: width)
     }
 
+    private static func drawBossTelegraph(_ r: GameRenderer, boss: Boss, position p: Vec2,
+                                          field: PlayfieldBounds, camera: Vec2) {
+        let warning = RenderColor(255, 74, 128, 150)
+        let origin = p + Vec2(x: 0, y: 34)
+        switch boss.currentAttack {
+        case .aimBurst:
+            let target = boss.attackTarget + camera
+            r.line(from: (Float(origin.x), Float(origin.y)), to: (Float(target.x), Float(target.y)), color: warning)
+        case .spread:
+            for angle in [-0.52, -0.26, 0.0, 0.26, 0.52] {
+                let end = origin + Vec2(x: sin(angle) * 245, y: cos(angle) * 245)
+                r.line(from: (Float(origin.x), Float(origin.y)), to: (Float(end.x), Float(end.y)), color: warning)
+            }
+        case .sideCrossfire:
+            let target = boss.attackTarget + camera
+            r.line(from: (Float(p.x - 102), Float(p.y + 18)), to: (Float(target.x), Float(target.y)), color: warning)
+            r.line(from: (Float(p.x + 102), Float(p.y + 18)), to: (Float(target.x), Float(target.y)), color: warning)
+        case .laserSweep:
+            let left = min(boss.laserX, boss.laserTargetX) + camera.x
+            let sweepWidth = abs(boss.laserTargetX - boss.laserX)
+            r.fillRect(RenderRect(x: Float(left), y: Float(field.top + camera.y), width: Float(sweepWidth),
+                                  height: Float(field.bottom - field.top)), color: RenderColor(255, 68, 126, 20))
+            r.line(from: (Float(boss.laserX + camera.x), Float(field.top + camera.y)),
+                   to: (Float(boss.laserTargetX + camera.x), Float(field.top + camera.y)), color: warning)
+        case .slowField:
+            r.fillCircle(center: (Float(origin.x), Float(origin.y)), radius: 76, color: RenderColor(210, 92, 244, 32))
+        case .spiral:
+            r.fillCircle(center: (Float(origin.x), Float(origin.y)), radius: 62, color: RenderColor(255, 72, 151, 38))
+            r.line(from: (Float(origin.x - 74), Float(origin.y)), to: (Float(origin.x + 74), Float(origin.y)), color: warning)
+        }
+    }
+
     private static func drawCombatHUD(_ r: GameRenderer, game: Game, field: PlayfieldBounds, width: Int) {
         text(r, t(game, "THUNDER SWIFT", "雷霆疾影"), 16, 16, UITheme.Color.text)
         text(r, t(game, "STAGE", "关卡") + " \(game.stage)", 190, 16, UITheme.Color.primary)
@@ -248,12 +309,36 @@ enum SDLNativeGameRenderer {
 
         if let boss = game.boss {
             let ratio = boss.health / max(1, boss.maxHealth)
-            progress(r, UIProgressBar(rect: UIRect(x: Double(width / 2 - 220), y: 92, width: 440, height: 10),
+            let barX = width / 2 - 220
+            progress(r, UIProgressBar(rect: UIRect(x: Double(barX), y: 92, width: 440, height: 10),
                                       value: ratio, fill: UITheme.Color.boss, back: RenderColor(56, 24, 67)), height: 10)
+            r.fillRect(RenderRect(x: Float(barX + Int(440 * 0.30)), y: 90, width: 2, height: 14), color: UITheme.Color.warning)
+            r.fillRect(RenderRect(x: Float(barX + Int(440 * 0.70)), y: 90, width: 2, height: 14), color: UITheme.Color.warning)
             let bossName = BossType(rawValue: boss.kind)?.title(for: game.language) ?? t(game, "DREADNOUGHT", "无畏战舰")
-            let phase = boss.health / max(1, boss.maxHealth) > 0.7 ? 1 : (boss.health / max(1, boss.maxHealth) > 0.3 ? 2 : 3)
-            text(r, t(game, "BOSS", "首领") + "  " + bossName + "  •  " + t(game, "PHASE", "阶段") + " \(phase)",
+            text(r, t(game, "BOSS", "首领") + "  " + bossName + "  •  " + t(game, "PHASE", "阶段") + " \(boss.phase)",
                  Float(width / 2 - 135), 95, UITheme.Color.text)
+            let leftRatio = boss.leftTurretHealth / max(1, boss.leftTurretMaxHealth)
+            let rightRatio = boss.rightTurretHealth / max(1, boss.rightTurretMaxHealth)
+            text(r, t(game, "L-TURRET", "左炮塔") + " \(Int(leftRatio * 100))%", Float(width / 2 - 218), 112,
+                 boss.leftTurretHealth > 0 ? UITheme.Color.secondary : UITheme.Color.muted)
+            text(r, t(game, "R-TURRET", "右炮塔") + " \(Int(rightRatio * 100))%", Float(width / 2 + 108), 112,
+                 boss.rightTurretHealth > 0 ? UITheme.Color.secondary : UITheme.Color.muted)
+            let stateLabel: String
+            switch boss.lifecycle {
+            case .entering: stateLabel = t(game, "APPROACHING", "正在接近")
+            case .phaseTransition: stateLabel = t(game, "PHASE SHIFT", "阶段转换")
+            case .dying: stateLabel = t(game, "CORE COLLAPSE", "核心崩解")
+            case .combat:
+                if boss.attackStage == .telegraph {
+                    stateLabel = t(game, "WARNING", "预警") + " • " + boss.currentAttack.label(for: game.language)
+                } else if boss.weakPointOpen {
+                    stateLabel = t(game, "CORE EXPOSED", "核心暴露")
+                } else {
+                    stateLabel = boss.currentAttack.label(for: game.language)
+                }
+            }
+            text(r, stateLabel, Float(width / 2 - 72), 112,
+                 boss.weakPointOpen ? UITheme.Color.energy : (boss.attackStage == .telegraph ? UITheme.Color.danger : UITheme.Color.muted))
         }
         if game.survivalTime < 8 {
             let hint = game.controlMode == .mouse
@@ -361,6 +446,7 @@ enum SDLNativeGameRenderer {
         text(r, t(game, "FEEDBACK TEST", "反馈测试") + "   F8", Float(width / 2 + 20), 386, UITheme.Color.secondary)
         text(r, t(game, "UI DEBUG", "界面调试") + "   F9", Float(width / 2 + 20), 412, UITheme.Color.secondary)
         text(r, t(game, "EMERGENCY DASH", "紧急闪避") + "   F", Float(width / 2 + 20), 438, UITheme.Color.secondary)
+        text(r, t(game, "BOSS DEBUG", "Boss 调试") + "   F7", Float(width / 2 + 20), 464, UITheme.Color.secondary)
         button(r, controlsBackButton(width: Double(width), height: Double(height)), title: t(game, "BACK", "返回"), selected: false)
     }
 

@@ -331,7 +331,7 @@ enum CodexCatalog {
         CodexEntry(id: "shield", category: .enemies, title: "SHIELD", chineseTitle: "护盾机", detail: "Protects nearby enemies", chineseDetail: "为附近敌机提供保护"),
         CodexEntry(id: "kamikaze", category: .enemies, title: "KAMIKAZE", chineseTitle: "自爆机", detail: "Rushes in for impact damage", chineseDetail: "冲向玩家造成撞击伤害"),
         CodexEntry(id: "carrier", category: .enemies, title: "CARRIER", chineseTitle: "母舰", detail: "Summons reinforcement fighters", chineseDetail: "周期性召唤增援战机"),
-        CodexEntry(id: "dreadnought", category: .bosses, title: "DREADNOUGHT", chineseTitle: "无畏战舰", detail: "Twin turrets and fan barrages", chineseDetail: "双炮塔与扇形弹幕"),
+        CodexEntry(id: "dreadnought", category: .bosses, title: "HEAVY THUNDER CARRIER", chineseTitle: "重装雷霆母舰", detail: "Breakable twin turrets, exposed core and readable attack sequences", chineseDetail: "可破坏双炮塔、核心弱点与可读攻击序列"),
         CodexEntry(id: "rift", category: .bosses, title: "RIFT BEHEMOTH", chineseTitle: "裂隙巨兽", detail: "Ring fire and accelerating bursts", chineseDetail: "环形弹与加速爆发"),
         CodexEntry(id: "frost", category: .bosses, title: "FROST WARDEN", chineseTitle: "寒霜守望者", detail: "Cold lanes and laser locks", chineseDetail: "寒霜航道与激光锁定"),
         CodexEntry(id: "origin", category: .bosses, title: "ORIGIN ARCHITECT", chineseTitle: "起源构造者", detail: "Final storm with shifting lanes", chineseDetail: "变幻航道的终极风暴")
@@ -568,6 +568,20 @@ struct Boss {
     var laserHitCooldown: Double = 0
     var visualOffset: Vec2 = .zero
     var hitFlash: Double = 0
+    var lifecycle: BossLifecycleState = .entering
+    var stateTimer: Double = ThunderCarrierBossDefinition.entranceDuration
+    var pendingPhase: Int = 1
+    var currentAttack: BossAttackID = .spread
+    var attackStage: BossAttackStage = .recovery
+    var attackTimer: Double = 0.8
+    var attackTarget: Vec2 = .zero
+    var movement: BossMovementID = .hover
+    var weakPointOpen = false
+    var leftTurretMaxHealth: Double = 0
+    var rightTurretMaxHealth: Double = 0
+    var laserTargetX: Double = 0
+    var burstShotsRemaining = 0
+    var burstShotTimer = 0.0
 }
 
 enum BossType: Int, CaseIterable {
@@ -578,7 +592,7 @@ enum BossType: Int, CaseIterable {
 
     var title: String {
         switch self {
-        case .dreadnought: return "DREADNOUGHT"
+        case .dreadnought: return "HEAVY THUNDER CARRIER"
         case .riftBehemoth: return "RIFT BEHEMOTH"
         case .frostWarden: return "FROST WARDEN"
         case .originArchitect: return "ORIGIN ARCHITECT"
@@ -588,7 +602,7 @@ enum BossType: Int, CaseIterable {
     func title(for language: GameLanguage) -> String {
         guard language == .chinese else { return title }
         switch self {
-        case .dreadnought: return "无畏战舰"
+        case .dreadnought: return "重装雷霆母舰"
         case .riftBehemoth: return "裂隙巨兽"
         case .frostWarden: return "寒霜守望者"
         case .originArchitect: return "起源构造者"
@@ -740,6 +754,9 @@ final class Game: @unchecked Sendable {
     var damageEdgeFlash = 0.0
     var nextFeedbackID = 1
     var feedbackDebugIndex = 0
+    var bossDebugIndex = 0
+    var bossSmokePeakBullets = 0
+    var bossSmokeAverageFrameMilliseconds = 0.0
     var uiDebugOverlay = false
     var uiAnimationTime = 0.0
     var score = 0
@@ -1051,6 +1068,7 @@ final class Game: @unchecked Sendable {
         damageEdgeFlash = 0
         nextFeedbackID = 1
         feedbackDebugIndex = 0
+        bossDebugIndex = 0
         combatFeedback.reset()
         score = 0
         kills = 0
@@ -1368,8 +1386,12 @@ final class Game: @unchecked Sendable {
         newBoss.kind = (safeMission + safeDefeats) % bossCount
         newBoss.leftTurretHealth = hp * 0.18
         newBoss.rightTurretHealth = hp * 0.18
+        newBoss.leftTurretMaxHealth = newBoss.leftTurretHealth
+        newBoss.rightTurretMaxHealth = newBoss.rightTurretHealth
         newBoss.laserCooldown = gameMode == .zen ? 8.0 : 5.0
         newBoss.laserX = field.centerX
+        newBoss.laserTargetX = field.centerX
+        newBoss.attackTarget = player
         boss = newBoss
         waveTimer = 2.4
         clearEnemyBullets()
@@ -1816,158 +1838,259 @@ final class Game: @unchecked Sendable {
     private func updateBoss(delta: Double, field: PlayfieldBounds) {
         guard var currentBoss = boss else { return }
         currentBoss.age += delta
-        let ratio = currentBoss.health / max(1, currentBoss.maxHealth)
-        let desiredPhase = ratio > 0.70 ? 1 : (ratio > 0.30 ? 2 : 3)
-        if desiredPhase != currentBoss.phase {
-            currentBoss.phase = desiredPhase
-            currentBoss.phaseFlash = 1.0
-            currentBoss.attackPrimed = false
-            currentBoss.attackPatternIndex = 0
-            currentBoss.warningTimer = 0
-            currentBoss.shootTimer = 0.8
-            currentBoss.laserWarningTimer = 0
-            currentBoss.laserActiveTimer = 0
-            currentBoss.laserCooldown = 1.2
-            addCameraShake(strength: 9)
-            let detail = desiredPhase == 2 ? "Armor breach • twin fan barrage" : "Core unstable • survive the final storm"
-            notifyPickup(title: "BOSS PHASE \(desiredPhase)", detail: detail, tint: rgb(255, 146, 244))
-        }
         currentBoss.phaseFlash = max(0, currentBoss.phaseFlash - delta)
-        if currentBoss.position.y < 125 {
-            currentBoss.position.y += 100 * delta
-        } else {
-            switch currentBoss.phase {
-            case 1:
-                currentBoss.position.x = field.centerX + sin(currentBoss.age * 0.75) * min(max(120, field.width * 0.28), field.width * 0.5 - 110)
-            case 2:
-                currentBoss.position.y = 150 + sin(currentBoss.age * 1.25) * 22
-                currentBoss.position.x = field.centerX + sin(currentBoss.age * 1.10) * min(max(150, field.width * 0.33), field.width * 0.5 - 110)
-            default:
-                currentBoss.position.y = 142 + sin(currentBoss.age * 1.9) * 38
-                currentBoss.position.x = field.centerX + sin(currentBoss.age * 1.75) * min(max(170, field.width * 0.38), field.width * 0.5 - 110)
-            }
-        }
-        currentBoss.shootTimer -= delta
         currentBoss.warningTimer = max(0, currentBoss.warningTimer - delta)
-        currentBoss.laserCooldown = max(0, currentBoss.laserCooldown - delta)
-        let wasLaserWarning = currentBoss.laserWarningTimer > 0
         currentBoss.laserWarningTimer = max(0, currentBoss.laserWarningTimer - delta)
         currentBoss.laserActiveTimer = max(0, currentBoss.laserActiveTimer - delta)
         currentBoss.laserHitCooldown = max(0, currentBoss.laserHitCooldown - delta)
-        if wasLaserWarning, currentBoss.laserWarningTimer <= 0 {
-            currentBoss.laserActiveTimer = currentBoss.phase == 3 ? 1.45 : 1.10
-            currentBoss.laserHitCooldown = 0
-            addCameraShake(strength: 5)
-            notifyPickup(title: "BOSS LASER", detail: "Stay clear of the marked lane", tint: rgb(255, 104, 160))
+
+        if currentBoss.lifecycle == .dying {
+            currentBoss.stateTimer -= delta
+            currentBoss.weakPointOpen = false
+            currentBoss.laserActiveTimer = 0
+            currentBoss.laserWarningTimer = 0
+            currentBoss.position.y += 9 * delta
+            boss = currentBoss
+            if currentBoss.stateTimer <= 0 {
+                registerBossDefeat(at: currentBoss.position)
+                boss = nil
+            }
+            return
         }
-        if currentBoss.laserActiveTimer > 0, abs(player.x - currentBoss.laserX) < 24, currentBoss.laserHitCooldown <= 0 {
-            damagePlayer(amount: (currentBoss.phase == 3 ? 28 : 22) * activeEnemyDamageMultiplier)
-            currentBoss.laserHitCooldown = 0.42
+
+        if currentBoss.lifecycle == .entering {
+            currentBoss.stateTimer -= delta
+            currentBoss.position.y = min(125, currentBoss.position.y + 150 * delta)
+            currentBoss.position.x += (field.centerX - currentBoss.position.x) * min(1, delta * 4)
+            if currentBoss.stateTimer <= 0, currentBoss.position.y >= 122 {
+                currentBoss.lifecycle = .combat
+                currentBoss.attackStage = .recovery
+                currentBoss.attackTimer = 0.85
+            }
+            boss = currentBoss
+            return
         }
-        let laserStep = (currentBoss.attackPatternIndex + currentBoss.kind) % 5
-        if currentBoss.phase >= 2, currentBoss.laserCooldown <= 0, !currentBoss.attackPrimed,
-           currentBoss.laserWarningTimer <= 0, currentBoss.laserActiveTimer <= 0,
-           laserStep == 4, currentBoss.position.y >= 120 {
-            currentBoss.laserX = min(max(player.x, field.left + 52), field.right - 52)
-            currentBoss.laserWarningTimer = currentBoss.phase == 3 ? 0.70 : 0.90
-            currentBoss.laserCooldown = currentBoss.phase == 3 ? 4.6 : 5.8
-            currentBoss.attackPatternIndex += 1
-            currentBoss.shootTimer = 1.25
-        } else if !currentBoss.attackPrimed, currentBoss.shootTimer <= 0, currentBoss.position.y >= 120 {
-            currentBoss.attackPrimed = true
-            currentBoss.warningTimer = currentBoss.phase == 1 ? 0.18 : (currentBoss.phase == 2 ? 0.55 : 0.72)
+
+        let healthRatio = currentBoss.health / max(1, currentBoss.maxHealth)
+        let desiredPhase = healthRatio > 0.70 ? 1 : (healthRatio > 0.30 ? 2 : 3)
+        if currentBoss.lifecycle == .combat, desiredPhase > currentBoss.phase {
+            currentBoss.lifecycle = .phaseTransition
+            currentBoss.pendingPhase = desiredPhase
+            currentBoss.stateTimer = ThunderCarrierBossDefinition.transitionDuration
+            currentBoss.attackStage = .recovery
+            currentBoss.attackTimer = currentBoss.stateTimer
+            currentBoss.weakPointOpen = false
+            currentBoss.laserActiveTimer = 0
+            currentBoss.laserWarningTimer = 0
+            currentBoss.warningTimer = 0
+            enemyBulletClearPending = true
         }
-        if currentBoss.attackPrimed, currentBoss.warningTimer <= 0 {
-            let origin = currentBoss.position + Vec2(x: 0, y: 34)
-            let timelineStep = (currentBoss.attackPatternIndex + currentBoss.kind) % 3
-            switch currentBoss.phase {
-            case 1:
-                if timelineStep == 1 {
-                    let emitter = BulletEmitter(pattern: .aimed, count: 3, speed: 300, damage: 15 * activeEnemyDamageMultiplier,
-                                                radius: 6, lifetime: 5.5, tint: rgb(255, 192, 108), bulletType: .aimed,
-                                                modifiers: [.constantVelocity, .homing, .lockDirection], spread: 0.30,
-                                                homingDuration: 0.65, maxTurnRate: 1.0)
-                    emitPattern(emitter, from: origin, target: player)
-                    currentBoss.shootTimer = 1.45
-                } else {
-                    let emitter = BulletEmitter(pattern: .spread, count: 5, speed: 250, damage: 14 * activeEnemyDamageMultiplier,
-                                                radius: 7, lifetime: 6, tint: rgb(255, 178, 75), bulletType: .boss,
-                                                modifiers: [.constantVelocity, .sineWave, .lockDirection], spread: timelineStep == 2 ? 0.62 : 0.50)
-                    emitPattern(emitter, from: origin)
-                    currentBoss.shootTimer = 1.85
-                }
-            case 2:
-                if timelineStep == 0 {
-                    let ringEmitter = BulletEmitter(pattern: .ring, count: 11, speed: 225, damage: 16 * activeEnemyDamageMultiplier,
-                                                    radius: 7, lifetime: 6, tint: rgb(255, 112, 155), bulletType: .boss,
-                                                    modifiers: [.constantVelocity, .lockDirection])
-                    emitPattern(ringEmitter, from: origin)
-                    currentBoss.shootTimer = 1.65
-                } else if timelineStep == 1 {
-                    let burstEmitter = BulletEmitter(pattern: .spread, count: 7, speed: 205, damage: 15 * activeEnemyDamageMultiplier,
-                                                     radius: 6.5, lifetime: 6, tint: rgb(224, 102, 230), bulletType: .boss,
-                                                     modifiers: [.constantVelocity, .accelerate, .delayedActivation, .stopAndGo, .lockDirection], spread: 0.75, acceleration: 26,
-                                                     activationDelay: 0.42)
-                    emitPattern(burstEmitter, from: origin)
-                    currentBoss.shootTimer = 1.35
-                } else {
-                    let aimedEmitter = BulletEmitter(pattern: .aimed, count: 1, speed: 315, damage: 17 * activeEnemyDamageMultiplier,
-                                                     radius: 6, lifetime: 5.5, tint: rgb(255, 183, 102), bulletType: .aimed,
-                                                     modifiers: [.constantVelocity, .homing, .lockDirection], homingDuration: 0.9, maxTurnRate: 1.2)
-                    emitPattern(aimedEmitter, from: origin, target: player)
-                    currentBoss.shootTimer = 1.35
-                }
-            default:
-                if timelineStep == 0 {
-                    let spiralEmitter = BulletEmitter(pattern: .spiral, count: 15, speed: 240, damage: 18 * activeEnemyDamageMultiplier,
-                                                      radius: 7, lifetime: 6, tint: rgb(255, 78, 126), bulletType: .boss,
-                                                      modifiers: [.constantVelocity, .accelerate, .split, .curve, .lockDirection], spread: 0.95,
-                                                      rotation: currentBoss.age * 0.65, acceleration: 22, splitCount: 3, splitSpread: 0.24)
-                    emitPattern(spiralEmitter, from: origin)
-                    currentBoss.shootTimer = 1.35
-                } else if timelineStep == 1 {
-                    let ringEmitter = BulletEmitter(pattern: .ring, count: 13, speed: 240, damage: 18 * activeEnemyDamageMultiplier,
-                                                    radius: 7, lifetime: 6, tint: rgb(207, 92, 250), bulletType: .boss,
-                                                    modifiers: [.constantVelocity, .accelerate, .bounce, .lockDirection], acceleration: 18,
-                                                    bounceCount: 1)
-                    emitPattern(ringEmitter, from: origin)
-                    currentBoss.shootTimer = 1.25
-                } else {
-                    let aimedEmitter = BulletEmitter(pattern: .aimed, count: 2, speed: 330, damage: 20 * activeEnemyDamageMultiplier,
-                                                     radius: 6.5, lifetime: 5.5, tint: rgb(255, 170, 89), bulletType: .aimed,
-                                                     modifiers: [.constantVelocity, .homing, .lockDirection], spread: 0.48,
-                                                     homingDuration: 1.2, maxTurnRate: 1.35)
-                    emitPattern(aimedEmitter, from: origin, target: player)
-                    currentBoss.shootTimer = 1.10
+
+        if currentBoss.lifecycle == .phaseTransition {
+            currentBoss.stateTimer -= delta
+            currentBoss.position.x += (field.centerX - currentBoss.position.x) * min(1, delta * 5)
+            currentBoss.position.y += (138 - currentBoss.position.y) * min(1, delta * 5)
+            currentBoss.phaseFlash = max(currentBoss.phaseFlash, 0.25)
+            if currentBoss.stateTimer <= 0 {
+                currentBoss.phase = currentBoss.pendingPhase
+                currentBoss.lifecycle = .combat
+                currentBoss.phaseFlash = 1.0
+                currentBoss.attackPatternIndex = 0
+                currentBoss.attackStage = .recovery
+                currentBoss.attackTimer = 0.85
+                addCameraShake(strength: 9)
+                combatFeedback.play(.bossPhaseChanged,
+                                    context: FeedbackContext(position: currentBoss.position, direction: Vec2(x: 0, y: 1),
+                                                             level: .heavy, tint: rgb(255, 146, 244)), game: self)
+                let detail = currentBoss.phase == 2 ? "Armor breached • attack combinations online" : "Core exposed • damage window increased"
+                notifyPickup(title: "BOSS PHASE \(currentBoss.phase)", detail: detail, tint: rgb(255, 146, 244))
+            }
+            boss = currentBoss
+            return
+        }
+
+        updateBossMovement(&currentBoss, delta: delta, field: field)
+        if currentBoss.laserActiveTimer > 0 {
+            let remaining = max(0.04, currentBoss.laserActiveTimer)
+            currentBoss.laserX += (currentBoss.laserTargetX - currentBoss.laserX) * min(1, delta / remaining)
+            if abs(player.x - currentBoss.laserX) < 24, currentBoss.laserHitCooldown <= 0 {
+                damagePlayer(amount: (currentBoss.phase == 3 ? 28 : 22) * activeEnemyDamageMultiplier)
+                currentBoss.laserHitCooldown = 0.42
+            }
+        }
+
+        let phaseDefinition = ThunderCarrierBossDefinition.phase(currentBoss.phase)
+        let turretsDisabled = currentBoss.leftTurretHealth <= 0 && currentBoss.rightTurretHealth <= 0
+        switch currentBoss.attackStage {
+        case .recovery:
+            currentBoss.attackTimer -= delta
+            currentBoss.weakPointOpen = currentBoss.phase == 3 || turretsDisabled || phaseDefinition.weakPointDuringRecovery
+            if currentBoss.attackTimer <= 0 {
+                let attacks = phaseDefinition.attacks
+                let definition = attacks[currentBoss.attackPatternIndex % attacks.count]
+                currentBoss.currentAttack = definition.id
+                currentBoss.movement = definition.movement
+                currentBoss.attackTarget = player
+                currentBoss.attackStage = .telegraph
+                currentBoss.attackTimer = definition.telegraph
+                currentBoss.warningTimer = definition.telegraph
+                currentBoss.weakPointOpen = false
+                prepareBossTelegraph(&currentBoss, definition: definition, field: field)
+            }
+        case .telegraph:
+            currentBoss.attackTimer -= delta
+            currentBoss.weakPointOpen = false
+            if currentBoss.attackTimer <= 0 {
+                let definition = phaseDefinition.attacks[currentBoss.attackPatternIndex % phaseDefinition.attacks.count]
+                executeBossAttack(&currentBoss, definition: definition, field: field)
+                currentBoss.attackStage = .execute
+                currentBoss.attackTimer = definition.execute
+            }
+        case .execute:
+            currentBoss.attackTimer -= delta
+            currentBoss.weakPointOpen = currentBoss.phase == 3 || turretsDisabled
+            if currentBoss.currentAttack == .aimBurst, currentBoss.burstShotsRemaining > 0 {
+                currentBoss.burstShotTimer -= delta
+                if currentBoss.burstShotTimer <= 0 {
+                    emitBossAimShot(currentBoss)
+                    currentBoss.burstShotsRemaining -= 1
+                    currentBoss.burstShotTimer = 0.14
                 }
             }
-            // Side turrets are independent emitters. Destroying one removes
-            // its contribution to the attack timeline and opens a safe lane.
-            if currentBoss.leftTurretHealth > 0, currentBoss.attackPatternIndex % 2 == 0 {
-                let leftEmitter = BulletEmitter(pattern: .aimed, count: 1,
-                                                speed: 275 + Double(currentBoss.phase) * 18,
-                                                damage: 10 * activeEnemyDamageMultiplier,
-                                                radius: 5.5, lifetime: 5.5, tint: rgb(255, 124, 188),
-                                                bulletType: .aimed,
-                                                modifiers: [.constantVelocity, .homing, .lockDirection],
-                                                homingDuration: 0.55, maxTurnRate: 0.95)
-                emitPattern(leftEmitter, from: currentBoss.position + Vec2(x: -102, y: 18), target: player)
+            if currentBoss.attackTimer <= 0 {
+                let definition = phaseDefinition.attacks[currentBoss.attackPatternIndex % phaseDefinition.attacks.count]
+                currentBoss.attackPatternIndex += 1
+                currentBoss.attackStage = .recovery
+                currentBoss.attackTimer = definition.recovery + (turretsDisabled ? 0.32 : 0)
+                currentBoss.movement = .hover
+                currentBoss.warningTimer = 0
             }
-            if currentBoss.rightTurretHealth > 0, currentBoss.attackPatternIndex % 2 == 1 {
-                let rightEmitter = BulletEmitter(pattern: .spread, count: 3,
-                                                 speed: 220 + Double(currentBoss.phase) * 16,
-                                                 damage: 9 * activeEnemyDamageMultiplier,
-                                                 radius: 5.5, lifetime: 5.5, tint: rgb(255, 164, 108),
-                                                 bulletType: .normal,
-                                                 modifiers: [.constantVelocity, .lockDirection], spread: 0.22)
-                emitPattern(rightEmitter, from: currentBoss.position + Vec2(x: 102, y: 18))
-            }
-            currentBoss.attackPatternIndex += 1
-            currentBoss.attackPrimed = false
         }
+
         let bossCollisionDistance = coreRadius + 52
-        if distanceSquared(player, currentBoss.position) < bossCollisionDistance * bossCollisionDistance { damagePlayer(amount: 35) }
+        if distanceSquared(player, currentBoss.position) < bossCollisionDistance * bossCollisionDistance {
+            damagePlayer(amount: 35 * activeEnemyDamageMultiplier)
+        }
         boss = currentBoss
+    }
+
+    private func updateBossMovement(_ boss: inout Boss, delta: Double, field: PlayfieldBounds) {
+        let horizontalLimit = min(max(130, field.width * 0.30), field.width * 0.5 - 112)
+        switch boss.movement {
+        case .positionLock:
+            boss.position.x += (field.centerX - boss.position.x) * min(1, delta * 3.5)
+            boss.position.y += (138 - boss.position.y) * min(1, delta * 3.5)
+        case .horizontalSweep:
+            boss.position.x = field.centerX + sin(boss.age * 0.92) * horizontalLimit
+            boss.position.y = 142 + sin(boss.age * 1.15) * 12
+        case .aggressiveHover:
+            boss.position.x = field.centerX + sin(boss.age * 1.55) * min(horizontalLimit * 1.15, field.width * 0.5 - 108)
+            boss.position.y = 145 + sin(boss.age * 1.8) * 28
+        case .hover:
+            boss.position.x = field.centerX + sin(boss.age * 0.68) * horizontalLimit * 0.75
+            boss.position.y = 136 + sin(boss.age * 0.9) * 10
+        }
+    }
+
+    private func prepareBossTelegraph(_ boss: inout Boss, definition: BossAttackDefinition, field: PlayfieldBounds) {
+        if definition.id == .laserSweep {
+            let leftToRight = boss.attackPatternIndex % 2 == 0
+            boss.laserX = leftToRight ? field.left + 68 : field.right - 68
+            boss.laserTargetX = leftToRight ? field.right - 68 : field.left + 68
+            boss.laserWarningTimer = definition.telegraph
+            AudioManager.shared.playSFX("sfx_boss")
+        }
+    }
+
+    private func executeBossAttack(_ boss: inout Boss, definition: BossAttackDefinition, field: PlayfieldBounds) {
+        let origin = boss.position + Vec2(x: 0, y: 34)
+        switch definition.id {
+        case .spread:
+            let count = boss.phase == 1 ? 5 : 7
+            let emitter = BulletEmitter(pattern: .spread, count: count, speed: boss.phase == 1 ? 235 : 255,
+                                        damage: (boss.phase == 1 ? 14 : 16) * activeEnemyDamageMultiplier,
+                                        radius: 6.5, lifetime: 6, tint: rgb(255, 178, 75), bulletType: .boss,
+                                        modifiers: [.constantVelocity, .lockDirection], spread: boss.phase == 1 ? 0.52 : 0.68)
+            emitPattern(emitter, from: origin)
+            emitBossSideWeapon(&boss, alternating: true)
+        case .aimBurst:
+            emitBossAimShot(boss)
+            boss.burstShotsRemaining = 2
+            boss.burstShotTimer = 0.14
+            if boss.phase >= 2 { emitBossSideWeapon(&boss, alternating: true) }
+        case .sideCrossfire:
+            emitBossSideWeapon(&boss, alternating: false)
+        case .laserSweep:
+            boss.laserWarningTimer = 0
+            boss.laserActiveTimer = definition.execute
+            boss.laserHitCooldown = 0
+            addCameraShake(strength: 5)
+        case .slowField:
+            let emitter = BulletEmitter(pattern: .ring, count: 11, speed: 205,
+                                        damage: 15 * activeEnemyDamageMultiplier,
+                                        radius: 6.5, lifetime: 6, tint: rgb(224, 102, 230), bulletType: .boss,
+                                        modifiers: [.constantVelocity, .accelerate, .delayedActivation, .stopAndGo, .lockDirection],
+                                        acceleration: -22, activationDelay: 0.42)
+            emitPattern(emitter, from: origin)
+        case .spiral:
+            for offset in [0.0, Double.pi] {
+                let emitter = BulletEmitter(pattern: .spiral, count: 9, speed: 225,
+                                            damage: 18 * activeEnemyDamageMultiplier,
+                                            radius: 6.5, lifetime: 6, tint: rgb(255, 78, 151), bulletType: .boss,
+                                            modifiers: [.constantVelocity, .accelerate, .curve, .lockDirection], spread: 0.82,
+                                            rotation: boss.age * 0.70 + offset, acceleration: 16)
+                emitPattern(emitter, from: origin)
+            }
+        }
+    }
+
+    private func emitBossAimShot(_ boss: Boss) {
+        let emitter = BulletEmitter(pattern: .aimed, count: 1, speed: boss.phase == 3 ? 325 : 290,
+                                        damage: (boss.phase == 3 ? 18 : 15) * activeEnemyDamageMultiplier,
+                                        radius: 6, lifetime: 5.5, tint: rgb(255, 192, 108), bulletType: .aimed,
+                                        modifiers: [.constantVelocity, .homing, .lockDirection], spread: 0,
+                                        homingDuration: 0.62, maxTurnRate: 0.95)
+        emitPattern(emitter, from: boss.position + Vec2(x: 0, y: 34), target: boss.attackTarget)
+    }
+
+    private func emitBossSideWeapon(_ boss: inout Boss, alternating: Bool) {
+        let useLeft = !alternating || boss.attackPatternIndex % 2 == 0
+        let useRight = !alternating || !useLeft
+        if useLeft, boss.leftTurretHealth > 0 {
+            let emitter = BulletEmitter(pattern: .aimed, count: 1, speed: 272 + Double(boss.phase) * 12,
+                                        damage: 10 * activeEnemyDamageMultiplier, radius: 5.5, lifetime: 5.5,
+                                        tint: rgb(255, 124, 188), bulletType: .aimed,
+                                        modifiers: [.constantVelocity, .homing, .lockDirection], homingDuration: 0.48, maxTurnRate: 0.88)
+            emitPattern(emitter, from: boss.position + Vec2(x: -102, y: 18), target: player)
+        }
+        if useRight, boss.rightTurretHealth > 0 {
+            let emitter = BulletEmitter(pattern: .spread, count: 3, speed: 220 + Double(boss.phase) * 12,
+                                        damage: 9 * activeEnemyDamageMultiplier, radius: 5.5, lifetime: 5.5,
+                                        tint: rgb(255, 164, 108), bulletType: .normal,
+                                        modifiers: [.constantVelocity, .lockDirection], spread: 0.24)
+            emitPattern(emitter, from: boss.position + Vec2(x: 102, y: 18))
+        }
+    }
+
+    private func beginBossDeath(_ bossToDestroy: Boss, direction: Vec2, damage: Double,
+                                critical: Bool, damageKind: FeedbackDamageKind) {
+        guard bossToDestroy.lifecycle != .dying else { return }
+        var dyingBoss = bossToDestroy
+        dyingBoss.health = 0
+        dyingBoss.lifecycle = .dying
+        dyingBoss.stateTimer = ThunderCarrierBossDefinition.deathDuration
+        dyingBoss.attackStage = .recovery
+        dyingBoss.attackTimer = dyingBoss.stateTimer
+        dyingBoss.warningTimer = 0
+        dyingBoss.laserWarningTimer = 0
+        dyingBoss.laserActiveTimer = 0
+        dyingBoss.weakPointOpen = false
+        boss = dyingBoss
+        enemyBulletClearPending = true
+        combatFeedback.play(.bossKilled,
+                            context: FeedbackContext(position: dyingBoss.position, direction: direction,
+                                                     damage: damage, level: .critical, critical: critical,
+                                                     damageKind: damageKind, tint: rgb(244, 104, 255)), game: self)
     }
 
     private func isEnemyProtected(_ enemyIndex: Int) -> Bool {
@@ -2053,6 +2176,7 @@ final class Game: @unchecked Sendable {
     }
 
     private func bossHitPart(_ boss: Boss, position: Vec2, radius: Double) -> BossHitPart? {
+        guard boss.lifecycle != .entering, boss.lifecycle != .dying else { return nil }
         let left = boss.position + Vec2(x: -102, y: 18)
         let right = boss.position + Vec2(x: 102, y: 18)
         let turretHitDistance = radius + 24
@@ -2121,13 +2245,16 @@ final class Game: @unchecked Sendable {
             if !removeBullet, bullets[index].playerOwned {
                 if var currentBoss = boss, let hitPart = bossHitPart(currentBoss, position: bullets[index].position, radius: bullets[index].radius) {
                     let critical = Double.random(in: 0...1, using: &rng) < criticalChance
-                    let finalDamage = bullets[index].damage * (critical ? criticalMultiplier : 1.0) * (thunderOverloadTime > 0 ? 1.45 : 1.0) * (overloadMatrixActive ? 1.12 : 1.0)
+                    let baseDamage = bullets[index].damage * (critical ? criticalMultiplier : 1.0) * (thunderOverloadTime > 0 ? 1.45 : 1.0) * (overloadMatrixActive ? 1.12 : 1.0)
+                    var finalDamage = baseDamage
+                    var weakPointHit = false
                     let hitPosition: Vec2
                     switch hitPart {
                     case .leftTurret:
                         let wasAlive = currentBoss.leftTurretHealth > 0
-                        currentBoss.leftTurretHealth = max(0, currentBoss.leftTurretHealth - finalDamage)
-                        currentBoss.health -= finalDamage * 0.45
+                        currentBoss.leftTurretHealth = max(0, currentBoss.leftTurretHealth - baseDamage)
+                        finalDamage = baseDamage * 0.45
+                        currentBoss.health -= finalDamage
                         hitPosition = currentBoss.position + Vec2(x: -102, y: 18)
                         if wasAlive && currentBoss.leftTurretHealth <= 0 {
                             notifyPickup(title: "BOSS TURRET DESTROYED", detail: "Left weapon disabled", tint: rgb(255, 188, 112))
@@ -2137,8 +2264,9 @@ final class Game: @unchecked Sendable {
                         }
                     case .rightTurret:
                         let wasAlive = currentBoss.rightTurretHealth > 0
-                        currentBoss.rightTurretHealth = max(0, currentBoss.rightTurretHealth - finalDamage)
-                        currentBoss.health -= finalDamage * 0.45
+                        currentBoss.rightTurretHealth = max(0, currentBoss.rightTurretHealth - baseDamage)
+                        finalDamage = baseDamage * 0.45
+                        currentBoss.health -= finalDamage
                         hitPosition = currentBoss.position + Vec2(x: 102, y: 18)
                         if wasAlive && currentBoss.rightTurretHealth <= 0 {
                             notifyPickup(title: "BOSS TURRET DESTROYED", detail: "Right weapon disabled", tint: rgb(255, 188, 112))
@@ -2147,6 +2275,13 @@ final class Game: @unchecked Sendable {
                                                                          damage: finalDamage, level: .heavy, tint: rgb(255, 188, 112)), game: self)
                         }
                     case .core:
+                        if currentBoss.weakPointOpen {
+                            finalDamage *= ThunderCarrierBossDefinition.weakPointMultiplier
+                            weakPointHit = true
+                        }
+                        if currentBoss.leftTurretHealth <= 0, currentBoss.rightTurretHealth <= 0 {
+                            finalDamage *= ThunderCarrierBossDefinition.disabledTurretsMultiplier
+                        }
                         currentBoss.health -= finalDamage
                         hitPosition = currentBoss.position
                     }
@@ -2158,7 +2293,8 @@ final class Game: @unchecked Sendable {
                                                         damage: finalDamage, level: critical ? .medium : .light, critical: critical,
                                                         damageKind: bossDamageKind,
                                                         tint: bullets[index].weaponStyle == WeaponType.electromagnetic.rawValue ? rgb(191, 133, 255) : rgb(255, 225, 122))
-                    combatFeedback.play(critical ? .criticalHit : .enemyHit, context: bossFeedback, game: self)
+                    combatFeedback.play(weakPointHit ? .bossWeakPointHit : (critical ? .criticalHit : .enemyHit),
+                                        context: bossFeedback, game: self)
                     if critical, stormCoreActive { thunderEnergy = min(100, thunderEnergy + 4) }
                     if laserTime > 0 || bullets[index].pierceRemaining > 0 {
                         if laserTime <= 0 { bullets[index].pierceRemaining -= 1 }
@@ -2167,12 +2303,8 @@ final class Game: @unchecked Sendable {
                         removeBullet = true
                     }
                     if currentBoss.health <= 0 {
-                        registerBossDefeat(at: currentBoss.position)
-                        combatFeedback.play(.bossKilled,
-                                            context: FeedbackContext(position: currentBoss.position, direction: bullets[index].velocity.normalized,
-                                                                     damage: finalDamage, level: .critical, critical: critical,
-                                                                     damageKind: bossDamageKind, tint: rgb(244, 104, 255)), game: self)
-                        boss = nil
+                        beginBossDeath(currentBoss, direction: bullets[index].velocity.normalized,
+                                       damage: finalDamage, critical: critical, damageKind: bossDamageKind)
                     }
                 } else {
                     for enemyIndex in enemies.indices.reversed() {
@@ -2353,6 +2485,104 @@ final class Game: @unchecked Sendable {
         notifyFeedback(title: "FEEDBACK TEST", chineseTitle: "反馈测试", tint: rgb(126, 231, 255))
     }
 
+    /// F7 advances through the expensive Boss test cases without requiring a
+    /// full mission: spawn, phase 2, phase 3, part break, then attack cycle.
+    func debugBossControl(width: Double, height: Double) {
+        guard phase == .playing else { return }
+        playerInvulnerability = max(playerInvulnerability, 999)
+        thunderEnergy = 100
+        let field = playfieldBounds(width: width, height: height)
+        guard var currentBoss = boss, currentBoss.lifecycle != .dying else {
+            spawnBoss(field: field)
+            bossDebugIndex = 0
+            notifyPickup(title: "BOSS DEBUG", detail: "Boss spawned • pilot invulnerability enabled", tint: rgb(255, 164, 232))
+            return
+        }
+
+        switch bossDebugIndex % 4 {
+        case 0:
+            currentBoss.health = currentBoss.maxHealth * 0.69
+            notifyPickup(title: "BOSS DEBUG", detail: "Phase 2 threshold", tint: rgb(255, 188, 112))
+        case 1:
+            currentBoss.health = currentBoss.maxHealth * 0.29
+            notifyPickup(title: "BOSS DEBUG", detail: "Phase 3 threshold", tint: rgb(255, 116, 178))
+        case 2:
+            let left = currentBoss.position + Vec2(x: -102, y: 18)
+            let right = currentBoss.position + Vec2(x: 102, y: 18)
+            currentBoss.leftTurretHealth = 0
+            currentBoss.rightTurretHealth = 0
+            combatFeedback.play(.bossPartDestroyed,
+                                context: FeedbackContext(position: left, level: .heavy, tint: rgb(255, 188, 112)), game: self)
+            combatFeedback.play(.bossPartDestroyed,
+                                context: FeedbackContext(position: right, level: .heavy, tint: rgb(255, 188, 112)), game: self)
+            notifyPickup(title: "BOSS DEBUG", detail: "Both turrets destroyed", tint: rgb(255, 211, 112))
+        default:
+            currentBoss.attackPatternIndex += 1
+            currentBoss.attackStage = .recovery
+            currentBoss.attackTimer = 0
+            notifyPickup(title: "BOSS DEBUG", detail: "Next attack forced", tint: rgb(126, 231, 255))
+        }
+        bossDebugIndex += 1
+        boss = currentBoss
+    }
+
+    /// Deterministic structural smoke test for CI and packaging validation.
+    /// It exercises entrance, both phase transitions, Phase 3 Spiral, weak
+    /// point exposure and the non-instant death state without touching saves.
+    func runBossSimulationSmoke(width: Double, height: Double) -> Bool {
+        phase = .playing
+        player = Vec2(x: width * 0.5, y: height - 90)
+        playerInvulnerability = 999
+        boss = nil
+        enemies.removeAll(keepingCapacity: true)
+        recycleAllBullets()
+        let field = playfieldBounds(width: width, height: height)
+        spawnBoss(field: field)
+        for _ in 0..<120 { updateBoss(delta: 1.0 / 60.0, field: field) }
+        guard var testBoss = boss, testBoss.lifecycle == .combat, testBoss.phase == 1 else { return false }
+
+        testBoss.health = testBoss.maxHealth * 0.69
+        boss = testBoss
+        for _ in 0..<80 { updateBoss(delta: 1.0 / 60.0, field: field) }
+        guard boss?.phase == 2, boss?.lifecycle == .combat else { return false }
+
+        testBoss = boss!
+        testBoss.health = testBoss.maxHealth * 0.29
+        boss = testBoss
+        for _ in 0..<80 { updateBoss(delta: 1.0 / 60.0, field: field) }
+        guard boss?.phase == 3, boss?.lifecycle == .combat else { return false }
+
+        testBoss = boss!
+        testBoss.attackPatternIndex = 0
+        testBoss.attackStage = .recovery
+        testBoss.attackTimer = 0
+        testBoss.leftTurretHealth = 0
+        testBoss.rightTurretHealth = 0
+        boss = testBoss
+        for _ in 0..<55 { updateBoss(delta: 1.0 / 60.0, field: field) }
+        let enemyBulletCount = bullets.reduce(0) { $0 + ($1.playerOwned ? 0 : 1) }
+        guard enemyBulletCount > 0, boss?.weakPointOpen == true else { return false }
+
+        bossSmokePeakBullets = enemyBulletCount
+        let simulationStart = Date().timeIntervalSinceReferenceDate
+        let simulationFrames = 1_080
+        for _ in 0..<simulationFrames {
+            updateBoss(delta: 1.0 / 60.0, field: field)
+            updateBullets(delta: 1.0 / 60.0, field: field)
+            let activeEnemyBullets = bullets.reduce(0) { $0 + ($1.playerOwned ? 0 : 1) }
+            bossSmokePeakBullets = max(bossSmokePeakBullets, activeEnemyBullets)
+        }
+        bossSmokeAverageFrameMilliseconds =
+            (Date().timeIntervalSinceReferenceDate - simulationStart) * 1_000 / Double(simulationFrames)
+
+        testBoss = boss!
+        beginBossDeath(testBoss, direction: Vec2(x: 0, y: -1), damage: 999, critical: true, damageKind: .cannon)
+        let deathStarted = boss?.lifecycle == .dying && enemyBulletClearPending
+        boss = nil
+        recycleAllBullets()
+        return deathStarted
+    }
+
     private func notifyPickup(title: String, detail: String, tint: COLORREF) {
         if language == .chinese {
             let translatedTitle: String
@@ -2473,15 +2703,15 @@ final class Game: @unchecked Sendable {
             profile.bestCombo = max(profile.bestCombo, comboBest)
             comboTimer = 3.0
         }
-        if var currentBoss = boss {
-            let burstDamage = damage * (isFullOverload ? 12 : 5)
+        if var currentBoss = boss, currentBoss.lifecycle != .dying {
+            var burstDamage = damage * (isFullOverload ? 12 : 5)
+            if currentBoss.weakPointOpen { burstDamage *= ThunderCarrierBossDefinition.weakPointMultiplier }
             currentBoss.health -= burstDamage
             boss = currentBoss
             addDamageNumber(at: currentBoss.position, amount: Int(burstDamage), critical: true)
             if currentBoss.health <= 0 {
-                registerBossDefeat(at: currentBoss.position)
-                spawnExplosion(at: currentBoss.position, tint: rgb(244, 104, 255), count: 55)
-                boss = nil
+                beginBossDeath(currentBoss, direction: Vec2(x: 0, y: -1),
+                               damage: burstDamage, critical: true, damageKind: .electromagnetic)
             }
         }
         addCameraShake(strength: isFullOverload ? 16 : 9)
@@ -3895,6 +4125,14 @@ func keyDown(_ key: Int32) -> Bool {
 @main
 struct SwiftSurvivorApp {
     static func main() {
+        if CommandLine.arguments.contains("--boss-smoke") {
+            let passed = Game.shared.runBossSimulationSmoke(width: 1280, height: 720)
+            let metrics = String(format: "peakEnemyBullets=%d avgSimulationFrame=%.4fms",
+                                 Game.shared.bossSmokePeakBullets, Game.shared.bossSmokeAverageFrameMilliseconds)
+            print((passed ? "BOSS_SMOKE_OK " : "BOSS_SMOKE_FAILED ") + metrics)
+            if !passed { ExitProcess(1) }
+            return
+        }
         if CommandLine.arguments.contains("--sdl-smoke") { SDLSmoke.run(); return }
         if CommandLine.arguments.contains("--sdl-game") { SDLGameplaySlice.run(); return }
         if CommandLine.arguments.contains("--sdl-audio-smoke") { SDLAudioSmoke.run(); return }

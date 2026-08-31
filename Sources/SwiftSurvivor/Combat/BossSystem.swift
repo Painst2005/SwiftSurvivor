@@ -62,6 +62,13 @@ struct BossPhaseDefinition {
 }
 
 enum ThunderCarrierBossDefinition {
+    static let healthMultiplier = 1.90
+    static let damageMultiplier = 1.35
+    static let visualWidth = 430.0
+    static let visualHeight = 242.0
+    static let turretOffsetX = 126.0
+    static let turretOffsetY = 22.0
+    static let collisionRadius = 66.0
     static let weakPointMultiplier = 1.65
     static let disabledTurretsMultiplier = 1.20
     static let entranceDuration = 1.55
@@ -73,9 +80,9 @@ enum ThunderCarrierBossDefinition {
             phase: 1,
             lowerHealthRatio: 0.70,
             attacks: [
-                BossAttackDefinition(id: .spread, telegraph: 0.42, execute: 0.08, recovery: 0.95, movement: .positionLock),
-                BossAttackDefinition(id: .aimBurst, telegraph: 0.62, execute: 0.38, recovery: 1.05, movement: .hover),
-                BossAttackDefinition(id: .sideCrossfire, telegraph: 0.48, execute: 0.10, recovery: 1.20, movement: .positionLock)
+                BossAttackDefinition(id: .spread, telegraph: 0.42, execute: 0.08, recovery: 0.80, movement: .positionLock),
+                BossAttackDefinition(id: .aimBurst, telegraph: 0.62, execute: 0.52, recovery: 0.88, movement: .hover),
+                BossAttackDefinition(id: .sideCrossfire, telegraph: 0.48, execute: 0.10, recovery: 0.98, movement: .positionLock)
             ],
             weakPointDuringRecovery: true
         ),
@@ -83,10 +90,10 @@ enum ThunderCarrierBossDefinition {
             phase: 2,
             lowerHealthRatio: 0.30,
             attacks: [
-                BossAttackDefinition(id: .spread, telegraph: 0.50, execute: 0.08, recovery: 0.82, movement: .positionLock),
-                BossAttackDefinition(id: .sideCrossfire, telegraph: 0.52, execute: 0.10, recovery: 0.88, movement: .horizontalSweep),
+                BossAttackDefinition(id: .spread, telegraph: 0.50, execute: 0.08, recovery: 0.68, movement: .positionLock),
+                BossAttackDefinition(id: .sideCrossfire, telegraph: 0.52, execute: 0.10, recovery: 0.72, movement: .horizontalSweep),
                 BossAttackDefinition(id: .laserSweep, telegraph: 0.92, execute: 1.25, recovery: 1.35, movement: .horizontalSweep),
-                BossAttackDefinition(id: .slowField, telegraph: 0.68, execute: 0.12, recovery: 1.00, movement: .hover)
+                BossAttackDefinition(id: .slowField, telegraph: 0.68, execute: 0.12, recovery: 0.82, movement: .hover)
             ],
             weakPointDuringRecovery: true
         ),
@@ -94,8 +101,8 @@ enum ThunderCarrierBossDefinition {
             phase: 3,
             lowerHealthRatio: 0,
             attacks: [
-                BossAttackDefinition(id: .spiral, telegraph: 0.72, execute: 0.12, recovery: 0.82, movement: .positionLock),
-                BossAttackDefinition(id: .aimBurst, telegraph: 0.55, execute: 0.38, recovery: 0.72, movement: .aggressiveHover),
+                BossAttackDefinition(id: .spiral, telegraph: 0.72, execute: 0.12, recovery: 0.66, movement: .positionLock),
+                BossAttackDefinition(id: .aimBurst, telegraph: 0.55, execute: 0.52, recovery: 0.58, movement: .aggressiveHover),
                 BossAttackDefinition(id: .laserSweep, telegraph: 0.78, execute: 1.35, recovery: 1.05, movement: .horizontalSweep)
             ],
             weakPointDuringRecovery: true

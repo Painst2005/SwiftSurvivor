@@ -1378,7 +1378,7 @@ final class Game: @unchecked Sendable {
         let bossCount = BossCatalog.all.count
         guard bossCount > 0 else { return }
         missionBossSpawned = true
-        let hp = min(100_000_000, (650 + Double(safeStage - 1) * 180 + safeTime * 2.2) * safeDifficulty)
+        let hp = min(100_000_000, (650 + Double(safeStage - 1) * 180 + safeTime * 2.2) * safeDifficulty * ThunderCarrierBossDefinition.healthMultiplier)
         var newBoss = Boss(position: Vec2(x: field.centerX, y: -100), health: hp, maxHealth: hp, age: 0, shootTimer: 1.6)
         let safeMission = min(100_000, max(0, selectedMission))
         let safeDefeats = min(100_000, max(0, bossDefeats))
@@ -1859,7 +1859,7 @@ final class Game: @unchecked Sendable {
 
         if currentBoss.lifecycle == .entering {
             currentBoss.stateTimer -= delta
-            currentBoss.position.y = min(125, currentBoss.position.y + 150 * delta)
+            currentBoss.position.y = min(125, currentBoss.position.y + 112 * delta)
             currentBoss.position.x += (field.centerX - currentBoss.position.x) * min(1, delta * 4)
             if currentBoss.stateTimer <= 0, currentBoss.position.y >= 122 {
                 currentBoss.lifecycle = .combat
@@ -1913,7 +1913,7 @@ final class Game: @unchecked Sendable {
             let remaining = max(0.04, currentBoss.laserActiveTimer)
             currentBoss.laserX += (currentBoss.laserTargetX - currentBoss.laserX) * min(1, delta / remaining)
             if abs(player.x - currentBoss.laserX) < 24, currentBoss.laserHitCooldown <= 0 {
-                damagePlayer(amount: (currentBoss.phase == 3 ? 28 : 22) * activeEnemyDamageMultiplier)
+                damagePlayer(amount: (currentBoss.phase == 3 ? 28 : 22) * activeEnemyDamageMultiplier * ThunderCarrierBossDefinition.damageMultiplier)
                 currentBoss.laserHitCooldown = 0.42
             }
         }
@@ -1966,28 +1966,28 @@ final class Game: @unchecked Sendable {
             }
         }
 
-        let bossCollisionDistance = coreRadius + 52
+        let bossCollisionDistance = coreRadius + ThunderCarrierBossDefinition.collisionRadius
         if distanceSquared(player, currentBoss.position) < bossCollisionDistance * bossCollisionDistance {
-            damagePlayer(amount: 35 * activeEnemyDamageMultiplier)
+            damagePlayer(amount: 35 * activeEnemyDamageMultiplier * ThunderCarrierBossDefinition.damageMultiplier)
         }
         boss = currentBoss
     }
 
     private func updateBossMovement(_ boss: inout Boss, delta: Double, field: PlayfieldBounds) {
-        let horizontalLimit = min(max(130, field.width * 0.30), field.width * 0.5 - 112)
+        let horizontalLimit = min(max(120, field.width * 0.27), field.width * 0.5 - ThunderCarrierBossDefinition.visualWidth * 0.34)
         switch boss.movement {
         case .positionLock:
-            boss.position.x += (field.centerX - boss.position.x) * min(1, delta * 3.5)
-            boss.position.y += (138 - boss.position.y) * min(1, delta * 3.5)
+            boss.position.x += (field.centerX - boss.position.x) * min(1, delta * 2.3)
+            boss.position.y += (138 - boss.position.y) * min(1, delta * 2.3)
         case .horizontalSweep:
-            boss.position.x = field.centerX + sin(boss.age * 0.92) * horizontalLimit
-            boss.position.y = 142 + sin(boss.age * 1.15) * 12
+            boss.position.x = field.centerX + sin(boss.age * 0.60) * horizontalLimit
+            boss.position.y = 142 + sin(boss.age * 0.74) * 12
         case .aggressiveHover:
-            boss.position.x = field.centerX + sin(boss.age * 1.55) * min(horizontalLimit * 1.15, field.width * 0.5 - 108)
-            boss.position.y = 145 + sin(boss.age * 1.8) * 28
+            boss.position.x = field.centerX + sin(boss.age * 0.98) * min(horizontalLimit * 1.15, field.width * 0.5 - 132)
+            boss.position.y = 145 + sin(boss.age * 1.12) * 24
         case .hover:
-            boss.position.x = field.centerX + sin(boss.age * 0.68) * horizontalLimit * 0.75
-            boss.position.y = 136 + sin(boss.age * 0.9) * 10
+            boss.position.x = field.centerX + sin(boss.age * 0.44) * horizontalLimit * 0.75
+            boss.position.y = 136 + sin(boss.age * 0.58) * 10
         }
     }
 
@@ -2005,16 +2005,16 @@ final class Game: @unchecked Sendable {
         let origin = boss.position + Vec2(x: 0, y: 34)
         switch definition.id {
         case .spread:
-            let count = boss.phase == 1 ? 5 : 7
+            let count = boss.phase == 1 ? 7 : 9
             let emitter = BulletEmitter(pattern: .spread, count: count, speed: boss.phase == 1 ? 235 : 255,
-                                        damage: (boss.phase == 1 ? 14 : 16) * activeEnemyDamageMultiplier,
+                                        damage: (boss.phase == 1 ? 14 : 16) * activeEnemyDamageMultiplier * ThunderCarrierBossDefinition.damageMultiplier,
                                         radius: 6.5, lifetime: 6, tint: rgb(255, 178, 75), bulletType: .boss,
                                         modifiers: [.constantVelocity, .lockDirection], spread: boss.phase == 1 ? 0.52 : 0.68)
             emitPattern(emitter, from: origin)
             emitBossSideWeapon(&boss, alternating: true)
         case .aimBurst:
             emitBossAimShot(boss)
-            boss.burstShotsRemaining = 2
+            boss.burstShotsRemaining = 3
             boss.burstShotTimer = 0.14
             if boss.phase >= 2 { emitBossSideWeapon(&boss, alternating: true) }
         case .sideCrossfire:
@@ -2025,16 +2025,16 @@ final class Game: @unchecked Sendable {
             boss.laserHitCooldown = 0
             addCameraShake(strength: 5)
         case .slowField:
-            let emitter = BulletEmitter(pattern: .ring, count: 11, speed: 205,
-                                        damage: 15 * activeEnemyDamageMultiplier,
+            let emitter = BulletEmitter(pattern: .ring, count: 15, speed: 205,
+                                        damage: 15 * activeEnemyDamageMultiplier * ThunderCarrierBossDefinition.damageMultiplier,
                                         radius: 6.5, lifetime: 6, tint: rgb(224, 102, 230), bulletType: .boss,
                                         modifiers: [.constantVelocity, .accelerate, .delayedActivation, .stopAndGo, .lockDirection],
                                         acceleration: -22, activationDelay: 0.42)
             emitPattern(emitter, from: origin)
         case .spiral:
             for offset in [0.0, Double.pi] {
-                let emitter = BulletEmitter(pattern: .spiral, count: 9, speed: 225,
-                                            damage: 18 * activeEnemyDamageMultiplier,
+                let emitter = BulletEmitter(pattern: .spiral, count: 12, speed: 225,
+                                            damage: 18 * activeEnemyDamageMultiplier * ThunderCarrierBossDefinition.damageMultiplier,
                                             radius: 6.5, lifetime: 6, tint: rgb(255, 78, 151), bulletType: .boss,
                                             modifiers: [.constantVelocity, .accelerate, .curve, .lockDirection], spread: 0.82,
                                             rotation: boss.age * 0.70 + offset, acceleration: 16)
@@ -2045,7 +2045,7 @@ final class Game: @unchecked Sendable {
 
     private func emitBossAimShot(_ boss: Boss) {
         let emitter = BulletEmitter(pattern: .aimed, count: 1, speed: boss.phase == 3 ? 325 : 290,
-                                        damage: (boss.phase == 3 ? 18 : 15) * activeEnemyDamageMultiplier,
+                                        damage: (boss.phase == 3 ? 18 : 15) * activeEnemyDamageMultiplier * ThunderCarrierBossDefinition.damageMultiplier,
                                         radius: 6, lifetime: 5.5, tint: rgb(255, 192, 108), bulletType: .aimed,
                                         modifiers: [.constantVelocity, .homing, .lockDirection], spread: 0,
                                         homingDuration: 0.62, maxTurnRate: 0.95)
@@ -2057,17 +2057,17 @@ final class Game: @unchecked Sendable {
         let useRight = !alternating || !useLeft
         if useLeft, boss.leftTurretHealth > 0 {
             let emitter = BulletEmitter(pattern: .aimed, count: 1, speed: 272 + Double(boss.phase) * 12,
-                                        damage: 10 * activeEnemyDamageMultiplier, radius: 5.5, lifetime: 5.5,
+                                        damage: 10 * activeEnemyDamageMultiplier * ThunderCarrierBossDefinition.damageMultiplier, radius: 5.5, lifetime: 5.5,
                                         tint: rgb(255, 124, 188), bulletType: .aimed,
                                         modifiers: [.constantVelocity, .homing, .lockDirection], homingDuration: 0.48, maxTurnRate: 0.88)
-            emitPattern(emitter, from: boss.position + Vec2(x: -102, y: 18), target: player)
+            emitPattern(emitter, from: boss.position + Vec2(x: -ThunderCarrierBossDefinition.turretOffsetX, y: ThunderCarrierBossDefinition.turretOffsetY), target: player)
         }
         if useRight, boss.rightTurretHealth > 0 {
-            let emitter = BulletEmitter(pattern: .spread, count: 3, speed: 220 + Double(boss.phase) * 12,
-                                        damage: 9 * activeEnemyDamageMultiplier, radius: 5.5, lifetime: 5.5,
+            let emitter = BulletEmitter(pattern: .spread, count: 5, speed: 220 + Double(boss.phase) * 12,
+                                        damage: 9 * activeEnemyDamageMultiplier * ThunderCarrierBossDefinition.damageMultiplier, radius: 5.5, lifetime: 5.5,
                                         tint: rgb(255, 164, 108), bulletType: .normal,
                                         modifiers: [.constantVelocity, .lockDirection], spread: 0.24)
-            emitPattern(emitter, from: boss.position + Vec2(x: 102, y: 18))
+            emitPattern(emitter, from: boss.position + Vec2(x: ThunderCarrierBossDefinition.turretOffsetX, y: ThunderCarrierBossDefinition.turretOffsetY))
         }
     }
 
@@ -2176,8 +2176,8 @@ final class Game: @unchecked Sendable {
 
     private func bossHitPart(_ boss: Boss, position: Vec2, radius: Double) -> BossHitPart? {
         guard boss.lifecycle != .entering, boss.lifecycle != .dying else { return nil }
-        let left = boss.position + Vec2(x: -102, y: 18)
-        let right = boss.position + Vec2(x: 102, y: 18)
+        let left = boss.position + Vec2(x: -ThunderCarrierBossDefinition.turretOffsetX, y: ThunderCarrierBossDefinition.turretOffsetY)
+        let right = boss.position + Vec2(x: ThunderCarrierBossDefinition.turretOffsetX, y: ThunderCarrierBossDefinition.turretOffsetY)
         let turretHitDistance = radius + 24
         if boss.leftTurretHealth > 0, distanceSquared(position, left) < turretHitDistance * turretHitDistance { return .leftTurret }
         if boss.rightTurretHealth > 0, distanceSquared(position, right) < turretHitDistance * turretHitDistance { return .rightTurret }
@@ -2254,7 +2254,7 @@ final class Game: @unchecked Sendable {
                         currentBoss.leftTurretHealth = max(0, currentBoss.leftTurretHealth - baseDamage)
                         finalDamage = baseDamage * 0.45
                         currentBoss.health -= finalDamage
-                        hitPosition = currentBoss.position + Vec2(x: -102, y: 18)
+                        hitPosition = currentBoss.position + Vec2(x: -ThunderCarrierBossDefinition.turretOffsetX, y: ThunderCarrierBossDefinition.turretOffsetY)
                         if wasAlive && currentBoss.leftTurretHealth <= 0 {
                             notifyPickup(title: "BOSS TURRET DESTROYED", detail: "Left weapon disabled", tint: rgb(255, 188, 112))
                             combatFeedback.play(.bossPartDestroyed,
@@ -2266,7 +2266,7 @@ final class Game: @unchecked Sendable {
                         currentBoss.rightTurretHealth = max(0, currentBoss.rightTurretHealth - baseDamage)
                         finalDamage = baseDamage * 0.45
                         currentBoss.health -= finalDamage
-                        hitPosition = currentBoss.position + Vec2(x: 102, y: 18)
+                        hitPosition = currentBoss.position + Vec2(x: ThunderCarrierBossDefinition.turretOffsetX, y: ThunderCarrierBossDefinition.turretOffsetY)
                         if wasAlive && currentBoss.rightTurretHealth <= 0 {
                             notifyPickup(title: "BOSS TURRET DESTROYED", detail: "Right weapon disabled", tint: rgb(255, 188, 112))
                             combatFeedback.play(.bossPartDestroyed,
@@ -2506,8 +2506,8 @@ final class Game: @unchecked Sendable {
             currentBoss.health = currentBoss.maxHealth * 0.29
             notifyPickup(title: "BOSS DEBUG", detail: "Phase 3 threshold", tint: rgb(255, 116, 178))
         case 2:
-            let left = currentBoss.position + Vec2(x: -102, y: 18)
-            let right = currentBoss.position + Vec2(x: 102, y: 18)
+            let left = currentBoss.position + Vec2(x: -ThunderCarrierBossDefinition.turretOffsetX, y: ThunderCarrierBossDefinition.turretOffsetY)
+            let right = currentBoss.position + Vec2(x: ThunderCarrierBossDefinition.turretOffsetX, y: ThunderCarrierBossDefinition.turretOffsetY)
             currentBoss.leftTurretHealth = 0
             currentBoss.rightTurretHealth = 0
             combatFeedback.play(.bossPartDestroyed,

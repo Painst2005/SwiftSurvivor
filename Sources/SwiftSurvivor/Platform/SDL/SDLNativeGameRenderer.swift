@@ -129,10 +129,13 @@ enum SDLNativeGameRenderer {
         if let boss = game.boss {
             let p = boss.position + boss.visualOffset + camera
             let phaseGlow = boss.phaseFlash > 0 ? 0.58 : 0
-            let left = p + Vec2(x: -102, y: 18)
-            let right = p + Vec2(x: 102, y: 18)
+            let left = p + Vec2(x: -ThunderCarrierBossDefinition.turretOffsetX, y: ThunderCarrierBossDefinition.turretOffsetY)
+            let right = p + Vec2(x: ThunderCarrierBossDefinition.turretOffsetX, y: ThunderCarrierBossDefinition.turretOffsetY)
             if let texture = (r as? SDLRenderer)?.artTexture(named: "boss_thunder_carrier") {
-                r.drawSprite(texture, in: RenderRect(x: Float(p.x - 174), y: Float(p.y - 98), width: 348, height: 196),
+                r.drawSprite(texture, in: RenderRect(x: Float(p.x - ThunderCarrierBossDefinition.visualWidth * 0.5),
+                                                     y: Float(p.y - ThunderCarrierBossDefinition.visualHeight * 0.5),
+                                                     width: Float(ThunderCarrierBossDefinition.visualWidth),
+                                                     height: Float(ThunderCarrierBossDefinition.visualHeight)),
                              alpha: boss.hitFlash > 0 ? 218 : 255)
                 drawBossDamageTextures(r, boss: boss, position: p, time: game.uiAnimationTime)
                 drawGeneratedBossState(r, boss: boss, position: p, leftTurret: left, rightTurret: right,

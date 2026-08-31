@@ -167,10 +167,15 @@ enum SDLNativeGameRenderer {
             }
         }
         for pickup in game.powerUps {
-            let c: RenderColor = pickup.kind == 0 ? RenderColor(89, 236, 255) : (pickup.kind == 1 ? RenderColor(126, 196, 255) : RenderColor(255, 214, 110))
             let p = pickup.position + camera
-            r.fillRect(RenderRect(x: Float(p.x - 10), y: Float(p.y - 10), width: 20, height: 20), color: c)
-            text(r, pickup.kind == 0 ? "L" : (pickup.kind == 1 ? "S" : "+") , Float(p.x - 3), Float(p.y - 6), RenderColor(17, 33, 60))
+            let textureName = pickup.kind == 0 ? "pickup_laser_module" :
+                (pickup.kind == 1 ? "pickup_invincibility_shield" : "pickup_multishot_module")
+            if let texture = (r as? SDLRenderer)?.artTexture(named: textureName) {
+                let pulse = Float(1 + sin(game.uiAnimationTime * 5 + pickup.position.x * 0.01) * 0.06)
+                let side: Float = (pickup.kind == 1 ? 48 : 44) * pulse
+                r.drawSprite(texture, in: RenderRect(x: Float(p.x) - side * 0.5, y: Float(p.y) - side * 0.5,
+                                                     width: side, height: side), alpha: 255)
+            }
         }
         let lowPriorityParticleStride = max(1, (game.particles.count + 599) / 600)
         for (particleIndex, particle) in game.particles.enumerated() {
@@ -186,8 +191,12 @@ enum SDLNativeGameRenderer {
         }
         if let bossDeath = game.combatFeedback.bossDeath {
             let p = bossDeath.position + camera
-            let pulse = 16 + Float(bossDeath.elapsed) * 40
-            r.fillCircle(center: (Float(p.x), Float(p.y)), radius: pulse, color: RenderColor(255, 190, 244, 78))
+            if let overload = (r as? SDLRenderer)?.artTexture(named: "vfx_boss_reactor") {
+                let side = 72 + Float(bossDeath.elapsed) * 118
+                let fade = UInt8(max(20, min(220, 220 - bossDeath.elapsed * 86)))
+                r.drawSprite(overload, in: RenderRect(x: Float(p.x) - side * 0.5, y: Float(p.y) - side * 0.5,
+                                                     width: side, height: side), alpha: fade)
+            }
         }
         for number in game.damageNumbers {
             let p = number.position + camera

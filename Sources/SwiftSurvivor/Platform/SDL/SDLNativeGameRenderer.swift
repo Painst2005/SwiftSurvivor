@@ -735,7 +735,7 @@ enum SDLNativeGameRenderer {
         text(r, t(game, "CAMPAIGN SECTOR", "战役进度") + "  \(game.profile.unlockedMission)/\(MissionCatalog.all.count)", 78, 478, UITheme.Color.secondary)
 
         panel(r, x: rightX, y: 170, width: width - rightX - 56, height: 326)
-        sectionHeader(r, title: t(game, "OPERATIONS", "作战操作"), subtitle: t(game, "SELECT A SYSTEM", "选择功能"), x: rightX + 18, y: 194, width: width - rightX - 92)
+        sectionHeader(r, title: t(game, "OPERATIONS", "功能菜单"), subtitle: t(game, "SELECT A SYSTEM", "请选择功能"), x: rightX + 18, y: 194, width: width - rightX - 92)
 
         let buttons = mainMenuButtons(width: Double(width), height: Double(height))
         let labels = [t(game, "01  START SORTIE", "01  开始出击"), t(game, "02  HOW TO PLAY", "02  操作说明"),
@@ -795,7 +795,7 @@ enum SDLNativeGameRenderer {
     private static func drawMissionSelect(_ r: GameRenderer, game: Game, width: Int, height: Int) {
         panel(r, x: 32, y: 44, width: width - 64, height: height - 86)
         styledText(r, t(game, "MISSION SELECT // FLIGHT PLAN", "选择关卡 // 航线计划"), x: 64, y: 66, role: .pageTitle, shadow: true)
-        styledText(r, t(game, "Select a sector, review drops, then launch.", "选择区域，查看掉落，然后出击。"), x: 66, y: 98, role: .secondary)
+        styledText(r, t(game, "Select a sector, review drops, then launch.", "选择作战区域，确认奖励后即可出击。"), x: 66, y: 98, role: .secondary)
         for (i, card) in missionCards(width: Double(width), height: Double(height)).enumerated() {
             let mission = MissionCatalog.all[i]
             let unlocked = i < game.unlockedMissionCount
@@ -854,7 +854,7 @@ enum SDLNativeGameRenderer {
     private static func drawSettings(_ r: GameRenderer, game: Game, width: Int, height: Int) {
         panel(r, x: width / 2 - 320, y: 44, width: 640, height: height - 78)
         centeredText(r, t(game, "SETTINGS", "设置"), centerX: Float(width / 2), y: 70, role: .pageTitle, shadow: true)
-        centeredText(r, t(game, "Presentation and accessibility", "画面与可读性设置"), centerX: Float(width / 2), y: 102, role: .secondary)
+        centeredText(r, t(game, "Presentation and accessibility", "调整画面、声音与辅助功能"), centerX: Float(width / 2), y: 102, role: .secondary)
         text(r, t(game, "LANGUAGE", "语言"), Float(width / 2 - 230), 140, UITheme.Color.secondary)
         let language = settingsLanguageButtons(width: Double(width), height: Double(height))
         button(r, language[0], title: t(game, "ENGLISH", "英文"), selected: game.language == .english)
@@ -878,7 +878,7 @@ enum SDLNativeGameRenderer {
     private static func drawHangar(_ r: GameRenderer, game: Game, width: Int, height: Int) {
         panel(r, x: 32, y: 32, width: width - 64, height: height - 64)
         styledText(r, t(game, "HANGAR / LOADOUT", "机库 / 装备"), x: 64, y: 64, role: .pageTitle, shadow: true)
-        styledText(r, t(game, "AIRFRAME CONFIGURATION", "机体配置台"), x: 66, y: 96, role: .secondary)
+        styledText(r, t(game, "AIRFRAME CONFIGURATION", "战机与装备配置"), x: 66, y: 96, role: .secondary)
         text(r, t(game, "POWER", "战力") + "  \(game.combatPower())", Float(width - 250), 70, UITheme.Color.warning)
         let resourceSummary = t(game, "CREDITS", "金币") + " \(game.profile.credits)   " + t(game, "CORES", "核心") + " \(game.profile.cores)"
         text(r, resourceSummary, Float(width - 390), 96, UITheme.Color.secondary)
@@ -1034,16 +1034,16 @@ enum SDLNativeGameRenderer {
 
     private static func equipmentShortStat(_ game: Game, _ item: EquipmentState) -> String {
         switch item.slot {
-        case 0: return t(game, "MAX HP +8 / LV", "最大生命 +8 / 级")
-        case 1: return t(game, "WEAPON DMG +1.5 / LV", "武器伤害 +1.5 / 级")
+        case 0: return t(game, "MAX HP +8 / LV", "每级最大生命 +8")
+        case 1: return t(game, "WEAPON DMG +1.5 / LV", "每级武器伤害 +1.5")
         case 2: return t(game, "SECONDARY RATE +0.12", "副武器频率 +0.12")
-        case 3: return t(game, "MAX HP +4 / LV", "最大生命 +4 / 级")
-        default: return t(game, "DRONE DMG +0.6 / LV", "僚机伤害 +0.6 / 级")
+        case 3: return t(game, "MAX HP +4 / LV", "每级最大生命 +4")
+        default: return t(game, "DRONE DMG +0.6 / LV", "每级僚机伤害 +0.6")
         }
     }
 
     private static func equipmentSlotName(_ game: Game, _ slot: Int) -> String {
-        let names = [t(game, "AIRFRAME", "战机机框"), t(game, "PRIMARY", "主武器"), t(game, "SECONDARY", "副武器"),
+        let names = [t(game, "AIRFRAME", "战机"), t(game, "PRIMARY", "主武器"), t(game, "SECONDARY", "副武器"),
                      t(game, "ARMOR", "装甲"), t(game, "DRONE", "僚机")]
         return names.indices.contains(slot) ? names[slot] : t(game, "MODULE", "模块")
     }

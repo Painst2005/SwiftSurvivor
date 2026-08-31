@@ -130,9 +130,9 @@ enum GameMode: Int, CaseIterable {
         }
         switch self {
         case .campaign: return "完成关卡并解锁下一个区域"
-        case .endless: return "没有时间限制 • 挑战最高分"
-        case .blitz: return "更多敌机 • 更强火力 • 更丰厚掉落"
-        case .zen: return "低伤害 • 密集编队 • 轻松飞行"
+        case .endless: return "逐波迎战强敌与首领 • 挑战最高纪录"
+        case .blitz: return "敌机更多 • 火力更猛 • 奖励更丰厚"
+        case .zen: return "敌人伤害较低 • 适合轻松体验战斗"
         }
     }
 
@@ -238,13 +238,13 @@ enum BuildSynergyCatalog {
                                englishDetail: "Laser damage amplified • cryo beam unlocked", chineseDetail: "激光伤害强化 • 寒霜光束已解锁"),
         BuildSynergyDefinition(id: "flight_array", required: [.array, .overdrive],
                                englishTitle: "SYNERGY ONLINE: FLIGHT ARRAY", chineseTitle: "联动已激活：飞行阵列",
-                               englishDetail: "Overdrive now adds auxiliary projectiles", chineseDetail: "超频驱动现在会增加辅助子弹"),
+                               englishDetail: "Overdrive now adds auxiliary projectiles", chineseDetail: "超频驱动将额外发射辅助弹幕"),
         BuildSynergyDefinition(id: "storm_crit", required: [.thunder],
                                englishTitle: "SYNERGY ONLINE: STORM CRIT", chineseTitle: "联动已激活：风暴暴击",
                                englishDetail: "Critical hits now charge Thunder energy", chineseDetail: "暴击现在会充能雷霆能量"),
         BuildSynergyDefinition(id: "overload_matrix", required: [.laser, .thunder],
                                englishTitle: "SYNERGY ONLINE: OVERLOAD MATRIX", chineseTitle: "联动已激活：超载矩阵",
-                               englishDetail: "Laser and Thunder damage gain a final surge", chineseDetail: "激光与雷霆伤害获得终极增幅")
+                               englishDetail: "Laser and Thunder damage gain a final surge", chineseDetail: "激光与雷霆伤害大幅提升")
     ]
 }
 
@@ -279,8 +279,8 @@ enum AchievementCatalog {
         AchievementDefinition(id: "ace_pilot", title: "ACE PILOT", chineseTitle: "王牌飞行员",
                               detail: "Destroy 100 enemies", chineseDetail: "击毁 100 架敌机",
                               metric: .kills, target: 100),
-        AchievementDefinition(id: "boss_breaker", title: "BOSS BREAKER", chineseTitle: "Boss 终结者",
-                              detail: "Defeat 3 bosses", chineseDetail: "击败 3 个 Boss",
+        AchievementDefinition(id: "boss_breaker", title: "BOSS BREAKER", chineseTitle: "首领终结者",
+                              detail: "Defeat 3 bosses", chineseDetail: "击败 3 名首领",
                               metric: .bosses, target: 3),
         AchievementDefinition(id: "combo_master", title: "COMBO MASTER", chineseTitle: "连击大师",
                               detail: "Reach a 50-hit combo", chineseDetail: "达到 50 连击",
@@ -306,7 +306,7 @@ enum CodexCategory: Int, CaseIterable {
         guard language == .chinese else {
             switch self { case .weapons: return "WEAPONS"; case .enemies: return "ENEMIES"; case .bosses: return "BOSSES" }
         }
-        switch self { case .weapons: return "武器"; case .enemies: return "敌机"; case .bosses: return "Boss" }
+        switch self { case .weapons: return "武器"; case .enemies: return "敌机"; case .bosses: return "首领" }
     }
 }
 
@@ -2681,7 +2681,7 @@ final class Game: @unchecked Sendable {
             let translatedDetail: String
             switch title {
             case "LASER CANNON ONLINE":
-                translatedTitle = "激光炮已上线"
+                translatedTitle = "激光炮已启用"
                 translatedDetail = "穿透射击 • 持续 10 秒"
             case "REFLECTOR SHIELD":
                 translatedTitle = "反射护盾"
@@ -2691,11 +2691,14 @@ final class Game: @unchecked Sendable {
                 translatedDetail = "每轮增加 2 发侧翼子弹 • 持续 12 秒"
             case "THUNDER OVERLOAD":
                 translatedTitle = "雷霆超载"
-                translatedDetail = "火力强化与免疫 • 持续 6 秒"
+                translatedDetail = "火力大幅提升并进入无敌状态 • 持续 6 秒"
+            case "THUNDER BURST":
+                translatedTitle = "雷霆爆发"
+                translatedDetail = "短暂强化火力并清除部分敌弹 • 持续 2.8 秒"
             case "BOSS REWARD CACHE":
-                translatedTitle = "Boss 奖励缓存"
+                translatedTitle = "首领奖励"
                 if detail == "Boss materials secured" {
-                    translatedDetail = "Boss 材料已收集"
+                    translatedDetail = "已获得首领材料"
                 } else if detail.hasPrefix("RARE MODULE CACHE  •  ") {
                     let rawName = detail.replacingOccurrences(of: "RARE MODULE CACHE  •  ", with: "")
                     let localizedName: String
@@ -2705,7 +2708,7 @@ final class Game: @unchecked Sendable {
                     case "STORM DRONE": localizedName = "风暴僚机"
                     default: localizedName = rawName
                     }
-                    translatedDetail = "稀有模块缓存 •  \(localizedName)"
+                    translatedDetail = "获得稀有模块 •  \(localizedName)"
                 } else {
                     translatedDetail = detail
                 }
@@ -2716,18 +2719,29 @@ final class Game: @unchecked Sendable {
                 translatedTitle = "幽灵相位"
                 translatedDetail = "周期性免疫窗口已激活"
             case "BOSS TURRET DESTROYED":
-                translatedTitle = "Boss 炮塔已摧毁"
+                translatedTitle = "首领炮塔已摧毁"
                 translatedDetail = detail.hasPrefix("Left") ? "左侧武器已禁用" : "右侧武器已禁用"
             case "BOSS LASER":
-                translatedTitle = "Boss 激光预警"
+                translatedTitle = "首领激光预警"
                 translatedDetail = "远离标记航道"
             default:
                 if title.hasPrefix("ACHIEVEMENT UNLOCKED: ") {
-                    translatedTitle = "成就已解锁：" + title.replacingOccurrences(of: "ACHIEVEMENT UNLOCKED: ", with: "")
-                    translatedDetail = detail
+                    let englishName = title.replacingOccurrences(of: "ACHIEVEMENT UNLOCKED: ", with: "")
+                    let achievement = AchievementCatalog.all.first { $0.title == englishName }
+                    translatedTitle = "解锁成就：" + (achievement?.chineseTitle ?? englishName)
+                    translatedDetail = achievement?.chineseDetail ?? detail
                 } else if title.hasPrefix("WEAPON SELECTED: ") {
-                    translatedTitle = "已选择武器：" + title.replacingOccurrences(of: "WEAPON SELECTED: ", with: "")
-                    translatedDetail = detail
+                    let englishName = title.replacingOccurrences(of: "WEAPON SELECTED: ", with: "")
+                    let weapon = WeaponType.allCases.first { $0.label == englishName }
+                    translatedTitle = "已切换至：" + (weapon?.label(for: .chinese) ?? englishName)
+                    switch weapon {
+                    case .cannon: translatedDetail = "射速稳定，弹道均衡"
+                    case .laser: translatedDetail = "光束可穿透敌人，擅长持续输出"
+                    case .scatter: translatedDetail = "近距离覆盖范围广，爆发力强"
+                    case .missile: translatedDetail = "自动追踪目标并造成爆炸伤害"
+                    case .electromagnetic: translatedDetail = "电磁弹往复摆动，适合压制敌群"
+                    case nil: translatedDetail = detail
+                    }
                 } else if title.hasPrefix("SYNERGY ONLINE: ") {
                     let synergyName: String
                     switch title {
@@ -2740,13 +2754,13 @@ final class Game: @unchecked Sendable {
                     translatedTitle = "联动已激活：" + synergyName
                     switch title {
                     case "SYNERGY ONLINE: FROST RAY": translatedDetail = "激光伤害强化 • 寒霜光束已解锁"
-                    case "SYNERGY ONLINE: FLIGHT ARRAY": translatedDetail = "超频驱动现在会增加辅助子弹"
+                    case "SYNERGY ONLINE: FLIGHT ARRAY": translatedDetail = "超频驱动将额外发射辅助弹幕"
                     case "SYNERGY ONLINE: STORM CRIT": translatedDetail = "暴击现在会充能雷霆能量"
-                    case "SYNERGY ONLINE: OVERLOAD MATRIX": translatedDetail = "激光与雷霆伤害获得终极增幅"
+                    case "SYNERGY ONLINE: OVERLOAD MATRIX": translatedDetail = "激光与雷霆伤害大幅提升"
                     default: translatedDetail = detail
                     }
                 } else if title.hasPrefix("BOSS PHASE ") {
-                    translatedTitle = "Boss 阶段 " + title.replacingOccurrences(of: "BOSS PHASE ", with: "")
+                    translatedTitle = "首领进入第 " + title.replacingOccurrences(of: "BOSS PHASE ", with: "") + " 阶段"
                     translatedDetail = title.hasSuffix("2")
                         ? "装甲突破 • 双重扇形弹幕"
                         : "核心失稳 • 撑过最终风暴"
@@ -2950,9 +2964,9 @@ final class Game: @unchecked Sendable {
         }
         stageClearTimer = 2.6
         stageBannerTimer = 3.4
-        stageBannerTitle = uiText("BOSS DOWN", "Boss 已击破")
+        stageBannerTitle = uiText("BOSS DOWN", "首领已击破")
         stageBannerDetail = uiText("REWARD CACHE  •  +\(experienceReward) XP  •  HULL REPAIRED",
-                                   "奖励缓存  •  +\(experienceReward) 经验  •  机体已修复")
+                                   "获得奖励  •  +\(experienceReward) 经验  •  机体已修复")
         if gameMode == .endless {
             endlessWaveNumber = min(10_000, endlessWaveNumber + 1)
             stage = endlessWaveNumber

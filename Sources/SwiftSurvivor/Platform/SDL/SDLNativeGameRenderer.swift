@@ -208,13 +208,21 @@ enum SDLNativeGameRenderer {
                                   fill: UITheme.Color.energy, back: RenderColor(22, 56, 79)), height: 10)
         text(r, t(game, "XP", "经验"), 324, 42, UITheme.Color.text)
 
-        let thunderReady = game.thunderEnergy >= 100
+        let thunderReady = game.thunderEnergy >= CombatConfig.thunderOverloadCost
+        let thunderBurstReady = game.thunderEnergy >= CombatConfig.thunderBurstCost
         progress(r, UIProgressBar(rect: UIRect(x: 505, y: 39, width: 124, height: 10),
                                   value: game.thunderEnergy / 100,
                                   fill: thunderReady ? UITheme.Color.warning : UITheme.Color.energy,
                                   back: RenderColor(22, 56, 79)), height: 10)
-        text(r, thunderReady ? t(game, "OVERLOAD READY", "超载就绪") : t(game, "THUNDER", "雷霆") + " \(Int(game.thunderEnergy))%",
-             511, 42, thunderReady ? UITheme.Color.warning : UITheme.Color.energy)
+        let thunderLabel: String
+        if thunderReady {
+            thunderLabel = t(game, "OVERLOAD READY", "超载就绪")
+        } else if thunderBurstReady {
+            thunderLabel = t(game, "BURST READY", "爆发就绪")
+        } else {
+            thunderLabel = t(game, "THUNDER", "雷霆") + " \(Int(game.thunderEnergy))%"
+        }
+        text(r, thunderLabel, 511, 42, thunderReady ? UITheme.Color.warning : (thunderBurstReady ? UITheme.Color.primary : UITheme.Color.energy))
 
         // Persistent combat attributes belong in the HUD, not behind the
         // pause overlay.  Keep this compact row left of boss and timed-effect
@@ -639,6 +647,7 @@ enum SDLNativeGameRenderer {
         text(r, t(game, "MODULE AVAILABLE", "新模块可用"), Float(width / 2 - 105), 124, UITheme.Color.warning)
         text(r, t(game, "Choose one upgrade. Combat is paused.", "选择一项强化，战斗已暂停。"), Float(width / 2 - 160), 151, UITheme.Color.muted)
         text(r, t(game, "CURRENT BUILD", "当前构筑") + "  " + game.weaponType.label(for: game.language), 98, 186, UITheme.Color.secondary)
+        text(r, t(game, "FOCUS", "流派") + "  " + game.buildFocusLabel(), 98, 208, UITheme.Color.primary)
         for (i, card) in upgradeCards(width: Double(width), height: Double(height)).enumerated() {
             let option = i < game.upgradeOptions.count ? game.upgradeOptions[i] : UpgradeOption(title: t(game, "MODULE", "模块"), detail: "", kind: 0)
             button(r, card, title: "", selected: card.contains(UIInteraction.pointer))

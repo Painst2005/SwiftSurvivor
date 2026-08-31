@@ -451,6 +451,10 @@ enum EnemyType: Int {
 enum CombatConfig {
     static let precisionSpeedMultiplier = 0.46
     static let playerHitInvulnerability = 0.68
+    static let thunderBurstCost = 50.0
+    static let thunderOverloadCost = 100.0
+    static let thunderBurstDuration = 2.8
+    static let thunderOverloadDuration = 6.0
     static let swarmHealthMultiplier = 0.56
     static let eliteHealthMultiplier = 2.15
     static let eliteDamageMultiplier = 1.25
@@ -752,6 +756,9 @@ final class Game: @unchecked Sendable {
     var damageNumbers: [DamageNumber] = []
     var stars: [Star] = []
     var upgradeOptions: [UpgradeOption] = []
+    // A run can develop two specialist doctrines. Repeated selections still
+    // deepen an existing doctrine, but it cannot accumulate every core.
+    var selectedBuildCoreKinds = Set<Int>()
     let particleLimit = 2200
     var lastTime = Date().timeIntervalSinceReferenceDate
     var nextFrameDeadline = Date().timeIntervalSinceReferenceDate
@@ -1060,6 +1067,7 @@ final class Game: @unchecked Sendable {
         particles.removeAll(keepingCapacity: true)
         damageNumbers.removeAll(keepingCapacity: true)
         upgradeOptions.removeAll()
+        selectedBuildCoreKinds.removeAll(keepingCapacity: true)
         if stars.isEmpty { initializeStars(width: width, height: height) }
     }
 
@@ -1409,10 +1417,32 @@ final class Game: @unchecked Sendable {
         if bulletPool.count > bulletLimit * 2 { bulletPool.removeLast(bulletPool.count - bulletLimit * 2) }
     }
 
-    private func clearEnemyBullets() {
-        for index in bullets.indices.reversed() where !bullets[index].playerOwned {
-            recycleBullet(at: index)
+    private func clearEnemyBullets(fraction: Double = 1.0) {
+        let clampedFraction = min(1.0, max(0.0, fraction))
+        let enemyIndices = bullets.indices.filter { !bullets[$0].playerOwned }
+        let clearCount = Int((Double(enemyIndices.count) * clampedFraction).rounded(.up))
+        guard clearCount > 0 else { return }
+
+        // A partial Thunder Burst removes the bullets that threaten the player
+        // first. Rebuild only for this rare special action; normal bullet
+        // lifetime still uses the pool's O(1) swap-and-recycle path.
+        let dangerOrdered = enemyIndices.sorted {
+            let left = bullets[$0].position - player
+            let right = bullets[$1].position - player
+            return left.x * left.x + left.y * left.y < right.x * right.x + right.y * right.y
         }
+        let removalSet = Set(dangerOrdered.prefix(clearCount))
+        var survivors: [Bullet] = []
+        survivors.reserveCapacity(bullets.count - removalSet.count)
+        for (index, bullet) in bullets.enumerated() {
+            if removalSet.contains(index) {
+                bulletPool.append(bullet)
+            } else {
+                survivors.append(bullet)
+            }
+        }
+        bullets = survivors
+        if bulletPool.count > bulletLimit * 2 { bulletPool.removeLast(bulletPool.count - bulletLimit * 2) }
     }
 
     private func fireWeapon() {
@@ -2414,14 +2444,20 @@ final class Game: @unchecked Sendable {
     }
 
     func activateThunderOverload() {
-        guard phase == .playing, thunderEnergy >= 100 else { return }
-        thunderEnergy = 0
-        thunderOverloadTime = 6.0
-        playerInvulnerability = 6.0
-        clearEnemyBullets()
-        let cleared = enemies.count
-        for enemy in enemies { spawnExplosion(at: enemy.position, tint: rgb(95, 224, 255), count: 8) }
-        enemies.removeAll(keepingCapacity: true)
+        guard phase == .playing, thunderEnergy >= CombatConfig.thunderBurstCost else { return }
+        let isFullOverload = thunderEnergy >= CombatConfig.thunderOverloadCost
+        let cost = isFullOverload ? CombatConfig.thunderOverloadCost : CombatConfig.thunderBurstCost
+        let duration = isFullOverload ? CombatConfig.thunderOverloadDuration : CombatConfig.thunderBurstDuration
+        thunderEnergy = max(0, thunderEnergy - cost)
+        thunderOverloadTime = duration
+        playerInvulnerability = max(playerInvulnerability, duration)
+        clearEnemyBullets(fraction: isFullOverload ? 1.0 : 0.50)
+
+        let cleared = isFullOverload ? enemies.count : 0
+        if isFullOverload {
+            for enemy in enemies { spawnExplosion(at: enemy.position, tint: rgb(95, 224, 255), count: 8) }
+            enemies.removeAll(keepingCapacity: true)
+        }
         if cleared > 0 {
             kills += cleared
             profile.totalKills += cleared
@@ -2438,18 +2474,23 @@ final class Game: @unchecked Sendable {
             comboTimer = 3.0
         }
         if var currentBoss = boss {
-            currentBoss.health -= damage * 12
+            let burstDamage = damage * (isFullOverload ? 12 : 5)
+            currentBoss.health -= burstDamage
             boss = currentBoss
-            addDamageNumber(at: currentBoss.position, amount: Int(damage * 12), critical: true)
+            addDamageNumber(at: currentBoss.position, amount: Int(burstDamage), critical: true)
             if currentBoss.health <= 0 {
                 registerBossDefeat(at: currentBoss.position)
                 spawnExplosion(at: currentBoss.position, tint: rgb(244, 104, 255), count: 55)
                 boss = nil
             }
         }
-        addCameraShake(strength: 16)
-        spawnExplosion(at: player, tint: rgb(89, 236, 255), count: 42)
-        notifyPickup(title: "THUNDER OVERLOAD", detail: "6 seconds of amplified fire and immunity", tint: rgb(106, 239, 255))
+        addCameraShake(strength: isFullOverload ? 16 : 9)
+        spawnExplosion(at: player, tint: rgb(89, 236, 255), count: isFullOverload ? 42 : 24)
+        if isFullOverload {
+            notifyPickup(title: "THUNDER OVERLOAD", detail: "6 seconds of amplified fire and immunity", tint: rgb(106, 239, 255))
+        } else {
+            notifyPickup(title: "THUNDER BURST", detail: "2.8 seconds of amplified fire and partial bullet clear", tint: rgb(132, 214, 255))
+        }
     }
 
     private func registerKill(at position: Vec2, tint: COLORREF, baseScore: Int, radius: Double, isElite: Bool = false) {
@@ -2656,7 +2697,11 @@ final class Game: @unchecked Sendable {
         guard phase == .playing, experience >= experienceGoal else { return }
         experience -= experienceGoal
         experienceGoal = Int(Double(experienceGoal) * 1.32) + 3
-        let pool = Array(0...11)
+        var pool = Array(0...11)
+        let specialistCoreKinds: Set<Int> = [7, 8, 9, 10]
+        if selectedBuildCoreKinds.count >= 2 {
+            pool.removeAll { specialistCoreKinds.contains($0) && !selectedBuildCoreKinds.contains($0) }
+        }
         var selectedKinds = Set<Int>()
         upgradeOptions.removeAll(keepingCapacity: true)
         for _ in 0..<3 {
@@ -2761,6 +2806,22 @@ final class Game: @unchecked Sendable {
                      tint: definition.id == "frost_ray" ? rgb(137, 228, 255) : (definition.id == "flight_array" ? rgb(255, 220, 120) : rgb(187, 172, 255)))
     }
 
+    func buildFocusLabel() -> String {
+        guard !selectedBuildCoreKinds.isEmpty else {
+            return uiText("FLEXIBLE LOADOUT", "自由构筑")
+        }
+        let labels = selectedBuildCoreKinds.sorted().map { kind -> String in
+            switch kind {
+            case 7: return uiText("LASER", "激光")
+            case 8: return uiText("CRYO", "寒霜")
+            case 9: return uiText("STORM", "风暴")
+            case 10: return uiText("ARRAY", "阵列")
+            default: return uiText("CORE", "核心")
+            }
+        }
+        return labels.joined(separator: " + ")
+    }
+
     func chooseUpgrade(_ index: Int) {
         guard phase == .upgrade, upgradeOptions.indices.contains(index) else { return }
         let option = upgradeOptions[index]
@@ -2791,17 +2852,21 @@ final class Game: @unchecked Sendable {
         case 6:
             grazeRadiusBonus = min(30, grazeRadiusBonus + 5.0 * scale)
         case 7:
+            selectedBuildCoreKinds.insert(option.kind)
             hasLaserCore = true
             laserWidthLevel += max(1, Int(scale.rounded(.down)))
             projectileDamageMultiplier += 0.05 * scale
         case 8:
+            selectedBuildCoreKinds.insert(option.kind)
             hasCryoCore = true
             laserWidthLevel += max(1, Int(scale.rounded(.down)))
             projectileDamageMultiplier += 0.04 * scale
         case 9:
+            selectedBuildCoreKinds.insert(option.kind)
             hasThunderCore = true
             thunderGainMultiplier = min(3.0, thunderGainMultiplier + 0.10 * scale)
         case 10:
+            selectedBuildCoreKinds.insert(option.kind)
             hasArrayCore = true
             projectileCountBonus = min(3, projectileCountBonus + 1)
         default:

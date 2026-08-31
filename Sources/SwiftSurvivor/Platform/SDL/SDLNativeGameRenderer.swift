@@ -346,9 +346,7 @@ enum SDLNativeGameRenderer {
                  boss.weakPointOpen ? UITheme.Color.energy : (boss.attackStage == .telegraph ? UITheme.Color.danger : UITheme.Color.muted))
         }
         if game.survivalTime < 8 {
-            let hint = game.controlMode == .mouse
-                ? t(game, "MOUSE FOLLOW  •  SHIFT PRECISION  •  SPACE OVERLOAD", "鼠标跟随  •  Shift 精准  •  Space 超载")
-                : t(game, "WASD MOVE  •  SHIFT PRECISION  •  SPACE OVERLOAD", "WASD 移动  •  Shift 精准  •  Space 超载")
+            let hint = t(game, "WASD / ARROWS MOVE  •  SHIFT PRECISION  •  SPACE OVERLOAD", "WASD / 方向键移动  •  Shift 精准  •  Space 超载")
             text(r, hint, 18, Float(field.bottom - 24), UITheme.Color.muted)
         }
     }
@@ -383,7 +381,7 @@ enum SDLNativeGameRenderer {
         sectionHeader(r, title: t(game, "OPERATIONS", "作战操作"), subtitle: t(game, "SELECT A SYSTEM", "选择功能"), x: rightX + 18, y: 194, width: width - rightX - 92)
 
         let buttons = mainMenuButtons(width: Double(width), height: Double(height))
-        let labels = [t(game, "01  START SORTIE", "01  开始出击"), t(game, "02  CONTROLS", "02  操作设置"),
+        let labels = [t(game, "01  START SORTIE", "01  开始出击"), t(game, "02  HOW TO PLAY", "02  操作说明"),
                       t(game, "03  HANGAR", "03  机库整备"), t(game, "04  SETTINGS", "04  系统设置"),
                       t(game, "06  EXIT GAME", "06  退出游戏"), t(game, "05  ARCHIVE", "05  档案馆")]
         for i in buttons.indices { button(r, buttons[i], title: labels[i], selected: false, emphasis: i == 0) }
@@ -474,20 +472,25 @@ enum SDLNativeGameRenderer {
 
     private static func drawControls(_ r: GameRenderer, game: Game, width: Int, height: Int) {
         panel(r, x: width / 2 - 320, y: 70, width: 640, height: height - 125)
-        text(r, t(game, "CONTROL DECK", "操作设置"), Float(width / 2 - 90), 120, UITheme.Color.text)
-        text(r, t(game, "Keyboard and mouse flight profile", "键盘与鼠标飞行配置"), Float(width / 2 - 150), 148, UITheme.Color.muted)
-        let modes = controlModeButtons(width: Double(width), height: Double(height))
-        button(r, modes[0], title: "WASD", selected: game.controlMode == .wasd)
-        button(r, modes[1], title: t(game, "MOUSE FOLLOW", "鼠标跟随"), selected: game.controlMode == .mouse)
-        text(r, t(game, "MOVE", "移动") + "   " + t(game, "WASD / Arrow Keys", "WASD / 方向键"), Float(width / 2 - 220), 360, UITheme.Color.secondary)
-        text(r, t(game, "PRECISION", "精准") + "   Shift", Float(width / 2 - 220), 386, UITheme.Color.secondary)
-        text(r, t(game, "OVERLOAD", "超载") + "   Space", Float(width / 2 - 220), 412, UITheme.Color.secondary)
-        text(r, t(game, "PAUSE", "暂停") + "   Esc", Float(width / 2 - 220), 438, UITheme.Color.secondary)
-        text(r, t(game, "SWITCH WEAPON", "切换武器") + "   Q", Float(width / 2 + 20), 360, UITheme.Color.secondary)
-        text(r, t(game, "FEEDBACK TEST", "反馈测试") + "   F8", Float(width / 2 + 20), 386, UITheme.Color.secondary)
-        text(r, t(game, "UI DEBUG", "界面调试") + "   F9", Float(width / 2 + 20), 412, UITheme.Color.secondary)
-        text(r, t(game, "EMERGENCY DASH", "紧急闪避") + "   F", Float(width / 2 + 20), 438, UITheme.Color.secondary)
-        text(r, t(game, "BOSS DEBUG", "Boss 调试") + "   F7", Float(width / 2 + 20), 464, UITheme.Color.secondary)
+        sectionHeader(r, title: t(game, "HOW TO PLAY", "操作说明"), subtitle: t(game, "KEYBOARD FLIGHT", "键盘操纵"),
+                      x: width / 2 - 280, y: 112, width: 560)
+        text(r, t(game, "The fighter is controlled by keyboard. Mouse input is reserved for menus.", "战机仅使用键盘操纵，鼠标只用于菜单选择。"),
+             Float(width / 2 - 250), 154, UITheme.Color.muted)
+
+        drawStatTile(r, x: width / 2 - 260, y: 198, width: 245, height: 84,
+                     label: t(game, "MOVE", "移动"), value: t(game, "WASD / ARROWS", "WASD / 方向键"), tint: UITheme.Color.primary)
+        drawStatTile(r, x: width / 2 + 15, y: 198, width: 245, height: 84,
+                     label: t(game, "PRECISION MODE", "精准模式"), value: "SHIFT", tint: UITheme.Color.energy)
+        drawStatTile(r, x: width / 2 - 260, y: 300, width: 245, height: 84,
+                     label: t(game, "THUNDER OVERLOAD", "雷霆超载"), value: "SPACE", tint: UITheme.Color.warning)
+        drawStatTile(r, x: width / 2 + 15, y: 300, width: 245, height: 84,
+                     label: t(game, "EMERGENCY DASH", "紧急闪避"), value: "F", tint: UITheme.Color.success)
+        drawStatTile(r, x: width / 2 - 260, y: 402, width: 245, height: 84,
+                     label: t(game, "SWITCH WEAPON", "切换武器"), value: "Q", tint: UITheme.Color.boss)
+        drawStatTile(r, x: width / 2 + 15, y: 402, width: 245, height: 84,
+                     label: t(game, "PAUSE / BACK", "暂停 / 返回"), value: "ESC", tint: UITheme.Color.secondary)
+        text(r, t(game, "Hold Shift to slow down and reveal the real hitbox.", "按住 Shift 可降低移动速度，并显示战机的真实碰撞核心。"),
+             Float(width / 2 - 248), 514, UITheme.Color.secondary)
         button(r, controlsBackButton(width: Double(width), height: Double(height)), title: t(game, "BACK", "返回"), selected: false)
     }
 

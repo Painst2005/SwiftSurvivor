@@ -41,10 +41,6 @@ func modeCards(width: Double, height: Double) -> [UIRect] {
 }
 func missionLaunchButton(width: Double, height: Double) -> UIRect { UIRect(x: width / 2 + 20, y: height - 86, width: 180, height: 50) }
 func missionBackButton(width: Double, height: Double) -> UIRect { UIRect(x: width / 2 - 200, y: height - 86, width: 180, height: 50) }
-func controlModeButtons(width: Double, height: Double) -> [UIRect] {
-    let left = width / 2 - 230, top = height / 2 - 36
-    return [UIRect(x: left, y: top, width: 220, height: 104), UIRect(x: left + 240, y: top, width: 220, height: 104)]
-}
 func controlsBackButton(width: Double, height: Double) -> UIRect { UIRect(x: width / 2 - 120, y: height - 92, width: 240, height: 50) }
 func settingsLanguageButtons(width: Double, height: Double) -> [UIRect] {
     let left = width / 2 - 230

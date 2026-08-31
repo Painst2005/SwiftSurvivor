@@ -946,7 +946,9 @@ final class Game: @unchecked Sendable {
 
     func start(width: Double, height: Double) {
         profile = SaveManager.shared.profile
-        controlMode = ControlMode(rawValue: profile.controlMode) ?? .wasd
+        // Migrate legacy mouse-follow saves to keyboard-only flight.
+        controlMode = .wasd
+        profile.controlMode = ControlMode.wasd.rawValue
         AudioManager.shared.configure(bgmVolume: profile.bgmVolume, sfxVolume: profile.sfxVolume)
         // Retry the music when a sortie begins as well as at window creation.
         // This covers devices that become ready a moment after the menu first
@@ -1139,20 +1141,14 @@ final class Game: @unchecked Sendable {
 
         var direction = Vec2.zero
         precisionMode = keyDown(0x10) // Shift: slow, precise steering
-        if controlMode == .mouse {
-            let toCursor = mousePosition - player
-            if toCursor.length > 4 { direction = toCursor.normalized }
-        } else {
-            if keyDown(0x41) || keyDown(0x25) { direction.x -= 1 } // A / left
-            if keyDown(0x44) || keyDown(0x27) { direction.x += 1 } // D / right
-            if keyDown(0x57) || keyDown(0x26) { direction.y -= 1 } // W / up
-            if keyDown(0x53) || keyDown(0x28) { direction.y += 1 } // S / down
-        }
+        if keyDown(0x41) || keyDown(0x25) { direction.x -= 1 } // A / left
+        if keyDown(0x44) || keyDown(0x27) { direction.x += 1 } // D / right
+        if keyDown(0x57) || keyDown(0x26) { direction.y -= 1 } // W / up
+        if keyDown(0x53) || keyDown(0x28) { direction.y += 1 } // S / down
         if direction.length > 0 {
             lastMoveDirection = direction.normalized
             let speed = precisionMode ? moveSpeed * CombatConfig.precisionSpeedMultiplier : moveSpeed
-            let travel = min(speed * delta, max(0, (mousePosition - player).length))
-            player = controlMode == .mouse ? player + direction * travel : player + direction.normalized * speed * delta
+            player = player + direction.normalized * speed * delta
         }
         let field = playfieldBounds(width: width, height: height)
         player.x = min(max(player.x, field.left + playerRadius + 10), field.right - playerRadius - 10)
@@ -3137,10 +3133,6 @@ final class Game: @unchecked Sendable {
         guard phase == .playing, dashCooldown <= 0 else { return }
 
         var direction = lastMoveDirection
-        if controlMode == .mouse {
-            let cursorDirection = mousePosition - player
-            if cursorDirection.length > 4 { direction = cursorDirection.normalized }
-        }
         if direction.length < 0.01 { direction = Vec2(x: 0, y: -1) }
 
         let origin = player
@@ -3229,12 +3221,6 @@ final class Game: @unchecked Sendable {
     func selectGameMode(_ mode: GameMode) {
         guard phase == .missionSelect else { return }
         gameMode = mode
-    }
-
-    func setControlMode(_ mode: ControlMode) {
-        controlMode = mode
-        profile.controlMode = mode.rawValue
-        persistProfile()
     }
 
     func equipmentUpgradeCost(for item: EquipmentState) -> Int {
@@ -3464,8 +3450,8 @@ final class Game: @unchecked Sendable {
     }
 
     /// Convert a screen-space logical point into the coordinate space used by
-    /// UI layout.  Gameplay keeps the raw pointer so mouse-follow flight is
-    /// unaffected by the accessibility scale.
+    /// UI layout. Gameplay keeps the raw pointer only for menu interaction;
+    /// fighter movement is keyboard-only.
     func uiPoint(for point: Vec2, width: Double, height: Double) -> Vec2 {
         let scale = min(1.0, min(1.2, max(0.8, Double(profile.uiScale) / 100.0)))
         let offsetX = (width - width * scale) * 0.5
@@ -3513,7 +3499,8 @@ final class Game: @unchecked Sendable {
         guard SaveManager.shared.selectSlot(slot) else { return }
         profile = SaveManager.shared.profile
         highScore = profile.bestScore
-        controlMode = ControlMode(rawValue: profile.controlMode) ?? .wasd
+        controlMode = .wasd
+        profile.controlMode = ControlMode.wasd.rawValue
         // SDLFullGame observes profile changes on its next frame.
         selectedMission = min(max(0, selectedMission), max(0, unlockedMissionCount - 1))
         hangarMessageTitle = uiText("SAVE SLOT \(slot + 1) SELECTED", "已选择存档 \(slot + 1)")
@@ -3652,10 +3639,7 @@ final class Game: @unchecked Sendable {
             }
             if archiveBackButton(width: width, height: height).contains(point) { phase = .menu }
         case .controls:
-            let modes = controlModeButtons(width: width, height: height)
-            if modes[0].contains(point) { setControlMode(.wasd) }
-            else if modes[1].contains(point) { setControlMode(.mouse) }
-            else if controlsBackButton(width: width, height: height).contains(point) { phase = phaseBeforeControls }
+            if controlsBackButton(width: width, height: height).contains(point) { phase = phaseBeforeControls }
         case .settings:
             let languages = settingsLanguageButtons(width: width, height: height)
             if languages[0].contains(point) { selectLanguage(.english) }

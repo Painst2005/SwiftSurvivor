@@ -172,7 +172,7 @@ enum SDLNativeGameRenderer {
         for pickup in game.powerUps {
             let p = pickup.position + camera
             let textureName = pickup.kind == 0 ? "pickup_laser_module" :
-                (pickup.kind == 1 ? "pickup_invincibility_shield" : "pickup_multishot_module")
+                (pickup.kind == 1 ? "pickup_invincibility_shield" : "pickup_blood_pump")
             if let texture = (r as? SDLRenderer)?.artTexture(named: textureName) {
                 let pulse = Float(1 + sin(game.uiAnimationTime * 5 + pickup.position.x * 0.01) * 0.06)
                 let side: Float = (pickup.kind == 1 ? 48 : 44) * pulse
@@ -219,11 +219,20 @@ enum SDLNativeGameRenderer {
             r.fillCircle(center: (Float(playerP.x), Float(playerP.y)), radius: 18, color: playerColor)
             r.fillCircle(center: (Float(playerP.x), Float(playerP.y - 7)), radius: 8, color: game.playerHitFlash > 0 ? RenderColor(255, 246, 248) : RenderColor(232, 250, 255))
         }
+        if game.pickupShieldCharges > 0, let shield = (r as? SDLRenderer)?.artTexture(named: "player_phase_shield") {
+            let pulse = Float(1 + sin(game.uiAnimationTime * 4.5) * 0.035)
+            let side = 112 * pulse
+            r.drawSprite(shield, in: RenderRect(x: Float(playerP.x) - side * 0.5, y: Float(playerP.y) - side * 0.5,
+                                               width: side, height: side), alpha: 218)
+        }
         if game.playerHitFlash > 0, let damage = (r as? SDLRenderer)?.artTexture(named: "vfx_damage_armor") {
             r.drawSprite(damage, in: RenderRect(x: Float(playerP.x - 39), y: Float(playerP.y - 39), width: 78, height: 78),
                          alpha: UInt8(min(245, 90 + game.playerHitFlash * 1200)))
         }
-        if game.playerShieldFlash > 0 { r.fillCircle(center: (Float(playerP.x), Float(playerP.y)), radius: 25, color: RenderColor(112, 224, 255, 68)) }
+        if game.playerShieldFlash > 0, let shieldHit = (r as? SDLRenderer)?.artTexture(named: "vfx_hit_shield") {
+            r.drawSprite(shieldHit, in: RenderRect(x: Float(playerP.x - 42), y: Float(playerP.y - 42), width: 84, height: 84),
+                         alpha: UInt8(min(230, 70 + game.playerShieldFlash * 650)))
+        }
         if game.precisionMode { r.fillCircle(center: (Float(playerP.x), Float(playerP.y)), radius: 5, color: RenderColor(255, 229, 112)) }
         if game.damageEdgeFlash > 0 {
             let alpha = UInt8(min(115, game.damageEdgeFlash * 440))
@@ -606,10 +615,10 @@ enum SDLNativeGameRenderer {
                                   value: healthRatio, fill: UITheme.Color.danger, back: RenderColor(0, 0, 0, 0)), height: 10)
         text(r, t(game, "HP", "生命") + " \(Int(game.health))/\(Int(game.maxHealth))", 22, 42, UITheme.Color.text)
 
-        let shieldValue = game.reflectorTime > 0 ? 1.0 : min(1, Double(game.armorShieldCharges) / 3.0)
+        let shieldValue = game.pickupShieldCharges > 0 ? 1.0 : min(1, Double(game.armorShieldCharges) / 3.0)
         progress(r, UIProgressBar(rect: UIRect(x: 198, y: 39, width: 104, height: 10), value: shieldValue,
                                   fill: UITheme.Color.shield, back: RenderColor(22, 56, 79)), height: 10)
-        text(r, game.reflectorTime > 0 ? t(game, "SHIELD", "护盾") : t(game, "SHIELD", "护盾") + " x\(game.armorShieldCharges)", 202, 42, UITheme.Color.shield)
+        text(r, game.pickupShieldCharges > 0 ? t(game, "AEGIS x1", "壁垒 x1") : t(game, "SHIELD", "护盾") + " x\(game.armorShieldCharges)", 202, 42, UITheme.Color.shield)
 
         progress(r, UIProgressBar(rect: UIRect(x: 318, y: 39, width: 170, height: 10),
                                   value: Double(game.experience) / Double(max(1, game.experienceGoal)),
@@ -1332,14 +1341,14 @@ enum SDLNativeGameRenderer {
     /// an effect is actually active.
     private static func drawTimedEffectBars(_ r: GameRenderer, game: Game, width: Int) {
         var effects: [(name: String, remaining: Double, duration: Double, tint: RenderColor)] = []
-        if game.laserTime > 0 {
-            effects.append((t(game, "LASER", "激光炮"), game.laserTime, 10, UITheme.Color.energy))
+        if game.fireRateBoostTime > 0 {
+            effects.append((t(game, "FIRE RATE +50%", "射速 +50%"), game.fireRateBoostTime, 5, UITheme.Color.energy))
         }
-        if game.reflectorTime > 0 {
-            effects.append((t(game, "REFLECT", "反射护盾"), game.reflectorTime, 8, UITheme.Color.shield))
+        if game.shieldBreakSpeedTime > 0 {
+            effects.append((t(game, "MOVE +30%", "移速 +30%"), game.shieldBreakSpeedTime, 3, UITheme.Color.shield))
         }
-        if game.spreadTime > 0 {
-            effects.append((t(game, "ARRAY", "弹幕扩展"), game.spreadTime, 12, UITheme.Color.warning))
+        if game.bloodLeechTime > 0 {
+            effects.append((t(game, "MICRO LEECH", "微量吸血"), game.bloodLeechTime, 8, UITheme.Color.danger))
         }
         if game.thunderOverloadTime > 0 {
             effects.append((t(game, "OVERLOAD", "雷霆超载"), game.thunderOverloadTime, 6, UITheme.Color.primary))

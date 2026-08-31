@@ -729,9 +729,11 @@ final class Game: @unchecked Sendable {
     var hasThunderCore = false
     var hasArrayCore = false
     var hasOverdriveCore = false
-    var laserTime = 0.0
-    var reflectorTime = 0.0
-    var spreadTime = 0.0
+    var fireRateBoostTime = 0.0
+    var pickupShieldCharges = 0
+    var shieldBreakSpeedTime = 0.0
+    var bloodLeechTime = 0.0
+    var bloodLeechCooldown = 0.0
     var notificationTitle = ""
     var notificationDetail = ""
     var notificationTimer = 0.0
@@ -895,11 +897,13 @@ final class Game: @unchecked Sendable {
         return names[min(names.count - 1, weaponEvolutionTier - 1)]
     }
     var effectiveFireCooldown: Double {
+        let base: Double
         switch weaponType {
-        case .missile: return max(fireCooldown * 2.15, 0.32)
-        case .electromagnetic: return max(fireCooldown * 0.72, 0.065)
-        default: return fireCooldown
+        case .missile: base = max(fireCooldown * 2.15, 0.32)
+        case .electromagnetic: base = max(fireCooldown * 0.72, 0.065)
+        default: base = fireCooldown
         }
+        return fireRateBoostTime > 0 ? base / 1.5 : base
     }
 
     private init() {
@@ -1050,9 +1054,11 @@ final class Game: @unchecked Sendable {
         hasThunderCore = false
         hasArrayCore = false
         hasOverdriveCore = false
-        laserTime = 0
-        reflectorTime = 0
-        spreadTime = 0
+        fireRateBoostTime = 0
+        pickupShieldCharges = 0
+        shieldBreakSpeedTime = 0
+        bloodLeechTime = 0
+        bloodLeechCooldown = 0
         notificationTitle = ""
         notificationDetail = ""
         notificationTimer = 0
@@ -1124,9 +1130,10 @@ final class Game: @unchecked Sendable {
 
         survivalTime += delta
         stage = gameMode == .campaign ? activeMission.id : Int(survivalTime / 45.0) + 1
-        laserTime = max(0, laserTime - delta)
-        reflectorTime = max(0, reflectorTime - delta)
-        spreadTime = max(0, spreadTime - delta)
+        fireRateBoostTime = max(0, fireRateBoostTime - delta)
+        shieldBreakSpeedTime = max(0, shieldBreakSpeedTime - delta)
+        bloodLeechTime = max(0, bloodLeechTime - delta)
+        bloodLeechCooldown = max(0, bloodLeechCooldown - delta)
         notificationTimer = max(0, notificationTimer - delta)
         stageClearTimer = max(0, stageClearTimer - delta)
         stageBannerTimer = max(0, stageBannerTimer - delta)
@@ -1150,7 +1157,8 @@ final class Game: @unchecked Sendable {
         if keyDown(0x53) || keyDown(0x28) { direction.y += 1 } // S / down
         if direction.length > 0 {
             lastMoveDirection = direction.normalized
-            let speed = precisionMode ? moveSpeed * CombatConfig.precisionSpeedMultiplier : moveSpeed
+            let boostedMoveSpeed = moveSpeed * (shieldBreakSpeedTime > 0 ? 1.30 : 1.0)
+            let speed = precisionMode ? boostedMoveSpeed * CombatConfig.precisionSpeedMultiplier : boostedMoveSpeed
             player = player + direction.normalized * speed * delta
         }
         let field = playfieldBounds(width: width, height: height)
@@ -1468,7 +1476,7 @@ final class Game: @unchecked Sendable {
 
     private func fireWeapon() {
         AudioManager.shared.playSFX("sfx_shoot")
-        let laserBoost = (weaponType == .laser || laserTime > 0) ? (frostRayActive ? 2.0 : 1.6) : 1.0
+        let laserBoost = weaponType == .laser ? (frostRayActive ? 2.0 : 1.6) : 1.0
         let origin = player + Vec2(x: 0, y: -22)
         switch weaponType {
         case .cannon:
@@ -1482,7 +1490,7 @@ final class Game: @unchecked Sendable {
             case 7: baseSpread = [-0.32, -0.21, -0.105, 0, 0.105, 0.21, 0.32]
             default: baseSpread = [0]
             }
-            var spread = spreadTime > 0 ? [-0.28] + baseSpread + [0.28] : baseSpread
+            var spread = baseSpread
             let auxiliaryCount = projectileCountBonus + (arrayOverdriveActive ? 1 : 0)
             for index in 0..<min(auxiliaryCount, 3) {
                 let offset = 0.38 + Double(index) * 0.065
@@ -1493,7 +1501,7 @@ final class Game: @unchecked Sendable {
                 appendPlayerBullet(origin: origin, angle: angle, speed: 720, radius: 4.5,
                                    damage: damage * projectileDamageMultiplier * laserBoost,
                                    life: 2.0, tint: laserBoost > 1.0 && frostRayActive ? rgb(174, 239, 255) : rgb(155, 239, 255),
-                                   pierce: laserTime > 0 ? max(1, projectilePenetration + 2) : projectilePenetration)
+                                   pierce: projectilePenetration)
             }
         case .laser:
             var beamAngles: [Double] = [0]
@@ -1507,7 +1515,7 @@ final class Game: @unchecked Sendable {
             }
         case .scatter:
             let pelletCount = min(13, 3 + weaponLevel + projectileCountBonus + (arrayOverdriveActive ? 1 : 0))
-            let spreadAngle = spreadTime > 0 ? 0.95 : 0.72
+            let spreadAngle = 0.72
             for index in 0..<pelletCount {
                 let t = pelletCount == 1 ? 0.5 : Double(index) / Double(pelletCount - 1)
                 let angle = -spreadAngle + t * spreadAngle * 2
@@ -2295,8 +2303,9 @@ final class Game: @unchecked Sendable {
                     combatFeedback.play(weakPointHit ? .bossWeakPointHit : (critical ? .criticalHit : .enemyHit),
                                         context: bossFeedback, game: self)
                     if critical, stormCoreActive { thunderEnergy = min(100, thunderEnergy + 4) }
-                    if laserTime > 0 || bullets[index].pierceRemaining > 0 {
-                        if laserTime <= 0 { bullets[index].pierceRemaining -= 1 }
+                    applyBloodLeech()
+                    if bullets[index].pierceRemaining > 0 {
+                        bullets[index].pierceRemaining -= 1
                         bullets[index].position = bullets[index].position + bullets[index].velocity.normalized * 28
                     } else {
                         removeBullet = true
@@ -2327,8 +2336,9 @@ final class Game: @unchecked Sendable {
                                                            tint: bullets[index].weaponStyle == WeaponType.electromagnetic.rawValue ? rgb(191, 133, 255) : rgb(255, 225, 122))
                             combatFeedback.play(critical ? .criticalHit : .enemyHit, context: feedback, game: self)
                             if critical, stormCoreActive { thunderEnergy = min(100, thunderEnergy + 4) }
-                            if laserTime > 0 || bullets[index].pierceRemaining > 0 {
-                                if laserTime <= 0 { bullets[index].pierceRemaining -= 1 }
+                            applyBloodLeech()
+                            if bullets[index].pierceRemaining > 0 {
+                                bullets[index].pierceRemaining -= 1
                                 bullets[index].position = bullets[index].position + bullets[index].velocity.normalized * 28
                             } else {
                                 removeBullet = true
@@ -2365,15 +2375,7 @@ final class Game: @unchecked Sendable {
                     bullets[index].grazeAwarded = true
                     registerGraze(at: bullets[index].position)
                 }
-                if distanceToCoreSquared < hitDistance * hitDistance, reflectorTime > 0 {
-                    bullets[index].playerOwned = true
-                    bullets[index].velocity = bullets[index].velocity * -1.12
-                    bullets[index].damage *= 2.2
-                    bullets[index].tint = rgb(127, 231, 255)
-                    bullets[index].life = 2.4
-                    bullets[index].position = bullets[index].position + bullets[index].velocity.normalized * 14
-                    spawnHit(at: player, tint: rgb(127, 231, 255))
-                } else if distanceToCoreSquared < hitDistance * hitDistance {
+                if distanceToCoreSquared < hitDistance * hitDistance {
                     damagePlayer(amount: bullets[index].damage)
                     spawnHit(at: bullets[index].position, tint: bullets[index].tint)
                     removeBullet = true
@@ -2408,26 +2410,44 @@ final class Game: @unchecked Sendable {
         AudioManager.shared.playSFX("sfx_powerup")
         switch kind {
         case 0:
-            laserTime = max(laserTime, 10)
+            fireRateBoostTime = max(fireRateBoostTime, 5)
             score += 300
-            notifyPickup(title: "LASER CANNON ONLINE", detail: "Piercing shots • 10 seconds", tint: rgb(89, 236, 255))
+            notifyPickup(title: uiText("FIRE CONTROL OVERDRIVE", "火控超频"),
+                         detail: uiText("Fire rate +50% • 5 seconds", "射速 +50% • 持续 5 秒"), tint: rgb(89, 236, 255))
         case 1:
-            reflectorTime = max(reflectorTime, 8)
+            pickupShieldCharges = 1
             score += 280
-            notifyPickup(title: "REFLECTOR SHIELD", detail: "Invincible + bounce bullets • 8 seconds", tint: rgb(126, 196, 255))
+            notifyPickup(title: uiText("PHASE AEGIS", "相位壁垒"),
+                         detail: uiText("Blocks one hit • break grants speed and resets dash", "抵挡一次攻击 • 破裂后加速并重置闪避"), tint: rgb(126, 196, 255))
         default:
-            spreadTime = max(spreadTime, 12)
+            bloodLeechTime = max(bloodLeechTime, 8)
             score += 240
-            notifyPickup(title: "BULLET ARRAY", detail: "+2 side projectiles per volley • 12 seconds", tint: rgb(255, 214, 110))
+            notifyPickup(title: uiText("MICRO BLOOD PUMP", "微型血泵"),
+                         detail: uiText("Hits restore trace hull integrity • 8 seconds", "命中缓慢修复机体 • 持续 8 秒"), tint: rgb(255, 126, 136))
         }
+    }
+
+    private func applyBloodLeech() {
+        guard bloodLeechTime > 0, bloodLeechCooldown <= 0, health > 0, health < maxHealth else { return }
+        // Intentionally weak: at most 0.9 HP per second, or about 7.2 HP
+        // across the complete pickup window regardless of weapon fire rate.
+        health = min(maxHealth, health + 0.18)
+        bloodLeechCooldown = 0.20
     }
 
     private func damagePlayer(amount: Double) {
         let incomingDirection = (player - Vec2(x: player.x, y: player.y - 1)).normalized
-        if reflectorTime > 0 {
-            combatFeedback.play(.shieldHit,
+        if pickupShieldCharges > 0 {
+            pickupShieldCharges = 0
+            shieldBreakSpeedTime = 3.0
+            dashCooldown = 0
+            playerInvulnerability = 0.36
+            combatFeedback.play(.shieldBreak,
                                 context: FeedbackContext(position: player, direction: incomingDirection, damage: amount,
-                                                         level: .light, damageKind: .enemyBullet, tint: rgb(126, 196, 255)), game: self)
+                                                         level: .heavy, damageKind: .enemyBullet, tint: rgb(126, 196, 255)), game: self)
+            notifyPickup(title: uiText("AEGIS BROKEN", "壁垒破裂"),
+                         detail: uiText("Move speed +30% for 3s • dash reset", "移速 +30% 持续 3 秒 • 闪避已重置"),
+                         tint: rgb(126, 196, 255))
             return
         }
         guard playerInvulnerability <= 0 else { return }

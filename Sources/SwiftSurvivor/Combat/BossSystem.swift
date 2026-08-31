@@ -62,7 +62,8 @@ struct BossPhaseDefinition {
 }
 
 enum ThunderCarrierBossDefinition {
-    static let healthMultiplier = 1.90
+    // Current heavy-carrier durability multiplied by six at the player's request.
+    static let healthMultiplier = 11.40
     static let damageMultiplier = 1.35
     static let visualWidth = 430.0
     static let visualHeight = 242.0

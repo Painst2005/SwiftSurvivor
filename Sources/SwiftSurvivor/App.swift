@@ -507,6 +507,8 @@ struct Enemy {
     var visualOffset: Vec2 = .zero
     var hitFlash: Double = 0
     var isElite: Bool = false
+    var eliteWarningTimer: Double = 0
+    var eliteAttackTimer: Double = 3.2
 }
 
 struct PowerUp {
@@ -1698,9 +1700,34 @@ final class Game: @unchecked Sendable {
             }
             enemies[index].position.x = min(max(enemies[index].position.x, field.left + 22), field.right - 22)
 
+            // Elite attacks are deliberately telegraphed. Their warning window
+            // creates a visible "move now" decision instead of hidden damage
+            // inflation, and the broad fan keeps a readable escape route.
+            if enemies[index].isElite {
+                enemies[index].eliteAttackTimer -= delta
+                if enemies[index].eliteWarningTimer <= 0, enemies[index].eliteAttackTimer <= 0 {
+                    enemies[index].eliteWarningTimer = 0.72
+                    enemies[index].eliteAttackTimer = 4.4
+                }
+                if enemies[index].eliteWarningTimer > 0 {
+                    enemies[index].eliteWarningTimer -= delta
+                    if enemies[index].eliteWarningTimer <= 0 {
+                        let eliteEmitter = BulletEmitter(pattern: .spread, count: 7,
+                                                         speed: 238 + survivalTime * 0.14,
+                                                         damage: 12 * activeEnemyDamageMultiplier,
+                                                         radius: 6.5, lifetime: 5.8,
+                                                         tint: rgb(255, 202, 104), bulletType: .boss,
+                                                         modifiers: [.constantVelocity, .lockDirection], spread: 0.72)
+                        emitPattern(eliteEmitter, from: enemies[index].position + Vec2(x: 0, y: 18))
+                        enemies[index].shootTimer = max(enemies[index].shootTimer, 0.75)
+                    }
+                }
+            }
+
             if enemyType != .sniper, enemyType != .kamikaze {
                 enemies[index].shootTimer -= delta
-                if enemies[index].shootTimer <= 0, enemies[index].position.y > field.top + 4, enemies[index].position.y < field.bottom - 40 {
+                if enemies[index].shootTimer <= 0, enemies[index].eliteWarningTimer <= 0,
+                   enemies[index].position.y > field.top + 4, enemies[index].position.y < field.bottom - 40 {
                     let pattern: BulletPattern
                     let modifiers: [BulletModifier]
                     let bulletType: BulletType

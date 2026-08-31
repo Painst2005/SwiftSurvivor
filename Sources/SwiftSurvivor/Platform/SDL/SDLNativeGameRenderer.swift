@@ -95,7 +95,9 @@ enum SDLNativeGameRenderer {
             if enemy.isElite {
                 // A thin, high-contrast outer ring makes the priority target
                 // identifiable before the player reads its health bar.
-                r.fillCircle(center: (Float(p.x), Float(p.y)), radius: Float(max(8, enemy.radius + 4)), color: UITheme.Color.warning)
+                let warningColor = enemy.eliteWarningTimer > 0 ? UITheme.Color.danger : UITheme.Color.warning
+                r.fillCircle(center: (Float(p.x), Float(p.y)), radius: Float(max(8, enemy.radius + 4)), color: warningColor)
+                text(r, enemy.eliteWarningTimer > 0 ? "!" : "E", Float(p.x - 4), Float(p.y - enemy.radius - 20), warningColor)
             }
             r.fillCircle(center: (Float(p.x), Float(p.y)), radius: Float(max(6, enemy.radius)), color: c)
             r.fillRect(RenderRect(x: Float(p.x - enemy.radius), y: Float(p.y - enemy.radius - 8), width: Float(enemy.radius * 2), height: 3), color: RenderColor(55, 24, 47))

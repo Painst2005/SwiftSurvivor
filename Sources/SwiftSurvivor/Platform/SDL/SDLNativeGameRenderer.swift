@@ -92,6 +92,11 @@ enum SDLNativeGameRenderer {
         for enemy in game.enemies {
             let p = enemy.position + enemy.visualOffset + camera
             let c = highlighted(color(enemy.tint), amount: enemy.hitFlash > 0 ? 0.82 : 0)
+            if enemy.isElite {
+                // A thin, high-contrast outer ring makes the priority target
+                // identifiable before the player reads its health bar.
+                r.fillCircle(center: (Float(p.x), Float(p.y)), radius: Float(max(8, enemy.radius + 4)), color: UITheme.Color.warning)
+            }
             r.fillCircle(center: (Float(p.x), Float(p.y)), radius: Float(max(6, enemy.radius)), color: c)
             r.fillRect(RenderRect(x: Float(p.x - enemy.radius), y: Float(p.y - enemy.radius - 8), width: Float(enemy.radius * 2), height: 3), color: RenderColor(55, 24, 47))
             r.fillRect(RenderRect(x: Float(p.x - enemy.radius), y: Float(p.y - enemy.radius - 8), width: Float(max(0, enemy.radius * 2 * enemy.health / max(1, enemy.maxHealth))), height: 3), color: RenderColor(255, 134, 126))

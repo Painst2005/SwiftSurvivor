@@ -446,6 +446,16 @@ enum EnemyType: Int {
     case carrier = 6
 }
 
+/// Tunable combat values kept out of the update loops, so feel changes are
+/// deliberate and do not require hunting through unrelated gameplay code.
+enum CombatConfig {
+    static let precisionSpeedMultiplier = 0.46
+    static let playerHitInvulnerability = 0.68
+    static let swarmHealthMultiplier = 0.56
+    static let eliteHealthMultiplier = 2.15
+    static let eliteDamageMultiplier = 1.25
+}
+
 enum UpgradeRarity: Int {
     case common = 0
     case rare = 1
@@ -496,6 +506,7 @@ struct Enemy {
     // Presentation-only response. Collision and movement always use position.
     var visualOffset: Vec2 = .zero
     var hitFlash: Double = 0
+    var isElite: Bool = false
 }
 
 struct PowerUp {
@@ -1105,7 +1116,7 @@ final class Game: @unchecked Sendable {
             if keyDown(0x53) || keyDown(0x28) { direction.y += 1 } // S / down
         }
         if direction.length > 0 {
-            let speed = precisionMode ? moveSpeed * 0.42 : moveSpeed
+            let speed = precisionMode ? moveSpeed * CombatConfig.precisionSpeedMultiplier : moveSpeed
             let travel = min(speed * delta, max(0, (mousePosition - player).length))
             player = controlMode == .mouse ? player + direction * travel : player + direction.normalized * speed * delta
         }
@@ -1117,8 +1128,7 @@ final class Game: @unchecked Sendable {
             waveTimer -= delta
             if waveTimer <= 0 {
                 spawnWave(field: field)
-                let ramp = min(survivalTime / 180.0, 1.0)
-                waveTimer = 1.95 - ramp * 0.82
+                waveTimer = nextWaveDelay()
             }
         }
 
@@ -1198,9 +1208,13 @@ final class Game: @unchecked Sendable {
     }
 
     private func spawnWave(field: PlayfieldBounds) {
+        let plannedWave = waveIndex
+        let isSwarmWave = survivalTime >= 22 && plannedWave % 7 == 5
+        let isEliteWave = survivalTime >= 38 && plannedWave % 6 == 0
         let formation = waveIndex % 3
         let baseCount = survivalTime < 20 ? 2 : (survivalTime < 60 ? 3 : 4)
-        let count = min(10, max(1, Int((Double(baseCount + waveIndex / 8) * activeSpawnMultiplier).rounded(.down))))
+        let requestedCount = isSwarmWave ? 9 + min(3, waveIndex / 12) : baseCount + waveIndex / 8
+        let count = min(isSwarmWave ? 12 : 10, max(1, Int((Double(requestedCount) * activeSpawnMultiplier).rounded(.down))))
         let spacing = min(92.0, max(58.0, field.width / Double(count + 1)))
         let center = field.centerX
         for index in 0..<count {
@@ -1217,9 +1231,38 @@ final class Game: @unchecked Sendable {
             }
             x = min(max(x, field.left + 30), field.right - 30)
             y = max(field.top + 4, y)
-            spawnEnemy(position: Vec2(x: x, y: y), pattern: pattern, type: enemyTypeForWave(index: index, formation: formation))
+            let isElite = isEliteWave && index == count / 2
+            let type: Int
+            if isSwarmWave {
+                type = index % 5 == 0 ? EnemyType.diver.rawValue : EnemyType.fighter.rawValue
+            } else if isElite {
+                type = plannedWave % 2 == 0 ? EnemyType.turret.rawValue : EnemyType.carrier.rawValue
+            } else if isEliteWave, index % 3 == 0 {
+                type = EnemyType.shield.rawValue
+            } else {
+                type = enemyTypeForWave(index: index, formation: formation)
+            }
+            spawnEnemy(position: Vec2(x: x, y: y), pattern: pattern, type: type,
+                       elite: isElite, healthScale: isSwarmWave ? CombatConfig.swarmHealthMultiplier : 1)
+        }
+        if isEliteWave {
+            notifyPickup(title: uiText("ELITE CONTACT", "精英来袭"),
+                         detail: uiText("Clear escorts, then claim the reward", "先清理护卫，再击破精英获取奖励"),
+                         tint: rgb(255, 204, 112))
+        } else if isSwarmWave {
+            notifyPickup(title: uiText("SWARM WAVE", "歼灭波次"),
+                         detail: uiText("Low armor • build Combo and Thunder", "低护甲敌群 • 快速积累连击与雷霆"),
+                         tint: rgb(126, 220, 255))
         }
         waveIndex += 1
+    }
+
+    private func nextWaveDelay() -> Double {
+        let completedWave = max(0, waveIndex - 1)
+        if survivalTime >= 22 && completedWave % 7 == 5 { return 3.15 }
+        if survivalTime >= 38 && completedWave % 6 == 0 { return 3.45 }
+        let ramp = min(survivalTime / 180.0, 1.0)
+        return 1.95 - ramp * 0.82
     }
 
     private func enemyTypeForWave(index: Int, formation: Int) -> Int {
@@ -1247,7 +1290,8 @@ final class Game: @unchecked Sendable {
         }
     }
 
-    private func spawnEnemy(position: Vec2, pattern: Int, type: Int = EnemyType.fighter.rawValue) {
+    private func spawnEnemy(position: Vec2, pattern: Int, type: Int = EnemyType.fighter.rawValue,
+                            elite: Bool = false, healthScale: Double = 1) {
         let enemyType = EnemyType(rawValue: type) ?? .fighter
         let radius: Double
         let hpMultiplier: Double
@@ -1270,14 +1314,15 @@ final class Game: @unchecked Sendable {
         case .fighter:
             radius = pattern == 2 ? 19 : 17; hpMultiplier = 1.0; speed = 54; tint = pattern == 1 ? rgb(232, 101, 68) : (pattern == 2 ? rgb(177, 77, 224) : rgb(235, 65, 108)); initialShoot = Double.random(in: 2.2...3.8, using: &rng)
         }
-        let hp = (24.0 + survivalTime * 0.22 + Double(stage - 1) * 10) * hpMultiplier * activeDifficultyMultiplier
+        let hp = (24.0 + survivalTime * 0.22 + Double(stage - 1) * 10) * hpMultiplier * healthScale
+            * (elite ? CombatConfig.eliteHealthMultiplier : 1) * activeDifficultyMultiplier
         let feedbackID = nextFeedbackID
         nextFeedbackID &+= 1
         enemies.append(Enemy(feedbackID: feedbackID,
                              position: position,
                              baseX: position.x,
                              radius: radius,
-                             speed: (speed + survivalTime * 0.04 + Double(stage - 1) * 7) * (0.88 + activeDifficultyMultiplier * 0.12),
+                             speed: (speed + survivalTime * 0.04 + Double(stage - 1) * 7) * (elite ? 0.90 : 1) * (0.88 + activeDifficultyMultiplier * 0.12),
                              health: hp,
                              maxHealth: hp,
                              tint: tint,
@@ -1285,7 +1330,8 @@ final class Game: @unchecked Sendable {
                              age: 0,
                              phase: Double.random(in: 0...6.28, using: &rng),
                              shootTimer: initialShoot,
-                             type: enemyType.rawValue))
+                             type: enemyType.rawValue,
+                             isElite: elite))
     }
 
     private func spawnBoss(field: PlayfieldBounds) {
@@ -1675,8 +1721,9 @@ final class Game: @unchecked Sendable {
                         bulletType = roll == 2 ? .aimed : .normal
                         damage = 8
                     }
+                    let eliteMultiplier = enemies[index].isElite ? CombatConfig.eliteDamageMultiplier : 1.0
                     let emitter = BulletEmitter(pattern: pattern, count: pattern == .triple ? 3 : 1,
-                                                speed: 175 + survivalTime * 0.16, damage: damage * activeEnemyDamageMultiplier,
+                                                speed: 175 + survivalTime * 0.16, damage: damage * activeEnemyDamageMultiplier * eliteMultiplier,
                                                 radius: 5.5, lifetime: 5, tint: enemyType == .carrier ? rgb(255, 140, 221) : rgb(255, 113, 104),
                                                 bulletType: bulletType, modifiers: modifiers,
                                                 spread: pattern == .triple ? 0.23 : 0,
@@ -1685,7 +1732,8 @@ final class Game: @unchecked Sendable {
                                                 splitCount: enemyType == .carrier ? 2 : 0,
                                                 splitSpread: 0.20)
                     emitPattern(emitter, from: enemies[index].position, target: pattern == .aimed ? player : nil)
-                    enemies[index].shootTimer = enemyType == .turret ? 1.65 : Double.random(in: 1.9...3.2, using: &rng)
+                    let baseCooldown = enemyType == .turret ? 1.65 : Double.random(in: 1.9...3.2, using: &rng)
+                    enemies[index].shootTimer = baseCooldown * (enemies[index].isElite ? 0.86 : 1.0)
                 }
             }
 
@@ -2094,7 +2142,9 @@ final class Game: @unchecked Sendable {
                             if enemies[enemyIndex].health <= 0 {
                                 let defeated = enemies[enemyIndex]
                                 enemies.remove(at: enemyIndex)
-                                registerKill(at: defeated.position, tint: defeated.tint, baseScore: 100 + stage * 15, radius: defeated.radius)
+                                let isElite = defeated.isElite || enemyType == .turret || enemyType == .carrier || defeated.radius >= 23
+                                registerKill(at: defeated.position, tint: defeated.tint, baseScore: 100 + stage * 15,
+                                             radius: defeated.radius, isElite: isElite)
                                 if Int.random(in: 0...4, using: &rng) == 0 {
                                     if powerUps.count < 18 {
                                         powerUps.append(PowerUp(position: defeated.position,
@@ -2102,7 +2152,6 @@ final class Game: @unchecked Sendable {
                                                                  life: 12))
                                     }
                                 }
-                                let isElite = enemyType == .turret || enemyType == .carrier || defeated.radius >= 23
                                 combatFeedback.play(isElite ? .eliteKilled : .enemyKilled,
                                                     context: FeedbackContext(position: defeated.position, direction: bullets[index].velocity.normalized,
                                                                              damage: finalDamage, level: isElite ? .heavy : .medium,
@@ -2204,7 +2253,7 @@ final class Game: @unchecked Sendable {
         }
         let actualDamage = amount * (1.0 - armorDamageReduction)
         health -= actualDamage
-        playerInvulnerability = 0.50
+        playerInvulnerability = CombatConfig.playerHitInvulnerability
         combo = max(0, combo - 5)
         comboTimer = 0
         thunderEnergy = max(0, thunderEnergy - 10)
@@ -2370,10 +2419,11 @@ final class Game: @unchecked Sendable {
         notifyPickup(title: "THUNDER OVERLOAD", detail: "6 seconds of amplified fire and immunity", tint: rgb(106, 239, 255))
     }
 
-    private func registerKill(at position: Vec2, tint: COLORREF, baseScore: Int, radius: Double) {
+    private func registerKill(at position: Vec2, tint: COLORREF, baseScore: Int, radius: Double, isElite: Bool = false) {
         kills += 1
-        let credits = scaledReward(5 + stage)
-        let alloy = scaledReward(2 + stage / 2)
+        let rewardMultiplier = isElite ? 3 : 1
+        let credits = scaledReward((5 + stage) * rewardMultiplier)
+        let alloy = scaledReward((2 + stage / 2) * rewardMultiplier)
         profile.credits += credits
         profile.alloy += alloy
         profile.totalKills += 1
@@ -2394,9 +2444,12 @@ final class Game: @unchecked Sendable {
         }
         let multiplier = 1.0 + min(Double(combo), 50.0) * 0.015
         score += Int(Double(baseScore) * multiplier * comboScoreMultiplier)
-        experience += 1
-        thunderEnergy = min(100, thunderEnergy + (5.0 + min(Double(combo), 20.0) * 0.20) * thunderGainMultiplier)
-        addCameraShake(strength: radius > 18 ? 3.2 : 1.1)
+        experience += isElite ? 3 : 1
+        thunderEnergy = min(100, thunderEnergy + (isElite ? 16.0 : 5.0 + min(Double(combo), 20.0) * 0.20) * thunderGainMultiplier)
+        if isElite, powerUps.count < 18 {
+            powerUps.append(PowerUp(position: position, kind: Int.random(in: 0...2, using: &rng), life: 12))
+        }
+        addCameraShake(strength: isElite ? 5.4 : (radius > 18 ? 3.2 : 1.1))
     }
 
     private func scaledReward(_ value: Int) -> Int {

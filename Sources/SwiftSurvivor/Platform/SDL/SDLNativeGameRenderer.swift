@@ -106,7 +106,20 @@ enum SDLNativeGameRenderer {
                 r.fillCircle(center: (Float(p.x), Float(p.y)), radius: Float(max(8, enemy.radius + 4)), color: warningColor)
                 text(r, enemy.eliteWarningTimer > 0 ? "!" : "E", Float(p.x - 4), Float(p.y - enemy.radius - 20), warningColor)
             }
-            drawEnemyModel(r, enemy: enemy, position: p, body: c, time: game.uiAnimationTime)
+            if let textureName = enemyTextureName(for: enemy),
+               let texture = (r as? SDLRenderer)?.artTexture(named: textureName) {
+                let side = enemySpriteSide(for: enemy)
+                let alpha: UInt8 = enemy.hitFlash > 0 ? 218 : 255
+                r.drawSprite(texture, in: RenderRect(x: Float(p.x) - side * 0.5,
+                                                     y: Float(p.y) - side * 0.5,
+                                                     width: side, height: side), alpha: alpha)
+                if enemy.hitFlash > 0 {
+                    r.fillCircle(center: (Float(p.x), Float(p.y)), radius: Float(max(4, enemy.radius * 0.42)),
+                                 color: RenderColor(255, 255, 255, 82))
+                }
+            } else {
+                drawEnemyModel(r, enemy: enemy, position: p, body: c, time: game.uiAnimationTime)
+            }
             r.fillRect(RenderRect(x: Float(p.x - enemy.radius), y: Float(p.y - enemy.radius - 8), width: Float(enemy.radius * 2), height: 3), color: RenderColor(55, 24, 47))
             r.fillRect(RenderRect(x: Float(p.x - enemy.radius), y: Float(p.y - enemy.radius - 8), width: Float(max(0, enemy.radius * 2 * enemy.health / max(1, enemy.maxHealth))), height: 3), color: RenderColor(255, 134, 126))
             if enemy.attackWarningActive {
@@ -118,8 +131,15 @@ enum SDLNativeGameRenderer {
             let phaseGlow = boss.phaseFlash > 0 ? 0.58 : 0
             let left = p + Vec2(x: -102, y: 18)
             let right = p + Vec2(x: 102, y: 18)
-            drawThunderCarrierBoss(r, boss: boss, position: p, leftTurret: left, rightTurret: right,
-                                   highlightAmount: max(phaseGlow, boss.hitFlash > 0 ? 0.82 : 0), time: game.uiAnimationTime)
+            if let texture = (r as? SDLRenderer)?.artTexture(named: "boss_thunder_carrier") {
+                r.drawSprite(texture, in: RenderRect(x: Float(p.x - 174), y: Float(p.y - 98), width: 348, height: 196),
+                             alpha: boss.hitFlash > 0 ? 218 : 255)
+                drawGeneratedBossState(r, boss: boss, position: p, leftTurret: left, rightTurret: right,
+                                       phaseGlow: phaseGlow, time: game.uiAnimationTime)
+            } else {
+                drawThunderCarrierBoss(r, boss: boss, position: p, leftTurret: left, rightTurret: right,
+                                       highlightAmount: max(phaseGlow, boss.hitFlash > 0 ? 0.82 : 0), time: game.uiAnimationTime)
+            }
             if game.uiDebugOverlay {
                 r.fillCircle(center: (Float(p.x), Float(p.y)), radius: 50, color: RenderColor(85, 255, 150, 24))
                 r.fillCircle(center: (Float(left.x), Float(left.y)), radius: 26, color: RenderColor(255, 230, 90, 36))
@@ -202,9 +222,69 @@ enum SDLNativeGameRenderer {
         drawTimedEffectBars(uiRenderer, game: game, width: width)
     }
 
-    /// Enemy silhouettes are assembled from inexpensive renderer primitives.
-    /// Their collision remains the original circle; these shapes are purely
-    /// visual and make combat roles readable without adding texture switches.
+    private static func enemyTextureName(for enemy: Enemy) -> String? {
+        switch EnemyType(rawValue: enemy.type) ?? .fighter {
+        case .fighter: return "enemy_fighter"
+        case .diver: return "enemy_diver"
+        case .turret: return "enemy_turret"
+        case .sniper: return "enemy_sniper"
+        case .shield: return "enemy_shield"
+        case .kamikaze: return "enemy_kamikaze"
+        case .carrier: return "enemy_carrier"
+        }
+    }
+
+    private static func enemySpriteSide(for enemy: Enemy) -> Float {
+        let base: Float
+        switch EnemyType(rawValue: enemy.type) ?? .fighter {
+        case .fighter: base = 70
+        case .diver: base = 78
+        case .turret: base = 92
+        case .sniper: base = 84
+        case .shield: base = 90
+        case .kamikaze: base = 70
+        case .carrier: base = 112
+        }
+        return enemy.isElite ? base * 1.12 : base
+    }
+
+    /// Keeps destructible parts and the exposed reactor readable while the
+    /// generated sprite remains the primary visual model.
+    private static func drawGeneratedBossState(_ r: GameRenderer, boss: Boss, position p: Vec2,
+                                               leftTurret: Vec2, rightTurret: Vec2,
+                                               phaseGlow: Double, time: Double) {
+        if phaseGlow > 0 {
+            r.fillCircle(center: (Float(p.x), Float(p.y)), radius: 78,
+                         color: RenderColor(255, 176, 232, UInt8(min(92, phaseGlow * 150))))
+        }
+        if boss.leftTurretHealth <= 0 {
+            drawDestroyedBossPart(r, at: leftTurret)
+        }
+        if boss.rightTurretHealth <= 0 {
+            drawDestroyedBossPart(r, at: rightTurret)
+        }
+        let pulse = Float(1 + sin(time * (boss.phase >= 3 ? 10 : 6)) * 0.12)
+        if boss.weakPointOpen {
+            r.fillCircle(center: (Float(p.x), Float(p.y)), radius: 24 * pulse, color: RenderColor(88, 224, 255, 76))
+            r.fillCircle(center: (Float(p.x), Float(p.y)), radius: 12 * pulse, color: RenderColor(207, 250, 255, 224))
+        }
+        if boss.phase >= 3 {
+            let alpha = UInt8(140 + Int((sin(time * 13) + 1) * 42))
+            r.line(from: (Float(p.x - 42), Float(p.y - 30)), to: (Float(p.x - 22), Float(p.y - 11)),
+                   color: RenderColor(116, 232, 255, alpha))
+            r.line(from: (Float(p.x + 24), Float(p.y + 17)), to: (Float(p.x + 48), Float(p.y + 38)),
+                   color: RenderColor(116, 232, 255, alpha))
+        }
+    }
+
+    private static func drawDestroyedBossPart(_ r: GameRenderer, at p: Vec2) {
+        r.fillCircle(center: (Float(p.x), Float(p.y)), radius: 25, color: RenderColor(18, 15, 25, 218))
+        r.line(from: (Float(p.x - 15), Float(p.y - 15)), to: (Float(p.x + 15), Float(p.y + 15)), color: RenderColor(255, 115, 83, 210))
+        r.line(from: (Float(p.x + 15), Float(p.y - 15)), to: (Float(p.x - 15), Float(p.y + 15)), color: RenderColor(255, 115, 83, 210))
+    }
+
+    /// Resource-failure fallback. Normal gameplay uses generated image sprites;
+    /// collision remains independent from either visual representation.
     private static func drawEnemyModel(_ r: GameRenderer, enemy: Enemy, position p: Vec2, body: RenderColor, time: Double) {
         let x = Float(p.x), y = Float(p.y)
         let s = Float(max(0.78, enemy.radius / 20.0))
@@ -296,9 +376,7 @@ enum SDLNativeGameRenderer {
         r.line(from: (x, y - 2 * scale), to: (x, y - 9 * scale), color: RenderColor(255, 184, 104, 190))
     }
 
-    /// Original heavy-carrier silhouette inspired by the readable construction
-    /// language of classic vertical shooters: broad armored shoulders, separate
-    /// weapon pods and a bright central reactor. No external game artwork is used.
+    /// Resource-failure fallback for the generated carrier sprite.
     private static func drawThunderCarrierBoss(_ r: GameRenderer, boss: Boss, position p: Vec2,
                                                leftTurret: Vec2, rightTurret: Vec2,
                                                highlightAmount: Double, time: Double) {

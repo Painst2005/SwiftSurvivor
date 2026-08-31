@@ -73,8 +73,12 @@ func gameOverButtons(width: Double, height: Double) -> [UIRect] {
     return [UIRect(x: left, y: top, width: 290, height: 50), UIRect(x: left, y: top + 62, width: 290, height: 50)]
 }
 func upgradeCards(width: Double, height: Double) -> [UIRect] {
-    let left = width / 2 - 350, top = height / 2 - 20
-    return (0..<3).map { UIRect(x: left + Double($0) * 235, y: top, width: 220, height: 130) }
+    let cardWidth = 196.0
+    let gap = 12.0
+    let totalWidth = cardWidth * 3 + gap * 2
+    let left = (width - totalWidth) * 0.5
+    let top = min(height - 132, height * 0.64)
+    return (0..<3).map { UIRect(x: left + Double($0) * (cardWidth + gap), y: top, width: cardWidth, height: 104) }
 }
 func hangarCards(width: Double, height: Double) -> [UIRect] {
     let left = width / 2 - 350, top = 210.0

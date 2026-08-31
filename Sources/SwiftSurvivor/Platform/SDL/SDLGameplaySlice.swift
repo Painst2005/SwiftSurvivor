@@ -37,7 +37,7 @@ enum SDLGameplaySlice {
                 if input.isPressedQ(), game.phase == .paused || game.phase == .gameOver {
                     game.phase = .menu
                 }
-                if game.phase == .upgrade {
+                if game.upgradeSelectionActive || game.phase == .upgrade {
                     if input.isPressed(keyCode: 49) { game.chooseUpgrade(0) }
                     if input.isPressed(keyCode: 50) { game.chooseUpgrade(1) }
                     if input.isPressed(keyCode: 51) { game.chooseUpgrade(2) }
@@ -132,7 +132,7 @@ enum SDLGameplaySlice {
             renderer.fillRect(RenderRect(x: 70, y: 300, width: 580, height: 230), color: RenderColor(7, 12, 31, 235))
             renderer.drawText("PAUSED", at: (x: 300, y: 350), color: RenderColor(255, 255, 255))
             renderer.drawText("ESC RESUME    R RESTART    Q EXIT", at: (x: 190, y: 390), color: RenderColor(166, 222, 255))
-        } else if game.phase == .upgrade {
+        } else if game.upgradeSelectionActive || game.phase == .upgrade {
             renderer.fillRect(RenderRect(x: 38, y: 260, width: 644, height: 330), color: RenderColor(9, 15, 39, 245))
             renderer.drawText("CHOOSE UPGRADE", at: (x: 270, y: 290), color: RenderColor(255, 231, 133))
             for index in 0..<min(3, game.upgradeOptions.count) {

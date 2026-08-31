@@ -19,7 +19,7 @@ enum SDLNativeGameRenderer {
         case .playing, .paused, .upgrade, .gameOver:
             drawBattle(renderer, uiRenderer: uiRenderer, game: game, width: width, height: height)
             if game.phase == .paused { drawPause(uiRenderer, game: game, width: width, height: height) }
-            if game.phase == .upgrade { drawUpgrade(uiRenderer, game: game, width: width, height: height) }
+            if game.upgradeSelectionActive || game.phase == .upgrade { drawUpgrade(uiRenderer, game: game, width: width, height: height) }
             if game.phase == .gameOver { drawGameOver(uiRenderer, game: game, width: width, height: height) }
         case .menu: drawMenu(uiRenderer, game: game, width: width, height: height)
         case .saveSlots: drawSaveSlots(uiRenderer, game: game, width: width, height: height)
@@ -1055,11 +1055,11 @@ enum SDLNativeGameRenderer {
     }
 
     private static func drawUpgrade(_ r: GameRenderer, game: Game, width: Int, height: Int) {
-        r.fillRect(RenderRect(x: 0, y: 0, width: Float(width), height: Float(height)), color: RenderColor(3, 8, 17, 158))
+        r.fillRect(RenderRect(x: 0, y: 82, width: Float(width), height: Float(height - 82)), color: RenderColor(3, 8, 17, 52))
         panel(r, x: 70, y: 90, width: width - 140, height: height - 170)
         sectionHeader(r, title: t(game, "MODULE AVAILABLE", "新模块可用"), subtitle: t(game, "CHOOSE ONE", "三选一"),
                       x: 98, y: 124, width: width - 196)
-        text(r, t(game, "Choose one upgrade. Combat is paused.", "选择一项强化，战斗已暂停。"), Float(width / 2 - 160), 151, UITheme.Color.muted)
+        text(r, t(game, "Choose quickly — combat continues.", "请尽快选择，战斗仍在继续。"), Float(width / 2 - 150), 151, UITheme.Color.warning)
         text(r, t(game, "CURRENT BUILD", "当前构筑") + "  " + game.weaponType.label(for: game.language), 98, 186, UITheme.Color.secondary)
         text(r, t(game, "FOCUS", "流派") + "  " + game.buildFocusLabel(), 98, 208, UITheme.Color.primary)
         for (i, card) in upgradeCards(width: Double(width), height: Double(height)).enumerated() {

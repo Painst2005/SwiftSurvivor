@@ -140,7 +140,7 @@ enum SDLFullGame {
         }
         if input.isPressedFeedbackDebug() { Game.shared.debugFeedbackTest() }
         if input.isPressedUIDebug() { Game.shared.uiDebugOverlay.toggle() }
-        if Game.shared.phase == .upgrade {
+        if Game.shared.upgradeSelectionActive || Game.shared.phase == .upgrade {
             if input.isPressed(keyCode: 49) { Game.shared.chooseUpgrade(0) }
             if input.isPressed(keyCode: 50) { Game.shared.chooseUpgrade(1) }
             if input.isPressed(keyCode: 51) { Game.shared.chooseUpgrade(2) }

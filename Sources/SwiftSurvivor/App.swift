@@ -775,6 +775,7 @@ final class Game: @unchecked Sendable {
     var damageNumbers: [DamageNumber] = []
     var stars: [Star] = []
     var upgradeOptions: [UpgradeOption] = []
+    var upgradeSelectionActive: Bool { phase == .playing && !upgradeOptions.isEmpty }
     // A run can develop two specialist doctrines. Repeated selections still
     // deepen an existing doctrine, but it cannot accumulate every core.
     var selectedBuildCoreKinds = Set<Int>()
@@ -2922,7 +2923,7 @@ final class Game: @unchecked Sendable {
     // Reaching the current threshold opens the three-choice upgrade screen;
     // there is deliberately no level counter or level cap to gate growth.
     private func checkForUpgradeReady() {
-        guard phase == .playing, experience >= experienceGoal else { return }
+        guard phase == .playing, upgradeOptions.isEmpty, experience >= experienceGoal else { return }
         experience -= experienceGoal
         experienceGoal = Int(Double(experienceGoal) * 1.32) + 3
         var pool = Array(0...11)
@@ -2941,7 +2942,9 @@ final class Game: @unchecked Sendable {
         if !upgradeOptions.contains(where: { $0.rarity >= UpgradeRarity.rare.rawValue }) {
             upgradeOptions[0] = makeUpgradeOption(kind: upgradeOptions[0].kind, rarity: .rare)
         }
-        phase = .upgrade
+        // Upgrade selection is a live combat overlay. Keeping the gameplay
+        // phase active allows movement, firing, enemies and collisions to
+        // continue while the player chooses a module.
     }
 
     private func randomUpgradeRarity() -> UpgradeRarity {
@@ -3051,7 +3054,7 @@ final class Game: @unchecked Sendable {
     }
 
     func chooseUpgrade(_ index: Int) {
-        guard phase == .upgrade, upgradeOptions.indices.contains(index) else { return }
+        guard (upgradeSelectionActive || phase == .upgrade), upgradeOptions.indices.contains(index) else { return }
         let option = upgradeOptions[index]
         let rarity = UpgradeRarity(rawValue: option.rarity) ?? .common
         let scale = upgradeScale(rarity)
@@ -3101,6 +3104,7 @@ final class Game: @unchecked Sendable {
             comboScoreMultiplier = min(2.5, comboScoreMultiplier + 0.08 * scale)
         }
         phase = .playing
+        upgradeOptions.removeAll(keepingCapacity: true)
         let newlyActivated = activeSynergyIDs.subtracting(previousSynergies)
         if newlyActivated.isEmpty {
             notifyPickup(title: option.title, detail: option.detail, tint: rarityColor(rarity))
@@ -3108,6 +3112,7 @@ final class Game: @unchecked Sendable {
             announceNewSynergies(previous: previousSynergies)
         }
         AudioManager.shared.playSFX("sfx_upgrade")
+        checkForUpgradeReady()
     }
 
     func cycleWeapon() {
@@ -3635,6 +3640,12 @@ final class Game: @unchecked Sendable {
                 resolveConfirmation(confirmed: false)
             }
             return
+        }
+        if upgradeSelectionActive {
+            for (index, card) in upgradeCards(width: width, height: height).enumerated() where card.contains(point) {
+                chooseUpgrade(index)
+                return
+            }
         }
         switch phase {
         case .menu:

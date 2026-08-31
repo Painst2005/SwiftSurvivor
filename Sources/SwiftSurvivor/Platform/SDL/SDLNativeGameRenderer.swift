@@ -224,6 +224,10 @@ enum SDLNativeGameRenderer {
         text(r, t(game, "SHOTS", "弹幕") + " +\(game.projectileCountBonus)", 198, 60, UITheme.Color.secondary)
         text(r, t(game, "PIERCE", "穿透") + " +\(game.projectilePenetration)", 338, 60, UITheme.Color.secondary)
         text(r, t(game, "CRIT", "暴击") + " \(Int(game.criticalChance * 100))%", 475, 60, UITheme.Color.warning)
+        let dashLabel = game.dashCooldown <= 0.05
+            ? t(game, "DASH READY", "闪避就绪")
+            : t(game, "DASH", "闪避") + " \(Int(ceil(game.dashCooldown)))s"
+        text(r, dashLabel, 620, 60, game.dashCooldown <= 0.05 ? UITheme.Color.success : UITheme.Color.muted)
 
         if game.combo > 1 { text(r, t(game, "COMBO", "连击") + " x\(game.combo)", 650, 16, UITheme.Color.warning) }
         if let comboBurst = game.combatFeedback.comboFeedback {
@@ -348,6 +352,7 @@ enum SDLNativeGameRenderer {
         text(r, t(game, "SWITCH WEAPON", "切换武器") + "   Q", Float(width / 2 + 20), 360, UITheme.Color.secondary)
         text(r, t(game, "FEEDBACK TEST", "反馈测试") + "   F8", Float(width / 2 + 20), 386, UITheme.Color.secondary)
         text(r, t(game, "UI DEBUG", "界面调试") + "   F9", Float(width / 2 + 20), 412, UITheme.Color.secondary)
+        text(r, t(game, "EMERGENCY DASH", "紧急闪避") + "   F", Float(width / 2 + 20), 438, UITheme.Color.secondary)
         button(r, controlsBackButton(width: Double(width), height: Double(height)), title: t(game, "BACK", "返回"), selected: false)
     }
 

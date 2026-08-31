@@ -132,6 +132,9 @@ enum SDLFullGame {
             }
         }
         if input.isPressedQ(), Game.shared.phase == .playing { Game.shared.cycleWeapon() }
+        if input.isPressedDash(), Game.shared.phase == .playing {
+            Game.shared.tryDash(width: Double(viewport.logicalWidth), height: Double(viewport.logicalHeight))
+        }
         if input.isPressedFeedbackDebug() { Game.shared.debugFeedbackTest() }
         if input.isPressedUIDebug() { Game.shared.uiDebugOverlay.toggle() }
         if Game.shared.phase == .upgrade {

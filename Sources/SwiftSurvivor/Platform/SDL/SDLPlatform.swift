@@ -248,6 +248,7 @@ final class SDLInputManager {
     func isReleased(_ action: GameAction) -> Bool { mappedCodes(for: action).contains { releasedKeys.contains($0) } }
     func isPressed(keyCode: Int32) -> Bool { pressedKeys.contains(keyCode) }
     func isPressedQ() -> Bool { pressedKeys.contains(swift_sdl3_keycode_q()) }
+    func isPressedDash() -> Bool { pressedKeys.contains(swift_sdl3_keycode_f()) }
     func isPressedFeedbackDebug() -> Bool { pressedKeys.contains(swift_sdl3_keycode_f8()) }
     func isPressedUIDebug() -> Bool { pressedKeys.contains(swift_sdl3_keycode_f9()) }
     func isPrimaryButtonHeld() -> Bool { primaryButtonHeld }

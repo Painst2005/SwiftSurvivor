@@ -674,6 +674,8 @@ final class Game: @unchecked Sendable {
     var health = 120.0
     var maxHealth = 120.0
     var moveSpeed = 330.0
+    var lastMoveDirection = Vec2(x: 0, y: -1)
+    var dashCooldown = 0.0
     var damage = 18.0
     var fireCooldown = 0.24
     var fireTimer = 0.0
@@ -940,6 +942,8 @@ final class Game: @unchecked Sendable {
         player = Vec2(x: field.centerX, y: field.bottom - 100)
         mousePosition = player
         precisionMode = false
+        lastMoveDirection = Vec2(x: 0, y: -1)
+        dashCooldown = 0
         shipType = ShipType(rawValue: profile.selectedShip) ?? .thunder
         shipTraitTimer = 12.0
         let frameLevel = profile.equipment.first(where: { $0.slot == 0 })?.level ?? 1
@@ -1096,6 +1100,7 @@ final class Game: @unchecked Sendable {
         stageClearTimer = max(0, stageClearTimer - delta)
         stageBannerTimer = max(0, stageBannerTimer - delta)
         playerInvulnerability = max(0, playerInvulnerability - delta)
+        dashCooldown = max(0, dashCooldown - delta)
         thunderOverloadTime = max(0, thunderOverloadTime - delta)
         comboTimer = max(0, comboTimer - delta)
         if comboTimer <= 0 { combo = 0 }
@@ -1118,6 +1123,7 @@ final class Game: @unchecked Sendable {
             if keyDown(0x53) || keyDown(0x28) { direction.y += 1 } // S / down
         }
         if direction.length > 0 {
+            lastMoveDirection = direction.normalized
             let speed = precisionMode ? moveSpeed * CombatConfig.precisionSpeedMultiplier : moveSpeed
             let travel = min(speed * delta, max(0, (mousePosition - player).length))
             player = controlMode == .mouse ? player + direction * travel : player + direction.normalized * speed * delta
@@ -2830,6 +2836,29 @@ final class Game: @unchecked Sendable {
             ? "已选择武器：" + weaponType.label(for: .chinese)
             : "WEAPON SELECTED: " + weaponType.label
         notifyPickup(title: title, detail: detail, tint: weaponType == .laser ? rgb(132, 229, 255) : (weaponType == .scatter ? rgb(255, 185, 104) : rgb(170, 211, 255)))
+    }
+
+    func tryDash(width: Double, height: Double) {
+        guard phase == .playing, dashCooldown <= 0 else { return }
+
+        var direction = lastMoveDirection
+        if controlMode == .mouse {
+            let cursorDirection = mousePosition - player
+            if cursorDirection.length > 4 { direction = cursorDirection.normalized }
+        }
+        if direction.length < 0.01 { direction = Vec2(x: 0, y: -1) }
+
+        let origin = player
+        let field = playfieldBounds(width: width, height: height)
+        player = player + direction.normalized * 128
+        player.x = min(max(player.x, field.left + playerRadius + 10), field.right - playerRadius - 10)
+        player.y = min(max(player.y, field.top + playerRadius + 10), field.bottom - playerRadius - 12)
+        dashCooldown = 4.8
+        playerInvulnerability = max(playerInvulnerability, 0.20)
+        spawnExplosion(at: origin, tint: rgb(112, 220, 246), count: 10)
+        spawnHit(at: player, tint: rgb(173, 240, 255))
+        addCameraShake(strength: 2.6)
+        AudioManager.shared.playSFX("sfx_powerup")
     }
 
     func persistProfile() {

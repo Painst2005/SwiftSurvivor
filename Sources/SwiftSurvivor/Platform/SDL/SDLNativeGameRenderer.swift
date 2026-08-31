@@ -538,23 +538,38 @@ enum SDLNativeGameRenderer {
             for (i, card) in hangarCards(width: Double(width), height: Double(height)).enumerated() {
                 guard game.profile.equipment.indices.contains(i) else { continue }
                 let item = game.profile.equipment[i]
-                button(r, card, title: game.equipmentDisplayName(item), selected: false)
+                button(r, card, title: game.equipmentDisplayName(item), selected: i == game.selectedEquipmentSlot)
                 if card.contains(UIInteraction.pointer) { hoveredItem = item }
-                text(r, t(game, "SLOT", "槽位") + " \(i + 1)", Float(card.x + 12), Float(card.y + 12), UITheme.Color.muted)
-                text(r, game.equipmentQualityName(item.rarity) + "  ★\(item.stars)", Float(card.x + 12), Float(card.y + 34), color(equipmentRarityColor(item.rarity)))
-                text(r, "Lv.\(item.level)  •  \(t(game, "EQUIPPED", "已装备"))", Float(card.x + 12), Float(card.y + 78), UITheme.Color.secondary)
-                let lock = equipmentLockButton(i, width: Double(width), height: Double(height))
-                r.fillRect(RenderRect(x: Float(lock.x), y: Float(lock.y), width: Float(lock.width), height: Float(lock.height)), color: item.locked ? UITheme.Color.warning : RenderColor(28, 53, 78, 230))
-                text(r, item.locked ? t(game, "LOCKED", "已锁") : t(game, "LOCK", "锁定"), Float(lock.x + 7), Float(lock.y + 6), item.locked ? RenderColor(30, 35, 48) : UITheme.Color.muted)
-                let promote = equipmentPromoteButton(i, width: Double(width), height: Double(height))
-                r.fillRect(RenderRect(x: Float(promote.x), y: Float(promote.y), width: Float(promote.width), height: Float(promote.height)), color: UITheme.Color.panelSelected)
-                text(r, item.rarity >= 4 ? t(game, "MAX", "满阶") : t(game, "ADVANCE", "进阶"), Float(promote.x + 9), Float(promote.y + 7), UITheme.Color.text)
+                styledText(r, equipmentSlotName(game, item.slot), x: Float(card.x + 12), y: Float(card.y + 12), role: .label,
+                           color: i == game.selectedEquipmentSlot ? UITheme.Color.primary : UITheme.Color.muted)
+                text(r, game.equipmentQualityName(item.rarity) + "  ★\(item.stars)", Float(card.x + 12), Float(card.y + 38), color(equipmentRarityColor(item.rarity)))
+                text(r, "Lv.\(item.level)  •  PW \(equipmentPower(item))", Float(card.x + 12), Float(card.y + 78), UITheme.Color.secondary)
+                drawRightText(r, item.locked ? "◆" : "◇", right: Float(card.x + card.width - 12), y: Float(card.y + 12),
+                              color: item.locked ? UITheme.Color.warning : UITheme.Color.muted)
             }
-            if let hoveredItem {
-                drawEquipmentInspector(r, game: game, item: hoveredItem, x: 1005, y: 180, width: 214, height: 275)
-                drawTooltip(r, game: game, item: hoveredItem, width: width, height: height)
-            } else if let equipped = game.profile.equipment.first {
-                drawEquipmentInspector(r, game: game, item: equipped, x: 1005, y: 180, width: 214, height: 275)
+            let selectedIndex = min(max(0, game.selectedEquipmentSlot), max(0, game.profile.equipment.count - 1))
+            if game.profile.equipment.indices.contains(selectedIndex) {
+                let selected = game.profile.equipment[selectedIndex]
+                drawEquipmentInspector(r, game: game, item: selected, x: width - 275, y: 180, width: 210, height: 275)
+                button(r, hangarUpgradeButton(width: Double(width), height: Double(height)), title: t(game, "UPGRADE", "强化"), selected: false, emphasis: true)
+                button(r, hangarBatchUpgradeButton(width: Double(width), height: Double(height)), title: t(game, "UPGRADE ×5", "强化 ×5"), selected: false)
+                button(r, hangarPromoteButton(width: Double(width), height: Double(height)),
+                       title: selected.rarity >= 4 ? t(game, "MAX QUALITY", "已达最高品质") : t(game, "PROMOTE QUALITY", "品质进阶"), selected: false)
+                button(r, hangarLockButton(width: Double(width), height: Double(height)),
+                       title: selected.locked ? t(game, "UNLOCK MODULE", "解除锁定") : t(game, "LOCK MODULE", "锁定装备"), selected: false)
+            }
+            if let hoveredItem { drawTooltip(r, game: game, item: hoveredItem, width: width, height: height) }
+            styledText(r, t(game, "Select a module, review its cost, then choose an action.", "先选择装备并确认属性与消耗，再执行强化或进阶。"),
+                       x: 292, y: 466, role: .caption)
+            if game.profile.equipment.indices.contains(selectedIndex) {
+                let selected = game.profile.equipment[selectedIndex]
+                let cost = game.equipmentPromoteCost(for: selected)
+                styledText(r, t(game, "NEXT LEVEL", "下一级") + "  \(equipmentShortCost(game, selected))  •  CORE \(game.equipmentCoreCost(for: selected))",
+                           x: 292, y: 444, role: .label, color: UITheme.Color.warning)
+                if selected.rarity < 4 {
+                    styledText(r, t(game, "PROMOTION", "品质进阶") + "  \(cost.credits) C / \(cost.alloy) A / \(cost.cores) CORE",
+                               x: 600, y: 444, role: .label, color: UITheme.Color.boss)
+                }
             }
         } else {
             button(r, vaultFilterButton(width: Double(width), height: Double(height)), title: vaultFilterTitle(game), selected: false)
@@ -568,22 +583,30 @@ enum SDLNativeGameRenderer {
                 let absoluteIndex = game.vaultPage * 4 + i
                 if visible.indices.contains(absoluteIndex) {
                     let item = game.profile.inventory[visible[absoluteIndex]]
-                    button(r, card, title: game.equipmentDisplayName(item), selected: false)
+                    let inventoryIndex = visible[absoluteIndex]
+                    button(r, card, title: game.equipmentDisplayName(item), selected: inventoryIndex == game.selectedVaultInventoryIndex)
                     if card.contains(UIInteraction.pointer) { hoveredVaultItem = item }
                     text(r, game.equipmentQualityName(item.rarity) + "  Lv.\(item.level)  ★\(item.stars)", Float(card.x + 12), Float(card.y + 38), color(equipmentRarityColor(item.rarity)))
-                    text(r, item.slot == 0 ? t(game, "AIRFRAME", "机体") : t(game, "MODULE", "模块"), Float(card.x + 12), Float(card.y + 78), UITheme.Color.secondary)
-                    let lock = vaultLockButton(i, width: Double(width), height: Double(height))
-                    r.fillRect(RenderRect(x: Float(lock.x), y: Float(lock.y), width: Float(lock.width), height: Float(lock.height)), color: item.locked ? UITheme.Color.warning : RenderColor(28, 53, 78, 230))
-                    text(r, item.locked ? t(game, "LOCKED", "已锁") : t(game, "LOCK", "锁定"), Float(lock.x + 7), Float(lock.y + 6), item.locked ? RenderColor(30, 35, 48) : UITheme.Color.muted)
+                    text(r, equipmentSlotName(game, item.slot) + "  •  PW \(equipmentPower(item))", Float(card.x + 12), Float(card.y + 78), UITheme.Color.secondary)
+                    drawRightText(r, item.locked ? "◆" : "◇", right: Float(card.x + card.width - 12), y: Float(card.y + 12),
+                                  color: item.locked ? UITheme.Color.warning : UITheme.Color.muted)
                 } else {
                     r.fillRect(RenderRect(x: Float(card.x), y: Float(card.y), width: Float(card.width), height: Float(card.height)), color: RenderColor(15, 29, 49, 190))
                     text(r, t(game, "EMPTY SLOT", "空槽位"), Float(card.x + 14), Float(card.y + 48), UITheme.Color.muted)
                 }
             }
-            if let hoveredVaultItem {
-                drawEquipmentCompare(r, game: game, candidate: hoveredVaultItem, x: 1005, y: 180, width: 214, height: 275)
-                drawTooltip(r, game: game, item: hoveredVaultItem, width: width, height: height)
+            let selectedCandidate = game.selectedVaultInventoryIndex.flatMap { game.profile.inventory.indices.contains($0) ? game.profile.inventory[$0] : nil }
+            if let candidate = selectedCandidate ?? hoveredVaultItem {
+                drawEquipmentCompare(r, game: game, candidate: candidate, x: width - 275, y: 180, width: 210, height: 295)
             }
+            if let selectedCandidate {
+                let equipped = game.profile.equipment.contains(where: { $0.id == selectedCandidate.id })
+                button(r, vaultEquipButton(width: Double(width), height: Double(height)),
+                       title: equipped ? t(game, "CURRENTLY EQUIPPED", "当前已装备") : t(game, "EQUIP MODULE", "装备此模块"), selected: false, emphasis: !equipped)
+                button(r, vaultSelectedLockButton(width: Double(width), height: Double(height)),
+                       title: selectedCandidate.locked ? t(game, "UNLOCK MODULE", "解除锁定") : t(game, "LOCK MODULE", "锁定装备"), selected: false)
+            }
+            if let hoveredVaultItem { drawTooltip(r, game: game, item: hoveredVaultItem, width: width, height: height) }
         }
         button(r, hangarBackButton(width: Double(width), height: Double(height)), title: t(game, "BACK", "返回"), selected: false)
         if game.hangarMessageTimer > 0 {
@@ -660,6 +683,12 @@ enum SDLNativeGameRenderer {
         case 3: return t(game, "MAX HP +4 / LV", "最大生命 +4 / 级")
         default: return t(game, "DRONE DMG +0.6 / LV", "僚机伤害 +0.6 / 级")
         }
+    }
+
+    private static func equipmentSlotName(_ game: Game, _ slot: Int) -> String {
+        let names = [t(game, "AIRFRAME", "战机机框"), t(game, "PRIMARY", "主武器"), t(game, "SECONDARY", "副武器"),
+                     t(game, "ARMOR", "装甲"), t(game, "DRONE", "僚机")]
+        return names.indices.contains(slot) ? names[slot] : t(game, "MODULE", "模块")
     }
 
     private static func equipmentShortAffix(_ game: Game, _ item: EquipmentState) -> String {

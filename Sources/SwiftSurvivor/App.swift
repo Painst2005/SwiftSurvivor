@@ -651,6 +651,8 @@ final class Game: @unchecked Sendable {
     var hangarMessageDetail = ""
     var hangarMessageTimer = 0.0
     var hangarTab = 0
+    var selectedEquipmentSlot = 0
+    var selectedVaultInventoryIndex: Int? = nil
     var vaultPage = 0
     var vaultFilterSlot: Int? = nil
     var vaultSortMode = 0
@@ -3198,6 +3200,8 @@ final class Game: @unchecked Sendable {
         hangarMessageDetail = ""
         hangarMessageTimer = 0
         hangarTab = 0
+        selectedEquipmentSlot = 0
+        selectedVaultInventoryIndex = nil
         vaultPage = 0
         vaultFilterSlot = nil
         vaultSortMode = 0
@@ -3315,6 +3319,46 @@ final class Game: @unchecked Sendable {
         AudioManager.shared.playSFX("sfx_upgrade")
     }
 
+    func upgradeEquipmentMultiple(_ slot: Int, count: Int) {
+        guard phase == .hangar, profile.equipment.indices.contains(slot), count > 0 else { return }
+        let startingLevel = profile.equipment[slot].level
+        var completed = 0
+        while completed < count {
+            let item = profile.equipment[slot]
+            let creditCost = equipmentUpgradeCost(for: item)
+            let alloyCost = equipmentAlloyCost(for: item)
+            let coreCost = equipmentCoreCost(for: item)
+            guard profile.credits >= creditCost, profile.alloy >= alloyCost, profile.cores >= coreCost else { break }
+            profile.credits -= creditCost
+            profile.alloy -= alloyCost
+            profile.cores -= coreCost
+            profile.equipment[slot].level += 1
+            if profile.equipment[slot].level % 10 == 0 {
+                profile.equipment[slot].evolution = min(5, profile.equipment[slot].evolution + 1)
+                profile.equipment[slot].stars = min(5, profile.equipment[slot].stars + 1)
+            }
+            completed += 1
+        }
+        guard completed > 0 else {
+            let item = profile.equipment[slot]
+            hangarMessageTitle = uiText("INSUFFICIENT RESOURCES", "资源不足")
+            hangarMessageDetail = uiText("Next level needs \(equipmentUpgradeCost(for: item)) C / \(equipmentAlloyCost(for: item)) A / \(equipmentCoreCost(for: item)) CORE",
+                                         "下一级需要 \(equipmentUpgradeCost(for: item)) 金币 / \(equipmentAlloyCost(for: item)) 合金 / \(equipmentCoreCost(for: item)) 核心")
+            hangarMessageTimer = 2.4
+            return
+        }
+        let upgraded = profile.equipment[slot]
+        if let inventoryIndex = profile.inventory.firstIndex(where: { $0.id == upgraded.id }) {
+            profile.inventory[inventoryIndex] = upgraded
+        }
+        persistProfile()
+        hangarMessageTitle = uiText("BATCH UPGRADE COMPLETE", "批量强化完成")
+        hangarMessageDetail = uiText("LEVEL \(startingLevel) → \(upgraded.level)  •  \(completed) upgrade(s)",
+                                     "等级 \(startingLevel) → \(upgraded.level)  •  成功强化 \(completed) 次")
+        hangarMessageTimer = 2.4
+        AudioManager.shared.playSFX("sfx_upgrade")
+    }
+
     func promoteEquipment(_ slot: Int) {
         guard phase == .hangar, profile.equipment.indices.contains(slot) else { return }
         let item = profile.equipment[slot]
@@ -3363,15 +3407,18 @@ final class Game: @unchecked Sendable {
         let current = filters.firstIndex { $0 == vaultFilterSlot } ?? 0
         vaultFilterSlot = filters[(current + 1) % filters.count]
         vaultPage = 0
+        selectedVaultInventoryIndex = nil
     }
 
     func cycleVaultSort() {
         vaultSortMode = (vaultSortMode + 1) % 3
         vaultPage = 0
+        selectedVaultInventoryIndex = nil
     }
 
     func moveVaultPage(_ delta: Int) {
         vaultPage = min(max(0, vaultPage + delta), vaultPageCount - 1)
+        selectedVaultInventoryIndex = nil
     }
 
     func selectShip(_ value: ShipType) {
@@ -3387,6 +3434,7 @@ final class Game: @unchecked Sendable {
     func setHangarTab(_ tab: Int) {
         guard phase == .hangar, tab == 0 || tab == 1 else { return }
         hangarTab = tab
+        selectedVaultInventoryIndex = nil
     }
 
     func toggleEquipmentLock(_ slot: Int) {
@@ -3662,15 +3710,13 @@ final class Game: @unchecked Sendable {
             }
             if hangarTab == 0 {
                 for (index, card) in hangarCards(width: width, height: height).enumerated() where card.contains(point) {
-                    if equipmentLockButton(index, width: width, height: height).contains(point) {
-                        toggleEquipmentLock(index)
-                    } else if equipmentPromoteButton(index, width: width, height: height).contains(point) {
-                        promoteEquipment(index)
-                    } else {
-                        upgradeEquipment(index)
-                    }
+                    selectedEquipmentSlot = index
                     break
                 }
+                if hangarUpgradeButton(width: width, height: height).contains(point) { upgradeEquipment(selectedEquipmentSlot) }
+                else if hangarBatchUpgradeButton(width: width, height: height).contains(point) { upgradeEquipmentMultiple(selectedEquipmentSlot, count: 5) }
+                else if hangarPromoteButton(width: width, height: height).contains(point) { promoteEquipment(selectedEquipmentSlot) }
+                else if hangarLockButton(width: width, height: height).contains(point) { toggleEquipmentLock(selectedEquipmentSlot) }
             } else {
                 if vaultFilterButton(width: width, height: height).contains(point) { cycleVaultFilter(); return }
                 if vaultSortButton(width: width, height: height).contains(point) { cycleVaultSort(); return }
@@ -3681,13 +3727,13 @@ final class Game: @unchecked Sendable {
                     let absoluteIndex = vaultPage * 4 + cardIndex
                     if visible.indices.contains(absoluteIndex) {
                         let inventoryIndex = visible[absoluteIndex]
-                        if vaultLockButton(cardIndex, width: width, height: height).contains(point) {
-                            toggleInventoryLock(inventoryIndex)
-                        } else {
-                            equipInventoryItem(inventoryIndex)
-                        }
+                        selectedVaultInventoryIndex = inventoryIndex
                     }
                     break
+                }
+                if let selectedVaultInventoryIndex {
+                    if vaultEquipButton(width: width, height: height).contains(point) { equipInventoryItem(selectedVaultInventoryIndex) }
+                    else if vaultSelectedLockButton(width: width, height: height).contains(point) { toggleInventoryLock(selectedVaultInventoryIndex) }
                 }
             }
             if hangarBackButton(width: width, height: height).contains(point) { phase = .menu }

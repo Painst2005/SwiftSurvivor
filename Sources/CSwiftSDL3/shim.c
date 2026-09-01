@@ -291,6 +291,13 @@ bool swift_sdl3_audio_tick(SwiftSDL3Audio *audio) {
     return SDL_PutAudioStreamData(audio->stream, audio->data, (int)audio->length);
 }
 
+bool swift_sdl3_audio_set_gain(SwiftSDL3Audio *audio, float gain) {
+    if (audio == NULL || audio->stream == NULL) {
+        return false;
+    }
+    return SDL_SetAudioStreamGain(audio->stream, SDL_clamp(gain, 0.0f, 1.0f));
+}
+
 void swift_sdl3_audio_destroy(SwiftSDL3Audio *audio) {
     if (audio == NULL) {
         return;

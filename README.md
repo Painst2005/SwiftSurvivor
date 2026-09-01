@@ -87,7 +87,7 @@ Copy-Item Vendor\SDL3-3.4.14\lib\x64\SDL3.dll .build-game\x86_64-unknown-windows
 - Boss 被击毁后会进入短暂奖励过场：清除残弹、修复部分机体、补充雷霆能量并释放三件限时战斗道具
 - Boss 奖励同时提供额外 XP 和分数，奖励缓存会在 HUD 中显示，避免下一波敌人无缝压入造成节奏突兀
 - Boss 击毁时会延迟到当前子弹更新结束后再清理敌方残弹，避免数组遍历中修改导致闪退
-- 启动后自动播放适合战斗的太空合成器循环配乐；首选 `thunder_swift_battle.mp3`，若系统 MPEG 解码器不可用则自动回退到本地 PCM 配乐
+- 音乐采用原创分层曲目：大厅播放《A-雷霆战机（其他）》，普通战斗随章节压力依次使用《初阵》《步步为营》《敌袭》《血战》《死战》，Boss 战切换至《Jamesketed-boss》
 - 音频系统支持背景音乐与独立短音效（射击、命中、爆炸、道具、Boss、强化、成就），Settings 可分别调整 BGM/SFX 音量
 - 连续击杀会形成 **Combo**，擦过敌弹会触发 **Graze** 并积累雷霆能量
 - 雷霆能量达到 100% 后按 **Space** 释放雷霆超载：清除敌弹、短暂无敌并强化火力
@@ -118,7 +118,7 @@ Copy-Item Vendor\SDL3-3.4.14\lib\x64\SDL3.dll .build-game\x86_64-unknown-windows
 - 存档文件位于 `Save` 文件夹：`SwiftSurvivorSave1.json`、`SwiftSurvivorSave2.json`、`SwiftSurvivorSave3.json`，并为每个存档保留 `.backup.json` 备份
 - 窗口采用持久化双缓冲和无擦除刷新，避免高频重绘、爆炸特效和 Boss 战期间的画面闪烁
 - 游戏以无边框全屏方式运行，星空背景与战斗画布覆盖整个显示器；战斗使用 1000×760 逻辑分辨率并按 DPI 等比放大，保持战机、子弹和 HUD 的合适尺寸，避免高分辨率下画面空旷
-- 背景音乐使用 Windows 原生 `PlaySoundW` 循环播放由 `thunder_swift_battle.mp3` 解码得到的 `thunder_swift_battle.wav`，绕过 MCI 解码器并保留原始 MP3 资源
+- SDL 音频系统直接循环播放 PCM WAV，并在大厅、普通战斗和 Boss 战之间进行短时交叉淡化；切换结束立即释放旧音轨，避免双轨重叠
 - Windows 版本按图形子系统链接，启动时不会额外弹出控制台终端窗口
 - 性能优化：粒子原地压缩、弹幕回收减少数组搬移、碰撞使用平方距离、粒子密集时自动降低绘制采样而不改变碰撞逻辑。SDL 音频和渲染分别运行在各自的轻量路径，固定 60Hz 逻辑步长配合独立呈现；战斗 HUD 会显示实时 FPS
 - Controls 页面可切换 **WASD** 或 **Mouse Follow** 驾驶方式
@@ -136,6 +136,6 @@ Copy-Item Vendor\SDL3-3.4.14\lib\x64\SDL3.dll .build-game\x86_64-unknown-windows
 - `Sources/SwiftSurvivor/Combat/BulletSystem.swift`：Bullet 核心数据、Emitter、Pattern、Modifier 和子弹类型定义
 - `Sources/SwiftSurvivor/Progression/SaveManager.swift`：版本化本地玩家档案、资源、装备和备份存档
 - `Resources/Audio/thunder_swift_bgm.wav`：原创 48 秒循环背景音乐
-- `Resources/Audio/thunder_swift_battle.mp3`：OpenGameArt《Space Battle》（MintoDog，CC0）战斗配乐
+- `Resources/Audio/music_*.wav`：游戏原创大厅、普通战斗阶段和 Boss 配乐
 - `Tools/generate_audio.py`：重新生成背景音乐的脚本
 - `Tools/generate_sfx.py`：重新生成射击、命中、爆炸、道具、Boss、强化和成就音效的脚本

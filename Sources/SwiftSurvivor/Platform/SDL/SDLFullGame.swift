@@ -21,10 +21,8 @@ enum SDLFullGame {
             _ = platform.setLogicalPresentation(width: logicalWidth, height: logicalHeight)
             let input = SDLInputManager()
             let sdlAudio = SDLAudioService()
-            let musicPath = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-                .appendingPathComponent("Resources/Audio/thunder_swift_battle.wav").path
             AudioManager.shared.setExternalMusicActive(true)
-            sdlAudio.playMusic(named: musicPath, loop: true)
+            synchronizeMusic(sdlAudio, fadeDuration: 0)
             var clock = FixedStepClock()
             var previous = Double(swift_sdl3_ticks_ns()) / 1_000_000_000
             var running = true
@@ -39,7 +37,8 @@ enum SDLFullGame {
                 let events = platform.pollEvents()
                 platform.refreshWindowSize()
                 input.beginFrame(events: events)
-                sdlAudio.tick()
+                sdlAudio.musicVolume = Float(Game.shared.profile.bgmVolume) / 100
+                sdlAudio.tick(delta: realDelta)
                 if input.shouldQuit || sdlQuitRequested { running = false }
                 let requestedWidth = Game.shared.profile.resolutionWidth == 1024 ? 1024 : 1280
                 let requestedHeight = Game.shared.profile.resolutionHeight == 768 ? 768 : 720
@@ -75,6 +74,7 @@ enum SDLFullGame {
                 clock.advance(realDelta: realDelta) { delta in
                     Game.shared.update(delta: delta, width: Double(logicalWidth), height: Double(logicalHeight))
                 }
+                synchronizeMusic(sdlAudio)
 
                 // SDL is the only presentation path. Gameplay is drawn
                 // directly with SDL primitives each frame.
@@ -87,6 +87,35 @@ enum SDLFullGame {
         } catch {
             print("SDL full presentation failed: \(error)")
         }
+    }
+
+    private static func synchronizeMusic(_ audio: SDLAudioService, fadeDuration: Double = 0.75) {
+        let game = Game.shared
+        let filename: String
+        if game.phase == .playing || game.phase == .paused || game.phase == .upgrade {
+            if game.boss != nil {
+                filename = "music_boss.wav"
+            } else {
+                let pressure: Int
+                if game.gameMode == .campaign {
+                    pressure = game.selectedMission
+                } else {
+                    pressure = max(0, game.endlessWaveNumber - 1)
+                }
+                switch pressure {
+                case 0...1: filename = "music_battle_intro.wav"
+                case 2...3: filename = "music_battle_advance.wav"
+                case 4: filename = "music_battle_assault.wav"
+                case 5: filename = "music_battle_blood.wav"
+                default: filename = "music_battle_laststand.wav"
+                }
+            }
+        } else {
+            filename = "music_lobby.wav"
+        }
+        let path = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("Resources/Audio/\(filename)").path
+        audio.transitionMusic(named: path, duration: fadeDuration)
     }
 
     private static func handleInput(_ input: SDLInputManager, viewport: SDLViewport) {

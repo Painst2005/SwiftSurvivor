@@ -52,6 +52,7 @@ bool swift_sdl3_draw_texture_region(SwiftSDL3Context *context, SwiftSDL3Texture 
                                     uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha);
 SwiftSDL3Audio *swift_sdl3_audio_create(const char *path, bool loop);
 bool swift_sdl3_audio_tick(SwiftSDL3Audio *audio);
+bool swift_sdl3_audio_set_gain(SwiftSDL3Audio *audio, float gain);
 void swift_sdl3_audio_destroy(SwiftSDL3Audio *audio);
 void swift_sdl3_present(SwiftSDL3Context *context);
 bool swift_sdl3_set_window_size(SwiftSDL3Context *context, int width, int height);

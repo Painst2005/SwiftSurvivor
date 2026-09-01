@@ -4009,11 +4009,9 @@ final class AudioManager: @unchecked Sendable {
     func startMusic() {
         let request: String? = withState {
             guard !externalMusicActive, !musicIsPlaying, bgmVolume > 0 else { return nil }
-            // PlaySoundW supports PCM WAV directly on Windows. This WAV is a
-            // decoded copy of the requested thunder_swift_battle.mp3 track,
-            // so playback uses the exact battle composition without routing
-            // it through the MCI decoder that caused silent playback.
-            let path = audioFilePath("thunder_swift_battle.wav")
+            // The SDL presentation owns dynamic music. This lobby track is a
+            // native fallback for non-SDL diagnostic entry points only.
+            let path = audioFilePath("music_lobby.wav")
             guard let path else { return nil }
             musicIsPlaying = true
             return path

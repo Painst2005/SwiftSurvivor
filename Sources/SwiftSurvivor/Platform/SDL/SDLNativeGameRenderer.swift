@@ -1011,7 +1011,7 @@ enum SDLNativeGameRenderer {
         let resourceSummary = t(game, "CREDITS", "金币") + " \(game.profile.credits)   " + t(game, "CORES", "核心") + " \(game.profile.cores)"
         text(r, resourceSummary, Float(width - 390), 96, UITheme.Color.secondary)
 
-        if let shipTexture = (r as? SDLRenderer)?.artTexture(named: shipTextureName(game.shipType)) {
+        if let shipTexture = (r as? GameTextureProvider)?.gameTexture(named: shipTextureName(game.shipType)) {
             let previewWidth: Float
             switch game.shipType {
             case .ghost: previewWidth = 166

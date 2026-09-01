@@ -20,6 +20,13 @@ struct RenderRect: Equatable, Sendable {
 
 protocol GameTexture: AnyObject {}
 
+/// Optional resource lookup capability shared by render backends and UI
+/// transform proxies. Presentation code asks for a logical texture name
+/// without depending on SDL-specific texture types.
+protocol GameTextureProvider: AnyObject {
+    func gameTexture(named name: String) -> GameTexture?
+}
+
 /// Gameplay-facing rendering contract. No SDL or Win32 types cross this boundary.
 protocol GameRenderer: AnyObject {
     var drawableSize: (width: Int, height: Int) { get }

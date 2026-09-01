@@ -105,7 +105,7 @@ final class SDLPlatform {
     }
 }
 
-final class SDLRenderer: GameRenderer {
+final class SDLRenderer: GameRenderer, GameTextureProvider {
     private let platform: SDLPlatform
     private let bitmapFont: SDLBitmapFont?
     private var drawColor = RenderColor(255, 255, 255)
@@ -123,6 +123,10 @@ final class SDLRenderer: GameRenderer {
         guard let texture = SDLGameArt.load(named: name, platform: platform) else { return nil }
         artTextures[name] = texture
         return texture
+    }
+
+    func gameTexture(named name: String) -> GameTexture? {
+        artTexture(named: name)
     }
 
     func beginFrame(clear color: RenderColor) {

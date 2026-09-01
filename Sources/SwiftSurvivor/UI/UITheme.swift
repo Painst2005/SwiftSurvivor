@@ -171,7 +171,7 @@ struct UIProgressBar {
 /// readability scale without teaching SDL or gameplay about UI transforms.
 /// The transform is deliberately centered so the crosshair and battle field
 /// never move when a player changes the UI setting.
-final class UITransformRenderer: GameRenderer {
+final class UITransformRenderer: GameRenderer, GameTextureProvider {
     private let base: GameRenderer
     private let geometryScale: Float
     private let textScale: Float
@@ -191,6 +191,10 @@ final class UITransformRenderer: GameRenderer {
     }
 
     var drawableSize: (width: Int, height: Int) { base.drawableSize }
+
+    func gameTexture(named name: String) -> GameTexture? {
+        (base as? GameTextureProvider)?.gameTexture(named: name)
+    }
 
     func beginFrame(clear color: RenderColor) { base.beginFrame(clear: color) }
     func present() { base.present() }

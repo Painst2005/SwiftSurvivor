@@ -736,13 +736,29 @@ enum SDLNativeGameRenderer {
         drawRightText(r, stateLabel, right: Float(width - 14), y: 5,
                       color: boss.weakPointOpen ? UITheme.Color.energy : (boss.attackStage == .telegraph ? UITheme.Color.danger : UITheme.Color.secondary))
 
-        let barX: Float = 142
-        let barWidth = Float(max(260, width - 284))
+        let healthRatio = min(1, max(0, boss.health / max(1, boss.maxHealth)))
+        let barWidth = Float(min(480, max(300, Double(width) * 0.46)))
+        let barX = (Float(width) - barWidth) * 0.5
+        // One bar, three sequential health layers. When one layer is depleted,
+        // the same bar refills with the next color instead of adding more rows.
+        let layerValue: Double
+        let layerColor: RenderColor
+        let layerBack: RenderColor
+        if healthRatio > 0.70 {
+            layerValue = (healthRatio - 0.70) / 0.30
+            layerColor = RenderColor(75, 222, 143)
+            layerBack = RenderColor(27, 54, 48)
+        } else if healthRatio > 0.30 {
+            layerValue = (healthRatio - 0.30) / 0.40
+            layerColor = RenderColor(255, 158, 72)
+            layerBack = RenderColor(63, 44, 30)
+        } else {
+            layerValue = healthRatio / 0.30
+            layerColor = RenderColor(255, 72, 96)
+            layerBack = RenderColor(62, 26, 39)
+        }
         progress(r, UIProgressBar(rect: UIRect(x: Double(barX), y: 25, width: Double(barWidth), height: 9),
-                                  value: boss.health / max(1, boss.maxHealth),
-                                  fill: UITheme.Color.boss, back: RenderColor(56, 24, 67)), height: 9)
-        r.fillRect(RenderRect(x: barX + barWidth * 0.30, y: 23, width: 2, height: 13), color: UITheme.Color.warning)
-        r.fillRect(RenderRect(x: barX + barWidth * 0.70, y: 23, width: 2, height: 13), color: UITheme.Color.warning)
+                                  value: layerValue, fill: layerColor, back: layerBack), height: 9)
         text(r, t(game, "L-TURRET", "左炮塔") + " \(Int(leftRatio * 100))%", 14, 25,
              boss.leftTurretHealth > 0 ? UITheme.Color.secondary : UITheme.Color.muted)
         drawRightText(r, t(game, "R-TURRET", "右炮塔") + " \(Int(rightRatio * 100))%", right: Float(width - 14), y: 25,

@@ -219,9 +219,12 @@ enum SDLNativeGameRenderer {
         let playerP = game.player + game.playerVisualOffset + camera
         let playerColor = game.playerShieldFlash > 0 ? RenderColor(122, 232, 204) :
             (game.playerHitFlash > 0 ? RenderColor(255, 128, 150) : RenderColor(81, 205, 255))
-        if let fighter = (r as? SDLRenderer)?.artTexture(named: "thunder_interceptor") {
+        if let fighter = (r as? SDLRenderer)?.artTexture(named: shipTextureName(game.shipType)) {
             let hitAlpha: UInt8 = game.playerHitFlash > 0 ? 245 : 255
-            r.drawSprite(fighter, in: RenderRect(x: Float(playerP.x - 31), y: Float(playerP.y - 50), width: 62, height: 94), alpha: hitAlpha)
+            let shipSize = gameplayShipSize(game.shipType)
+            r.drawSprite(fighter, in: RenderRect(x: Float(playerP.x) - shipSize.width * 0.5,
+                                                 y: Float(playerP.y) - shipSize.height * 0.53,
+                                                 width: shipSize.width, height: shipSize.height), alpha: hitAlpha)
         } else {
             r.fillCircle(center: (Float(playerP.x), Float(playerP.y)), radius: 18, color: playerColor)
             r.fillCircle(center: (Float(playerP.x), Float(playerP.y - 7)), radius: 8, color: game.playerHitFlash > 0 ? RenderColor(255, 246, 248) : RenderColor(232, 250, 255))
@@ -269,6 +272,26 @@ enum SDLNativeGameRenderer {
         case .shield: return "enemy_shield"
         case .kamikaze: return "enemy_kamikaze"
         case .carrier: return "enemy_carrier"
+        }
+    }
+
+    private static func shipTextureName(_ ship: ShipType) -> String {
+        switch ship {
+        case .thunder: return "ship_thunder"
+        case .ghost: return "ship_ghost"
+        case .heavy: return "ship_heavy"
+        case .destroyer: return "ship_destroyer"
+        case .carrier: return "ship_carrier"
+        }
+    }
+
+    private static func gameplayShipSize(_ ship: ShipType) -> (width: Float, height: Float) {
+        switch ship {
+        case .thunder: return (64, 96)
+        case .ghost: return (58, 98)
+        case .heavy: return (74, 98)
+        case .destroyer: return (68, 100)
+        case .carrier: return (78, 100)
         }
     }
 
@@ -988,8 +1011,24 @@ enum SDLNativeGameRenderer {
         let resourceSummary = t(game, "CREDITS", "金币") + " \(game.profile.credits)   " + t(game, "CORES", "核心") + " \(game.profile.cores)"
         text(r, resourceSummary, Float(width - 390), 96, UITheme.Color.secondary)
 
-        drawShip(r, center: (x: 156, y: 282), scale: 2.2, accent: UITheme.Color.primary)
-        text(r, t(game, "SELECT AIRFRAME", "选择机体"), 76, 406, UITheme.Color.muted)
+        if let shipTexture = (r as? SDLRenderer)?.artTexture(named: shipTextureName(game.shipType)) {
+            let previewWidth: Float
+            switch game.shipType {
+            case .ghost: previewWidth = 166
+            case .heavy: previewWidth = 204
+            case .carrier: previewWidth = 210
+            default: previewWidth = 190
+            }
+            r.drawSprite(shipTexture, in: RenderRect(x: 156 - previewWidth * 0.5, y: 126,
+                                                     width: previewWidth, height: 276), alpha: 255)
+        } else {
+            drawShip(r, center: (x: 156, y: 282), scale: 2.2, accent: UITheme.Color.primary)
+        }
+        centeredText(r, game.shipType.label(for: game.language), centerX: 156, y: 407,
+                     role: .sectionTitle, color: UITheme.Color.text)
+        centeredText(r, game.shipType.subtitle(for: game.language), centerX: 156, y: 434,
+                     role: .caption, color: UITheme.Color.secondary)
+        text(r, t(game, "SELECT AIRFRAME", "选择机体"), 76, 462, UITheme.Color.muted)
         for (i, card) in shipCards(width: Double(width), height: Double(height)).enumerated() {
             let ship = ShipType(rawValue: i) ?? .thunder
             button(r, card, title: ship.label(for: game.language), selected: ship == game.shipType)

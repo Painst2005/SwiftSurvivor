@@ -1213,17 +1213,6 @@ enum SDLNativeGameRenderer {
         return t(game, "SORT", "排序") + ": " + names[min(max(0, game.vaultSortMode), names.count - 1)]
     }
 
-    private static func missionDropSummary(_ missionID: Int, game: Game) -> String {
-        switch missionID {
-        case 1: return t(game, "CREDITS • CORES", "金币 • 核心")
-        case 2: return t(game, "CORES • ARMOR", "核心 • 装甲")
-        case 3: return t(game, "ALLOY • PRIMARY", "合金 • 主武器")
-        case 4: return t(game, "CORES • DRONE", "核心 • 僚机")
-        case 5: return t(game, "ALLOY • ARMOR", "合金 • 装甲")
-        default: return t(game, "RARE MODULES", "稀有模块")
-        }
-    }
-
     private static func drawShip(_ r: GameRenderer, center: (x: Float, y: Float), scale: Float, accent: RenderColor) {
         let x = center.x, y = center.y
         r.fillCircle(center: (x, y - 34 * scale), radius: 10 * scale, color: RenderColor(235, 250, 255))

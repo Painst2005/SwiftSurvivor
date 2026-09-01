@@ -44,6 +44,9 @@ SwiftSDL3Context *swift_sdl3_create(const char *title, int width, int height, bo
         SDL_free(context);
         return NULL;
     }
+    // UI overlays and combat telegraphs use alpha to preserve bullet
+    // readability. SDL's default primitive blend mode is opaque.
+    SDL_SetRenderDrawBlendMode(context->renderer, SDL_BLENDMODE_BLEND);
     return context;
 }
 

@@ -2098,7 +2098,7 @@ final class Game: @unchecked Sendable {
             boss.burstShotTimer = 0.14
             if boss.phase >= 2 { emitBossSideWeapon(&boss, alternating: true) }
         case .sideCrossfire:
-            emitBossSideWeapon(&boss, alternating: false)
+            emitBossParallelCrossfire(boss)
         case .laserSweep:
             boss.laserWarningTimer = 0
             boss.laserActiveTimer = definition.execute
@@ -2130,6 +2130,25 @@ final class Game: @unchecked Sendable {
                                         modifiers: [.constantVelocity, .homing, .lockDirection], spread: 0,
                                         homingDuration: 0.62, maxTurnRate: 0.95)
         emitPattern(emitter, from: boss.position + Vec2(x: 0, y: 34), target: boss.attackTarget)
+    }
+
+    private func emitBossParallelCrossfire(_ boss: Boss) {
+        let emitter = BulletEmitter(pattern: .single, count: 1, speed: 292 + Double(boss.phase) * 14,
+                                    damage: 11 * activeEnemyDamageMultiplier * ThunderCarrierBossDefinition.damageMultiplier,
+                                    radius: 5.8, lifetime: 5.5, tint: rgb(255, 126, 174), bulletType: .normal,
+                                    modifiers: [.constantVelocity, .lockDirection])
+        if boss.leftTurretHealth > 0 {
+            for laneOffset in [-12.0, 12.0] {
+                emitPattern(emitter, from: boss.position + Vec2(x: -ThunderCarrierBossDefinition.turretOffsetX + laneOffset,
+                                                                y: ThunderCarrierBossDefinition.turretOffsetY))
+            }
+        }
+        if boss.rightTurretHealth > 0 {
+            for laneOffset in [-12.0, 12.0] {
+                emitPattern(emitter, from: boss.position + Vec2(x: ThunderCarrierBossDefinition.turretOffsetX + laneOffset,
+                                                                y: ThunderCarrierBossDefinition.turretOffsetY))
+            }
+        }
     }
 
     private func emitBossSideWeapon(_ boss: inout Boss, alternating: Bool) {

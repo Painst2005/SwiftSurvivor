@@ -576,36 +576,74 @@ enum SDLNativeGameRenderer {
 
     private static func drawBossTelegraph(_ r: GameRenderer, boss: Boss, position p: Vec2,
                                           field: PlayfieldBounds, camera: Vec2) {
-        let warning = RenderColor(255, 74, 128, 150)
         let origin = p + Vec2(x: 0, y: 34)
         switch boss.currentAttack {
         case .aimBurst:
             let target = boss.attackTarget + camera
-            drawWarningBeam(r, x: Float(target.x), top: Float(field.top), bottom: Float(field.bottom), active: false)
+            // A burst follows one aimed lane: warn only that trajectory, not
+            // the whole screen. Incidental single turret shots remain unmarked.
+            drawBossWarningRay(r, from: origin, direction: (target - origin).normalized, field: field)
         case .spread:
-            for angle in [-0.52, -0.26, 0.0, 0.26, 0.52] {
-                let end = origin + Vec2(x: sin(angle) * 245, y: cos(angle) * 245)
-                drawWarningBeam(r, x: Float(end.x), top: Float(origin.y), bottom: Float(field.bottom), active: false)
+            let count = boss.phase == 1 ? 7 : 9
+            let spread = boss.phase == 1 ? 0.52 : 0.68
+            for index in 0..<count {
+                let t = count == 1 ? 0.5 : Double(index) / Double(count - 1)
+                let angle = -spread + t * spread * 2
+                drawBossWarningRay(r, from: origin, direction: rotated(Vec2(x: 0, y: 1), by: angle), field: field)
             }
         case .sideCrossfire:
-            let target = boss.attackTarget + camera
-            drawWarningBeam(r, x: Float(target.x - 18), top: Float(field.top), bottom: Float(field.bottom), active: false)
-            drawWarningBeam(r, x: Float(target.x + 18), top: Float(field.top), bottom: Float(field.bottom), active: false)
+            // The two side emitters create two readable parallel danger lanes.
+            if boss.leftTurretHealth > 0 {
+                for laneOffset in [-12.0, 12.0] {
+                    let laneOrigin = p + Vec2(x: -ThunderCarrierBossDefinition.turretOffsetX + laneOffset,
+                                              y: ThunderCarrierBossDefinition.turretOffsetY)
+                    drawBossWarningRay(r, from: laneOrigin, direction: Vec2(x: 0, y: 1), field: field)
+                }
+            }
+            if boss.rightTurretHealth > 0 {
+                for laneOffset in [-12.0, 12.0] {
+                    let laneOrigin = p + Vec2(x: ThunderCarrierBossDefinition.turretOffsetX + laneOffset,
+                                              y: ThunderCarrierBossDefinition.turretOffsetY)
+                    drawBossWarningRay(r, from: laneOrigin, direction: Vec2(x: 0, y: 1), field: field)
+                }
+            }
         case .laserSweep:
             let left = min(boss.laserX, boss.laserTargetX) + camera.x
             let sweepWidth = abs(boss.laserTargetX - boss.laserX)
             r.fillRect(RenderRect(x: Float(left), y: Float(field.top + camera.y), width: Float(sweepWidth),
-                                  height: Float(field.bottom - field.top)), color: RenderColor(255, 68, 126, 20))
-            r.line(from: (Float(boss.laserX + camera.x), Float(field.top + camera.y)),
-                   to: (Float(boss.laserTargetX + camera.x), Float(field.top + camera.y)), color: warning)
+                                  height: Float(field.bottom - field.top)), color: RenderColor(255, 42, 72, 38))
+            drawWarningBeam(r, x: Float(boss.laserX + camera.x), top: Float(field.top + camera.y),
+                            bottom: Float(field.bottom + camera.y), active: false)
         case .slowField:
-            if let effect = (r as? SDLRenderer)?.artTexture(named: "vfx_hit_electric") {
-                r.drawSprite(effect, in: RenderRect(x: Float(origin.x - 76), y: Float(origin.y - 76), width: 152, height: 152), alpha: 110)
+            // The delayed semicircle exposes its actual fan before activation.
+            for index in 0..<9 {
+                let angle = -Double.pi * 0.46 + Double(index) / 8.0 * Double.pi * 0.92
+                var direction = rotated(Vec2(x: 0, y: 1), by: angle)
+                if direction.y < 0.22 { direction.y = 0.22; direction = direction.normalized }
+                drawBossWarningRay(r, from: origin, direction: direction, field: field)
             }
         case .spiral:
-            if let effect = (r as? SDLRenderer)?.artTexture(named: "vfx_hit_critical") {
-                r.drawSprite(effect, in: RenderRect(x: Float(origin.x - 68), y: Float(origin.y - 68), width: 136, height: 136), alpha: 105)
+            // Show the two mirrored fan families without drawing every future
+            // curved sample; alternating brightness keeps the paths legible.
+            for index in 0..<10 {
+                let angle = -1.08 + Double(index) / 9.0 * 2.16
+                drawBossWarningRay(r, from: origin, direction: rotated(Vec2(x: 0, y: 1), by: angle), field: field)
             }
+        }
+    }
+
+    private static func drawBossWarningRay(_ r: GameRenderer, from origin: Vec2,
+                                           direction rawDirection: Vec2, field: PlayfieldBounds) {
+        var direction = rawDirection.normalized
+        if direction.y < 0.12 { direction.y = 0.12; direction = direction.normalized }
+        let distance = max(1, (field.bottom - origin.y) / direction.y)
+        let end = origin + direction * distance
+        let perpendicular = Vec2(x: -direction.y, y: direction.x)
+        for (offset, alpha) in [(-3.0, 34.0), (-1.5, 74.0), (0.0, 220.0), (1.5, 74.0), (3.0, 34.0)] {
+            let shift = perpendicular * offset
+            r.line(from: (Float(origin.x + shift.x), Float(origin.y + shift.y)),
+                   to: (Float(end.x + shift.x), Float(end.y + shift.y)),
+                   color: RenderColor(255, 48, 72, UInt8(alpha)))
         }
     }
 

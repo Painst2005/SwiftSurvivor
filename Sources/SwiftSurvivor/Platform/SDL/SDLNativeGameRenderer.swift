@@ -747,10 +747,18 @@ enum SDLNativeGameRenderer {
             layerColor = RenderColor(255, 72, 96)
             revealedColor = RenderColor(62, 26, 39)
         }
-        progress(r, UIProgressBar(rect: UIRect(x: Double(barX), y: 15, width: Double(barWidth), height: 9),
-                                  value: 1, fill: revealedColor, back: RenderColor(29, 24, 38)), height: 9)
-        progress(r, UIProgressBar(rect: UIRect(x: Double(barX), y: 15, width: Double(barWidth), height: 9),
-                                  value: layerValue, fill: layerColor, back: RenderColor(0, 0, 0, 0)), height: 9)
+        // Draw both layers directly. SDL's primitive renderer currently uses
+        // opaque draw mode, so a second progress bar with an alpha-zero track
+        // would paint black over the underlying phase instead of preserving it.
+        // The next phase therefore fills the whole track first, and the current
+        // phase is painted only over its remaining width.
+        let barY: Float = 15
+        let barHeight: Float = 9
+        r.fillRect(RenderRect(x: barX, y: barY, width: barWidth, height: barHeight), color: revealedColor)
+        r.fillRect(RenderRect(x: barX, y: barY, width: barWidth * Float(min(1, max(0, layerValue))), height: barHeight),
+                   color: layerColor)
+        r.line(from: (barX, barY), to: (barX + barWidth, barY),
+               color: RenderColor(UITheme.Color.border.red, UITheme.Color.border.green, UITheme.Color.border.blue, 100))
         centeredText(r, stateLabel, centerX: Float(width) * 0.5, y: 26, role: .caption,
                      color: boss.weakPointOpen ? UITheme.Color.energy : (boss.attackStage == .telegraph ? UITheme.Color.danger : UITheme.Color.secondary))
         text(r, t(game, "L-TURRET", "左炮塔") + " \(Int(leftRatio * 100))%", barX, 26,

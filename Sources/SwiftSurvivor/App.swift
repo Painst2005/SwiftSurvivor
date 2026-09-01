@@ -126,9 +126,6 @@ enum GameMode: Int, CaseIterable {
         }
     }
 
-    var isFinite: Bool {
-        self != .endless
-    }
 }
 
 enum EndlessWavePhase {
@@ -142,8 +139,7 @@ struct MissionDefinition {
     let chineseTitle: String
     let description: String
     let chineseDescription: String
-    let duration: Double
-    let bossTime: Double
+    let frontWaveCount: Int
     let difficulty: Double
     let rewardMultiplier: Double
     let recommendedPower: Int
@@ -162,35 +158,35 @@ enum MissionCatalog {
         MissionDefinition(id: 1, title: "NEON FRONT", chineseTitle: "霓虹前线",
                           description: "The first defense line is under attack",
                           chineseDescription: "第一道防线正在遭受攻击",
-                          duration: 75, bossTime: 42, difficulty: 0.86, rewardMultiplier: 1.0, recommendedPower: 100),
+                          frontWaveCount: 4, difficulty: 0.86, rewardMultiplier: 1.0, recommendedPower: 100),
         MissionDefinition(id: 2, title: "VOID RIFT", chineseTitle: "虚空裂隙",
                           description: "Enemy formations emerge from a broken gate",
                           chineseDescription: "敌方编队从破碎的空间门涌出",
-                          duration: 90, bossTime: 48, difficulty: 1.08, rewardMultiplier: 1.35, recommendedPower: 180),
+                          frontWaveCount: 4, difficulty: 1.08, rewardMultiplier: 1.35, recommendedPower: 180),
         MissionDefinition(id: 3, title: "STAR FORGE", chineseTitle: "星铸核心",
                           description: "Hold the forge while its reactor overloads",
                           chineseDescription: "守住星铸核心，直到反应堆完成过载",
-                          duration: 105, bossTime: 54, difficulty: 1.32, rewardMultiplier: 1.75, recommendedPower: 290),
+                          frontWaveCount: 5, difficulty: 1.32, rewardMultiplier: 1.75, recommendedPower: 290),
         MissionDefinition(id: 4, title: "THUNDER CITADEL", chineseTitle: "雷霆堡垒",
                           description: "Break through the fortress command fleet",
                           chineseDescription: "突破堡垒舰队，摧毁敌方指挥中枢",
-                          duration: 120, bossTime: 60, difficulty: 1.58, rewardMultiplier: 2.2, recommendedPower: 430),
+                          frontWaveCount: 5, difficulty: 1.58, rewardMultiplier: 2.2, recommendedPower: 430),
         MissionDefinition(id: 5, title: "FROSTLINE", chineseTitle: "寒霜防线",
                           description: "Escort the last convoy through a frozen storm",
                           chineseDescription: "护送最后的运输队穿越寒霜风暴",
-                          duration: 135, bossTime: 66, difficulty: 1.82, rewardMultiplier: 2.7, recommendedPower: 580),
+                          frontWaveCount: 6, difficulty: 1.82, rewardMultiplier: 2.7, recommendedPower: 580),
         MissionDefinition(id: 6, title: "ECLIPSE GATE", chineseTitle: "日蚀之门",
                           description: "Close the gate before the eclipse reaches orbit",
                           chineseDescription: "在日蚀抵达轨道前关闭虚空之门",
-                          duration: 150, bossTime: 72, difficulty: 2.08, rewardMultiplier: 3.2, recommendedPower: 760),
+                          frontWaveCount: 6, difficulty: 2.08, rewardMultiplier: 3.2, recommendedPower: 760),
         MissionDefinition(id: 7, title: "STARFALL", chineseTitle: "星陨禁区",
                           description: "Survive the meteor field and break the siege",
                           chineseDescription: "穿越陨石场，突破敌军围攻",
-                          duration: 165, bossTime: 78, difficulty: 2.38, rewardMultiplier: 3.8, recommendedPower: 980),
+                          frontWaveCount: 7, difficulty: 2.38, rewardMultiplier: 3.8, recommendedPower: 980),
         MissionDefinition(id: 8, title: "ORIGIN CORE", chineseTitle: "起源核心",
                           description: "Enter the origin core and end the invasion",
                           chineseDescription: "进入起源核心，终结这场入侵",
-                          duration: 180, bossTime: 84, difficulty: 2.72, rewardMultiplier: 4.5, recommendedPower: 1250)
+                          frontWaveCount: 7, difficulty: 2.72, rewardMultiplier: 4.5, recommendedPower: 1250)
     ]
 }
 
@@ -708,7 +704,6 @@ final class Game: @unchecked Sendable {
     var endlessWaveTimeRemaining = 36.0
     var survivalTime = 0.0
     var stage = 1
-    var nextBossTime = 42.0
     var boss: Boss?
     var stageClearTimer = 0.0
     var stageBannerTimer = 0.0
@@ -849,20 +844,6 @@ final class Game: @unchecked Sendable {
         switch gameMode {
         case .campaign: return activeMission.rewardMultiplier
         case .endless: return 1.0
-        }
-    }
-
-    var activeMissionDuration: Double {
-        switch gameMode {
-        case .campaign: return activeMission.duration
-        case .endless: return .infinity
-        }
-    }
-
-    var activeBossTime: Double {
-        switch gameMode {
-        case .campaign: return activeMission.bossTime
-        case .endless: return 42
         }
     }
 
@@ -1031,7 +1012,6 @@ final class Game: @unchecked Sendable {
         endlessWaveTimeRemaining = 36.0
         survivalTime = 0
         stage = 1
-        nextBossTime = activeBossTime
         boss = nil
         stageClearTimer = 0
         stageBannerTimer = 0
@@ -1176,7 +1156,9 @@ final class Game: @unchecked Sendable {
             }
         }
 
-        let normalWaveSpawningAllowed = gameMode != .endless || endlessWavePhase == .combat
+        let normalWaveSpawningAllowed = gameMode == .campaign
+            ? waveIndex < activeMission.frontWaveCount
+            : endlessWavePhase == .combat
         if stageClearTimer <= 0, boss == nil, normalWaveSpawningAllowed {
             waveTimer -= delta
             if waveTimer <= 0 {
@@ -1185,15 +1167,15 @@ final class Game: @unchecked Sendable {
             }
         }
 
-        let canSpawnAnotherBoss = gameMode != .endless && !missionBossSpawned
-        if stageClearTimer <= 0, survivalTime >= nextBossTime, boss == nil, canSpawnAnotherBoss {
+        let campaignFrontCleared = gameMode == .campaign
+            && waveIndex >= activeMission.frontWaveCount
+            && enemies.isEmpty
+        if stageClearTimer <= 0, campaignFrontCleared, boss == nil, !missionBossSpawned {
+            stageBannerTimer = 2.2
+            stageBannerTitle = uiText("BOSS INBOUND", "首领来袭")
+            stageBannerDetail = uiText("FRONT LINE CLEARED  •  FINAL TARGET APPROACHING",
+                                       "前期战斗完成  •  最终目标正在接近")
             spawnBoss(field: field)
-        }
-
-        if gameMode.isFinite, stageClearTimer <= 0, survivalTime >= activeMissionDuration,
-           boss == nil, missionBossDefeated {
-            completeMission()
-            return
         }
 
         fireTimer -= delta
@@ -2959,6 +2941,9 @@ final class Game: @unchecked Sendable {
         notifyPickup(title: "BOSS REWARD CACHE", detail: dropDetail, tint: rgb(255, 211, 112))
         checkForUpgradeReady()
         persistProfile()
+        if gameMode == .campaign {
+            completeMission()
+        }
     }
 
     private func registerGraze(at position: Vec2) {

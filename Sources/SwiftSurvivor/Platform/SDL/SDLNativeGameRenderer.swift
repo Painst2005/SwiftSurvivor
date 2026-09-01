@@ -938,8 +938,8 @@ enum SDLNativeGameRenderer {
             text(r, t(game, "SELECTED SECTOR", "当前区域"), 68, 204, UITheme.Color.primary)
             text(r, mission.title(for: game.language), 68, 235, UITheme.Color.text)
             drawWrappedText(r, mission.description(for: game.language), x: 68, y: 268, color: UITheme.Color.secondary, maxWidth: 154, lineHeight: 18, maxLines: 2)
-            text(r, t(game, "DURATION", "时长") + "  \(Int(mission.duration))s", 68, 318, UITheme.Color.muted)
-            text(r, t(game, "BOSS", "首领") + "  \(Int(mission.bossTime))s", 68, 342, UITheme.Color.boss)
+            text(r, t(game, "FLOW", "流程") + "  " + t(game, "FRONT LINE", "前期战斗") + " × \(mission.frontWaveCount)", 68, 318, UITheme.Color.muted)
+            text(r, t(game, "FINAL", "终局") + "  " + t(game, "DEFEAT THE BOSS", "击败首领即可通关"), 68, 342, UITheme.Color.boss)
             let powerDelta = game.combatPower() - mission.recommendedPower
             text(r, t(game, "YOUR POWER", "当前战力") + "  \(game.combatPower())", 68, 364, UITheme.Color.warning)
             text(r, powerDelta >= 0 ? t(game, "ADVANTAGE", "优势") : t(game, "CHALLENGE", "挑战"), 68, 388, powerDelta >= 0 ? UITheme.Color.success : UITheme.Color.danger)

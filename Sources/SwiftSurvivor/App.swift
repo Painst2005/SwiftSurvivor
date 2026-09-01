@@ -1789,11 +1789,11 @@ final class Game: @unchecked Sendable {
                             for shot in 0..<10 {
                                 spawnBullet(Bullet(position: Vec2(x: enemies[index].warningTargetX,
                                                                   y: field.top - 12 - Double(shot) * 23),
-                                                   velocity: Vec2(x: 0, y: 390), radius: 5,
+                                                   velocity: Vec2(x: 0, y: 390), radius: 7,
                                                    damage: 4.0 * activeEnemyDamageMultiplier,
                                                    life: 5.5, playerOwned: false,
                                                    tint: rgb(255, 125, 118),
-                                                   bulletType: BulletType.normal.rawValue,
+                                                   bulletType: BulletType.cosmicRayBarrage.rawValue,
                                                    modifiers: [.constantVelocity, .lockDirection],
                                                    minForwardSpeed: 70,
                                                    baseVelocity: Vec2(x: 0, y: 390)))
@@ -1802,7 +1802,7 @@ final class Game: @unchecked Sendable {
                             // The beam is intentionally brief and high impact.
                             // Its damage is applied once, never once per frame.
                             enemies[index].dangerLaserTimer = 0.18
-                            if abs(player.x - enemies[index].warningTargetX) <= coreRadius + 18 {
+                            if abs(player.x - enemies[index].warningTargetX) <= coreRadius + 30 {
                                 damagePlayer(amount: 32 * activeEnemyDamageMultiplier)
                             }
                             addCameraShake(strength: 5.5)

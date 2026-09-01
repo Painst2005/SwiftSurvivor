@@ -123,6 +123,11 @@ enum SDLNativeGameRenderer {
             r.fillRect(RenderRect(x: Float(p.x - enemy.radius), y: Float(p.y - enemy.radius - 8), width: Float(max(0, enemy.radius * 2 * enemy.health / max(1, enemy.maxHealth))), height: 3), color: RenderColor(255, 134, 126))
             if enemy.attackWarningActive {
                 drawWarningBeam(r, x: Float(enemy.warningTargetX), top: Float(field.top), bottom: Float(field.bottom), active: false)
+                let cosmicRayKind = enemy.warningAttackKind == 0
+                    ? t(game, "COSMIC RAY • BARRAGE", "宇宙射线 • 弹流")
+                    : t(game, "COSMIC RAY • BEAM", "宇宙射线 • 光束")
+                centeredText(r, cosmicRayKind, centerX: Float(enemy.warningTargetX), y: Float(field.top + 8),
+                             role: .caption, color: UITheme.Color.danger, shadow: true)
             }
             if enemy.dangerLaserTimer > 0 {
                 drawWarningBeam(r, x: Float(enemy.warningTargetX), top: Float(field.top), bottom: Float(field.bottom), active: true)
@@ -277,6 +282,7 @@ enum SDLNativeGameRenderer {
             }
         }
         switch BulletType(rawValue: bullet.bulletType) ?? .normal {
+        case .cosmicRayBarrage: return "vfx_cosmic_ray_barrage"
         case .boss, .explosive: return "vfx_bullet_boss_orb"
         case .piercing, .laser: return "vfx_bullet_enemy_sniper"
         default: return bullet.radius >= 7 ? "vfx_bullet_enemy_heavy" : "vfx_bullet_enemy_normal"
@@ -294,6 +300,7 @@ enum SDLNativeGameRenderer {
             }
         }
         switch BulletType(rawValue: bullet.bulletType) ?? .normal {
+        case .cosmicRayBarrage: return (34, 68)
         case .boss, .explosive: return (34, 34)
         case .piercing, .laser: return (15, 42)
         default: return bullet.radius >= 7 ? (25, 36) : (17, 28)
@@ -324,10 +331,11 @@ enum SDLNativeGameRenderer {
     }
 
     private static func drawWarningBeam(_ r: GameRenderer, x: Float, top: Float, bottom: Float, active: Bool) {
-        guard let texture = (r as? SDLRenderer)?.artTexture(named: "vfx_warning_beam") else { return }
-        let width: Float = active ? 34 : 18
+        let textureName = active ? "vfx_cosmic_ray_beam" : "vfx_warning_beam"
+        guard let texture = (r as? SDLRenderer)?.artTexture(named: textureName) else { return }
+        let width: Float = active ? 64 : 20
         r.drawSprite(texture, in: RenderRect(x: x - width * 0.5, y: top, width: width, height: max(1, bottom - top)),
-                     alpha: active ? 245 : 158)
+                     alpha: active ? 252 : 168)
     }
 
     private static func drawBossDamageTextures(_ r: GameRenderer, boss: Boss, position p: Vec2, time: Double) {

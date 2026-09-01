@@ -10,6 +10,8 @@ enum BulletType: Int {
     case laser = 3
     case explosive = 4
     case piercing = 5
+    /// Large, low-damage projectile train released by a Cosmic Ray warning.
+    case cosmicRayBarrage = 6
 }
 
 enum BulletPattern: Int {

@@ -602,71 +602,60 @@ enum SDLNativeGameRenderer {
     }
 
     private static func drawCombatHUD(_ r: GameRenderer, game: Game, field: PlayfieldBounds, width: Int) {
-        r.fillRect(RenderRect(x: 10, y: 8, width: 294, height: 43), color: UITheme.Color.panelSoft)
-        r.fillRect(RenderRect(x: 312, y: 8, width: 326, height: 43), color: UITheme.Color.panelSoft)
-        r.fillRect(RenderRect(x: Float(max(646, width - 338)), y: 8, width: Float(min(328, width - max(646, width - 338) - 10)), height: 43), color: UITheme.Color.panelSoft)
-        r.fillRect(RenderRect(x: 10, y: 56, width: Float(min(780, width - 20)), height: 24), color: RenderColor(12, 28, 46, 205))
+        // Thunder-Fighter-inspired hierarchy: critical survival data hugs the
+        // upper edge, active controls sit in the lower corners, and the middle
+        // remains a clean bullet-reading lane.
+        r.fillRect(RenderRect(x: 0, y: 38, width: Float(width), height: 44), color: RenderColor(6, 15, 30, 232))
+        r.fillRect(RenderRect(x: 0, y: 80, width: Float(width), height: 2), color: RenderColor(83, 136, 154, 86))
         if let boss = game.boss {
             drawBossTopHUD(r, game: game, boss: boss, width: width)
         } else {
-            text(r, t(game, "THUNDER SWIFT", "雷霆疾影"), 16, 16, UITheme.Color.text)
+            r.fillRect(RenderRect(x: 0, y: 0, width: Float(width), height: 38), color: RenderColor(5, 10, 24, 242))
+            r.fillRect(RenderRect(x: 0, y: 36, width: Float(width), height: 2), color: UITheme.Color.primaryDeep)
             let progressLabel = game.gameMode == .endless
-                ? t(game, "WAVE", "波次") + " \(game.endlessWaveNumber)  •  " + t(game, "COMBAT", "战斗")
+                ? t(game, "WAVE", "波次") + " \(game.endlessWaveNumber)"
                 : t(game, "STAGE", "关卡") + " \(game.stage)"
-            text(r, progressLabel, 190, 16, UITheme.Color.primary)
-            drawRightText(r, t(game, "SCORE", "分数") + " \(game.score)", right: Float(width - 16), y: 16, color: UITheme.Color.warning)
-            drawRightText(r, t(game, "KILLS", "击杀") + " \(game.kills)", right: Float(width - 196), y: 16, color: UITheme.Color.boss)
+            text(r, progressLabel, 16, 9, UITheme.Color.primary)
+            centeredText(r, t(game, "THUNDER SWIFT", "雷霆疾影"), centerX: Float(width) * 0.5, y: 8,
+                         role: .sectionTitle, color: UITheme.Color.text)
+            drawRightText(r, t(game, "SCORE", "分数") + " \(game.score)  •  " + t(game, "KILLS", "击杀") + " \(game.kills)",
+                          right: Float(width - 16), y: 9, color: UITheme.Color.warning)
         }
 
         let healthRatio = game.health / max(1, game.maxHealth)
-        progress(r, UIProgressBar(rect: UIRect(x: 18, y: 39, width: 166, height: 10),
+        let healthWidth = min(228.0, max(166.0, Double(width) * 0.22))
+        progress(r, UIProgressBar(rect: UIRect(x: 18, y: 48, width: healthWidth, height: 12),
                                   value: game.healthLag / max(1, game.maxHealth),
                                   fill: RenderColor(255, 171, 93, game.healthBarFlash > 0 ? 245 : 165),
-                                  back: RenderColor(61, 28, 53)), height: 10)
-        progress(r, UIProgressBar(rect: UIRect(x: 18, y: 39, width: 166, height: 10),
-                                  value: healthRatio, fill: UITheme.Color.danger, back: RenderColor(0, 0, 0, 0)), height: 10)
-        text(r, t(game, "HP", "生命") + " \(Int(game.health))/\(Int(game.maxHealth))", 22, 42, UITheme.Color.text)
+                                  back: RenderColor(61, 28, 53)), height: 12)
+        progress(r, UIProgressBar(rect: UIRect(x: 18, y: 48, width: healthWidth, height: 12),
+                                  value: healthRatio, fill: UITheme.Color.danger, back: RenderColor(0, 0, 0, 0)), height: 12)
+        text(r, t(game, "HP", "耐久") + "  \(Int(game.health))/\(Int(game.maxHealth))", 22, 49, UITheme.Color.text)
 
         let shieldValue = game.pickupShieldCharges > 0 ? 1.0 : min(1, Double(game.armorShieldCharges) / 3.0)
-        progress(r, UIProgressBar(rect: UIRect(x: 198, y: 39, width: 104, height: 10), value: shieldValue,
-                                  fill: UITheme.Color.shield, back: RenderColor(22, 56, 79)), height: 10)
-        text(r, game.pickupShieldCharges > 0 ? t(game, "AEGIS x1", "壁垒 x1") : t(game, "SHIELD", "护盾") + " x\(game.armorShieldCharges)", 202, 42, UITheme.Color.shield)
+        progress(r, UIProgressBar(rect: UIRect(x: 18, y: 68, width: healthWidth, height: 7), value: shieldValue,
+                                  fill: UITheme.Color.shield, back: RenderColor(22, 56, 79)), height: 7)
+        text(r, game.pickupShieldCharges > 0 ? t(game, "AEGIS x1", "壁垒 x1") : t(game, "SHIELD", "护盾") + " x\(game.armorShieldCharges)",
+             22, 66, UITheme.Color.shield)
 
-        progress(r, UIProgressBar(rect: UIRect(x: 318, y: 39, width: 170, height: 10),
+        let centerLeft = max(265.0, Double(width) * 0.28)
+        let centerWidth = min(210.0, max(140.0, Double(width) * 0.18))
+        progress(r, UIProgressBar(rect: UIRect(x: centerLeft, y: 48, width: centerWidth, height: 9),
                                   value: Double(game.experience) / Double(max(1, game.experienceGoal)),
-                                  fill: UITheme.Color.energy, back: RenderColor(22, 56, 79)), height: 10)
-        text(r, t(game, "XP", "经验"), 324, 42, UITheme.Color.text)
+                                  fill: UITheme.Color.energy, back: RenderColor(22, 56, 79)), height: 9)
+        text(r, t(game, "XP", "经验") + "  \(game.experience)/\(game.experienceGoal)", Float(centerLeft + 6), 48, UITheme.Color.text)
 
-        let thunderReady = game.thunderEnergy >= CombatConfig.thunderOverloadCost
-        let thunderBurstReady = game.thunderEnergy >= CombatConfig.thunderBurstCost
-        progress(r, UIProgressBar(rect: UIRect(x: 505, y: 39, width: 124, height: 10),
-                                  value: game.thunderEnergy / 100,
-                                  fill: thunderReady ? UITheme.Color.warning : UITheme.Color.energy,
-                                  back: RenderColor(22, 56, 79)), height: 10)
-        let thunderLabel: String
-        if thunderReady {
-            thunderLabel = t(game, "OVERLOAD READY", "超载就绪")
-        } else if thunderBurstReady {
-            thunderLabel = t(game, "BURST READY", "爆发就绪")
-        } else {
-            thunderLabel = t(game, "THUNDER", "雷霆") + " \(Int(game.thunderEnergy))%"
-        }
-        text(r, thunderLabel, 511, 42, thunderReady ? UITheme.Color.warning : (thunderBurstReady ? UITheme.Color.primary : UITheme.Color.energy))
-
-        // Persistent combat attributes belong in the HUD, not behind the
-        // pause overlay.  Keep this compact row left of boss and timed-effect
-        // panels so it never occupies the central dodge space.
         let weaponSummary = game.weaponType.label(for: game.language) + "  Lv.\(game.weaponLevel)"
-        text(r, weaponSummary, 18, 60, UITheme.Color.text)
-        text(r, t(game, "SHOTS", "弹幕") + " +\(game.projectileCountBonus)", 198, 60, UITheme.Color.secondary)
-        text(r, t(game, "PIERCE", "穿透") + " +\(game.projectilePenetration)", 338, 60, UITheme.Color.secondary)
-        text(r, t(game, "CRIT", "暴击") + " \(Int(game.criticalChance * 100))%", 475, 60, UITheme.Color.warning)
-        let dashLabel = game.dashCooldown <= 0.05
-            ? t(game, "DASH READY", "闪避就绪")
-            : t(game, "DASH", "闪避") + " \(Int(ceil(game.dashCooldown)))s"
-        text(r, dashLabel, 620, 60, game.dashCooldown <= 0.05 ? UITheme.Color.success : UITheme.Color.muted)
+        text(r, weaponSummary, Float(centerLeft + 2), 66, UITheme.Color.text)
+        text(r, t(game, "SHOTS", "弹幕") + "+\(game.projectileCountBonus)  •  " +
+             t(game, "PIERCE", "穿透") + "+\(game.projectilePenetration)  •  " +
+             t(game, "CRIT", "暴击") + "\(Int(game.criticalChance * 100))%",
+             Float(centerLeft + centerWidth + 18), 66, UITheme.Color.secondary)
 
-        if game.combo > 1 { text(r, t(game, "COMBO", "连击") + " x\(game.combo)", 650, 16, UITheme.Color.warning) }
+        if game.combo > 1 {
+            drawRightText(r, "×\(game.combo)  " + t(game, "COMBO", "连击"), right: Float(width - 18), y: 48,
+                          color: game.combo >= 50 ? UITheme.Color.warning : UITheme.Color.secondary)
+        }
         if let comboBurst = game.combatFeedback.comboFeedback {
             let life = max(0, min(1, 1 - comboBurst.elapsed / 0.9))
             let burstColor = color(comboBurst.tint)
@@ -675,10 +664,47 @@ enum SDLNativeGameRenderer {
                  RenderColor(burstColor.red, burstColor.green, burstColor.blue, UInt8(255 * life)))
         }
 
+        drawThunderControlHUD(r, game: game, field: field)
+        drawWeaponControlHUD(r, game: game, field: field, width: width)
         if game.survivalTime < 8 {
             let hint = t(game, "WASD / ARROWS MOVE  •  SHIFT PRECISION  •  SPACE OVERLOAD", "WASD / 方向键移动  •  Shift 精准  •  Space 超载")
-            text(r, hint, 18, Float(field.bottom - 24), UITheme.Color.muted)
+            centeredText(r, hint, centerX: Float(width) * 0.5, y: Float(field.bottom - 22), role: .caption,
+                         color: UITheme.Color.muted)
         }
+    }
+
+    private static func drawThunderControlHUD(_ r: GameRenderer, game: Game, field: PlayfieldBounds) {
+        let ready = game.thunderEnergy >= CombatConfig.thunderOverloadCost
+        let burstReady = game.thunderEnergy >= CombatConfig.thunderBurstCost
+        let tint = ready ? UITheme.Color.warning : (burstReady ? UITheme.Color.primary : UITheme.Color.energy)
+        let x: Float = 16
+        let y = Float(field.bottom - 82)
+        r.fillRect(RenderRect(x: x, y: y, width: 214, height: 64), color: RenderColor(6, 15, 30, 222))
+        r.fillRect(RenderRect(x: x, y: y, width: 4, height: 64), color: tint)
+        r.fillCircle(center: (x + 34, y + 31), radius: 22, color: RenderColor(tint.red, tint.green, tint.blue, 48))
+        centeredText(r, "SPACE", centerX: x + 34, y: y + 23, role: .caption, color: tint)
+        let label = ready ? t(game, "OVERLOAD READY", "超载就绪") :
+            (burstReady ? t(game, "BURST READY", "爆发就绪") : t(game, "THUNDER ENERGY", "雷霆能量"))
+        text(r, label, x + 66, y + 12, ready ? UITheme.Color.warning : UITheme.Color.text)
+        text(r, "\(Int(game.thunderEnergy))%", x + 164, y + 12, tint)
+        progress(r, UIProgressBar(rect: UIRect(x: Double(x + 66), y: Double(y + 40), width: 132, height: 9),
+                                  value: game.thunderEnergy / 100, fill: tint,
+                                  back: RenderColor(22, 56, 79)), height: 9)
+    }
+
+    private static func drawWeaponControlHUD(_ r: GameRenderer, game: Game, field: PlayfieldBounds, width: Int) {
+        let panelWidth: Float = 224
+        let x = Float(width) - panelWidth - 16
+        let y = Float(field.bottom - 82)
+        r.fillRect(RenderRect(x: x, y: y, width: panelWidth, height: 64), color: RenderColor(6, 15, 30, 222))
+        r.fillRect(RenderRect(x: x + panelWidth - 4, y: y, width: 4, height: 64), color: UITheme.Color.primary)
+        text(r, "Q", x + 14, y + 10, UITheme.Color.primary)
+        text(r, game.weaponType.label(for: game.language) + "  Lv.\(game.weaponLevel)", x + 42, y + 10, UITheme.Color.text)
+        let dashReady = game.dashCooldown <= 0.05
+        text(r, "F", x + 14, y + 38, dashReady ? UITheme.Color.success : UITheme.Color.muted)
+        let dashLabel = dashReady ? t(game, "DASH READY", "闪避就绪") :
+            t(game, "DASH", "闪避") + "  \(String(format: "%.1f", game.dashCooldown))s"
+        text(r, dashLabel, x + 42, y + 38, dashReady ? UITheme.Color.success : UITheme.Color.muted)
     }
 
     private static func drawBossTopHUD(_ r: GameRenderer, game: Game, boss: Boss, width: Int) {
@@ -1379,7 +1405,9 @@ enum SDLNativeGameRenderer {
         let panelWidth: Float = 178
         let x = Float(width) - panelWidth - 16
         for (index, effect) in effects.enumerated() {
-            let y = Float(66 + index * 34)
+            // Begin below the fixed 82 px combat header so countdowns never
+            // compete with HP, XP, Boss state, or the build summary.
+            let y = Float(96 + index * 34)
             r.fillRect(RenderRect(x: x, y: y, width: panelWidth, height: 28), color: RenderColor(10, 22, 40, 214))
             r.fillRect(RenderRect(x: x, y: y, width: 3, height: 28), color: effect.tint)
             text(r, effect.name, x + 10, y + 6, UITheme.Color.text)

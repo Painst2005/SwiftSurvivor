@@ -946,11 +946,11 @@ enum SDLNativeGameRenderer {
             text(r, t(game, "DROPS", "掉落") + "  " + missionDropSummary(mission.id, game: game), 68, 412, UITheme.Color.secondary)
         }
         for (i, card) in modeCards(width: Double(width), height: Double(height)).enumerated() {
-            let mode = GameMode(rawValue: i) ?? .campaign
-            button(r, card, title: mode.label(for: game.language), selected: i == game.gameMode.rawValue)
+            let mode = GameMode.allCases[i]
+            button(r, card, title: mode.label(for: game.language), selected: mode == game.gameMode)
             drawWrappedText(r, mode.description(for: game.language), x: Float(card.x + 10), y: Float(card.y + 52), color: UITheme.Color.secondary, maxWidth: Float(card.width - 20), lineHeight: 14, maxLines: 1)
         }
-        text(r, t(game, "MODE", "模式"), 260, 414, UITheme.Color.muted)
+        centeredText(r, t(game, "MODE", "模式"), centerX: Float(width / 2), y: 410, role: .caption)
         button(r, missionLaunchButton(width: Double(width), height: Double(height)), title: t(game, "LAUNCH", "出击"), selected: false, emphasis: true)
         button(r, missionBackButton(width: Double(width), height: Double(height)), title: t(game, "BACK", "返回"), selected: false)
     }

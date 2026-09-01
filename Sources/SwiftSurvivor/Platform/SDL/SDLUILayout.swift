@@ -36,8 +36,11 @@ func missionCards(width: Double, height: Double) -> [UIRect] {
     return (0..<MissionCatalog.all.count).map { let row = $0 / 4, column = $0 % 4; return UIRect(x: left + Double(column) * 194, y: 180 + Double(row) * 112, width: 182, height: 100) }
 }
 func modeCards(width: Double, height: Double) -> [UIRect] {
-    let left = width / 2 - 380
-    return (0..<GameMode.allCases.count).map { UIRect(x: left + Double($0) * 194, y: 430, width: 182, height: 82) }
+    let cardWidth = 220.0
+    let gap = 20.0
+    let totalWidth = Double(GameMode.allCases.count) * cardWidth + Double(max(0, GameMode.allCases.count - 1)) * gap
+    let left = (width - totalWidth) / 2
+    return (0..<GameMode.allCases.count).map { UIRect(x: left + Double($0) * (cardWidth + gap), y: 430, width: cardWidth, height: 82) }
 }
 func missionLaunchButton(width: Double, height: Double) -> UIRect { UIRect(x: width / 2 + 20, y: height - 86, width: 180, height: 50) }
 func missionBackButton(width: Double, height: Double) -> UIRect { UIRect(x: width / 2 - 200, y: height - 86, width: 180, height: 50) }

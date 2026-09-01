@@ -97,15 +97,11 @@ enum ControlMode: String { case wasd = "WASD", mouse = "MOUSE" }
 enum GameMode: Int, CaseIterable {
     case campaign = 0
     case endless = 1
-    case blitz = 2
-    case zen = 3
 
     var label: String {
         switch self {
         case .campaign: return "CAMPAIGN"
         case .endless: return "ENDLESS"
-        case .blitz: return "BLITZ"
-        case .zen: return "ZEN"
         }
     }
 
@@ -114,8 +110,6 @@ enum GameMode: Int, CaseIterable {
         switch self {
         case .campaign: return "章节模式"
         case .endless: return "无尽模式"
-        case .blitz: return "爽快模式"
-        case .zen: return "禅模式"
         }
     }
 
@@ -124,15 +118,11 @@ enum GameMode: Int, CaseIterable {
             switch self {
             case .campaign: return "Clear a mission and unlock the next sector"
             case .endless: return "No time limit • chase your highest score"
-            case .blitz: return "More enemies • faster firepower • richer drops"
-            case .zen: return "Gentle damage • dense formations • relaxed flight"
             }
         }
         switch self {
         case .campaign: return "完成关卡并解锁下一个区域"
         case .endless: return "逐波迎战强敌与首领 • 挑战最高纪录"
-        case .blitz: return "敌机更多 • 火力更猛 • 奖励更丰厚"
-        case .zen: return "敌人伤害较低 • 适合轻松体验战斗"
         }
     }
 
@@ -813,8 +803,6 @@ final class Game: @unchecked Sendable {
         switch gameMode {
         case .campaign: return activeMission.difficulty
         case .endless: return endlessEnemyHealthMultiplier
-        case .blitz: return 1.28
-        case .zen: return 0.46
         }
     }
 
@@ -822,8 +810,6 @@ final class Game: @unchecked Sendable {
         switch gameMode {
         case .campaign: return 1.0 + Double(activeMission.id - 1) * 0.08
         case .endless: return 1.0
-        case .blitz: return 1.48
-        case .zen: return 1.32
         }
     }
 
@@ -831,8 +817,6 @@ final class Game: @unchecked Sendable {
         switch gameMode {
         case .campaign: return 0.92 + activeMission.difficulty * 0.18
         case .endless: return endlessEnemyDamageMultiplier
-        case .blitz: return 1.12
-        case .zen: return 0.30
         }
     }
 
@@ -858,8 +842,6 @@ final class Game: @unchecked Sendable {
         switch gameMode {
         case .campaign: return 1.0
         case .endless: return 1.0
-        case .blitz: return 1.30
-        case .zen: return 1.12
         }
     }
 
@@ -867,8 +849,6 @@ final class Game: @unchecked Sendable {
         switch gameMode {
         case .campaign: return activeMission.rewardMultiplier
         case .endless: return 1.0
-        case .blitz: return 1.35
-        case .zen: return 0.65
         }
     }
 
@@ -876,15 +856,6 @@ final class Game: @unchecked Sendable {
         switch gameMode {
         case .campaign: return activeMission.duration
         case .endless: return .infinity
-        case .blitz: return 72
-        case .zen: return 120
-        }
-    }
-
-    var activeKillGoal: Int {
-        switch gameMode {
-        case .blitz: return 45
-        default: return 0
         }
     }
 
@@ -892,8 +863,6 @@ final class Game: @unchecked Sendable {
         switch gameMode {
         case .campaign: return activeMission.bossTime
         case .endless: return 42
-        case .blitz: return 30
-        case .zen: return 64
         }
     }
 
@@ -1221,9 +1190,8 @@ final class Game: @unchecked Sendable {
             spawnBoss(field: field)
         }
 
-        let modeObjectiveComplete = activeKillGoal == 0 || kills >= activeKillGoal
         if gameMode.isFinite, stageClearTimer <= 0, survivalTime >= activeMissionDuration,
-           boss == nil, missionBossDefeated, modeObjectiveComplete {
+           boss == nil, missionBossDefeated {
             completeMission()
             return
         }
@@ -1444,7 +1412,7 @@ final class Game: @unchecked Sendable {
         newBoss.rightTurretHealth = hp * 0.18
         newBoss.leftTurretMaxHealth = newBoss.leftTurretHealth
         newBoss.rightTurretMaxHealth = newBoss.rightTurretHealth
-        newBoss.laserCooldown = gameMode == .zen ? 8.0 : 5.0
+        newBoss.laserCooldown = 5.0
         newBoss.laserX = field.centerX
         newBoss.laserTargetX = field.centerX
         newBoss.attackTarget = player
@@ -3800,7 +3768,7 @@ final class Game: @unchecked Sendable {
                 return
             }
             for (index, card) in modeCards(width: width, height: height).enumerated() where card.contains(point) {
-                if let mode = GameMode(rawValue: index) { selectGameMode(mode) }
+                selectGameMode(GameMode.allCases[index])
                 return
             }
             if missionLaunchButton(width: width, height: height).contains(point) {

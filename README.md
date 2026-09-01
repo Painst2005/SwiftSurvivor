@@ -94,8 +94,8 @@ Copy-Item Vendor\SDL3-3.4.14\lib\x64\SDL3.dll .build-game\x86_64-unknown-windows
 - 主菜单提供 **New Game / Controls / Hangar / Archive / Settings / Exit** 按钮，支持鼠标悬停和点击
 - 开始界面左上角提供 **SAVE SLOT** 存档入口，支持 3 个独立存档位；点击可载入已有档案或创建新档案，进度自动写入游戏根目录下的 `Save` 文件夹
 - 点击 **New Game** 会进入 Mission Control，可选择章节区域和飞行模式；章节完成后自动解锁下一关
-- 当前提供 **Campaign / Endless / Blitz / Zen** 四种模式：章节模式有明确时长和 Boss 目标，无尽模式持续挑战，爽快模式提高火力与掉落并要求限时击杀目标，禅模式降低受伤压力并保留密集编队
-- 不同章节拥有独立的难度、Boss 时间、推荐战力和奖励倍率，选定模式后会动态调整敌机数量、敌弹伤害、玩家火力和结算奖励；爽快模式会在 HUD 显示击杀目标
+- 当前提供 **Campaign / Endless** 两种模式：章节模式拥有明确时长和 Boss 目标，无尽模式按波次持续挑战并逐步提高敌人与 Boss 强度
+- 不同章节拥有独立的难度、Boss 时间、推荐战力和奖励倍率；无尽模式会独立调整敌机生命、敌弹伤害、射速与 Boss 生命
 - Settings 页面支持 **English / 中文** 双语切换，选择会立即刷新主要界面并写入本地存档
 - Settings 还支持屏幕震动 OFF/LOW/MED/HIGH，设置会写入版本化存档
 - Settings 支持 **FULLSCREEN / WINDOWED** 全屏与窗口化切换，切换立即生效并写入当前存档

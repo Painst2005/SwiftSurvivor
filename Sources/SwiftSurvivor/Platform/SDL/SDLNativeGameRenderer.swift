@@ -221,7 +221,7 @@ enum SDLNativeGameRenderer {
             r.fillCircle(center: (Float(playerP.x), Float(playerP.y)), radius: 18, color: playerColor)
             r.fillCircle(center: (Float(playerP.x), Float(playerP.y - 7)), radius: 8, color: game.playerHitFlash > 0 ? RenderColor(255, 246, 248) : RenderColor(232, 250, 255))
         }
-        if game.pickupShieldCharges > 0, let shield = (r as? SDLRenderer)?.artTexture(named: "player_phase_shield") {
+        if game.armorShieldCharges > 0, let shield = (r as? SDLRenderer)?.artTexture(named: "player_phase_shield") {
             let pulse = Float(1 + sin(game.uiAnimationTime * 4.5) * 0.035)
             let side = 112 * pulse
             r.drawSprite(shield, in: RenderRect(x: Float(playerP.x) - side * 0.5, y: Float(playerP.y) - side * 0.5,
@@ -632,25 +632,10 @@ enum SDLNativeGameRenderer {
                                   value: healthRatio, fill: UITheme.Color.danger, back: RenderColor(0, 0, 0, 0)), height: 12)
         text(r, t(game, "HP", "耐久") + "  \(Int(game.health))/\(Int(game.maxHealth))", 22, 49, UITheme.Color.text)
 
-        let shieldValue = game.pickupShieldCharges > 0 ? 1.0 : min(1, Double(game.armorShieldCharges) / 3.0)
-        progress(r, UIProgressBar(rect: UIRect(x: 18, y: 68, width: healthWidth, height: 7), value: shieldValue,
-                                  fill: UITheme.Color.shield, back: RenderColor(22, 56, 79)), height: 7)
-        text(r, game.pickupShieldCharges > 0 ? t(game, "AEGIS x1", "壁垒 x1") : t(game, "SHIELD", "护盾") + " x\(game.armorShieldCharges)",
-             22, 66, UITheme.Color.shield)
-
-        let centerLeft = max(265.0, Double(width) * 0.28)
-        let centerWidth = min(210.0, max(140.0, Double(width) * 0.18))
-        progress(r, UIProgressBar(rect: UIRect(x: centerLeft, y: 48, width: centerWidth, height: 9),
+        progress(r, UIProgressBar(rect: UIRect(x: 18, y: 68, width: healthWidth, height: 7),
                                   value: Double(game.experience) / Double(max(1, game.experienceGoal)),
                                   fill: UITheme.Color.energy, back: RenderColor(22, 56, 79)), height: 9)
-        text(r, t(game, "XP", "经验") + "  \(game.experience)/\(game.experienceGoal)", Float(centerLeft + 6), 48, UITheme.Color.text)
-
-        let weaponSummary = game.weaponType.label(for: game.language) + "  Lv.\(game.weaponLevel)"
-        text(r, weaponSummary, Float(centerLeft + 2), 66, UITheme.Color.text)
-        text(r, t(game, "SHOTS", "弹幕") + "+\(game.projectileCountBonus)  •  " +
-             t(game, "PIERCE", "穿透") + "+\(game.projectilePenetration)  •  " +
-             t(game, "CRIT", "暴击") + "\(Int(game.criticalChance * 100))%",
-             Float(centerLeft + centerWidth + 18), 66, UITheme.Color.secondary)
+        text(r, t(game, "XP", "经验") + "  \(game.experience)/\(game.experienceGoal)", 22, 66, UITheme.Color.text)
 
         if game.combo > 1 {
             drawRightText(r, "×\(game.combo)  " + t(game, "COMBO", "连击"), right: Float(width - 18), y: 48,
@@ -679,6 +664,13 @@ enum SDLNativeGameRenderer {
         let tint = ready ? UITheme.Color.warning : (burstReady ? UITheme.Color.primary : UITheme.Color.energy)
         let x: Float = 16
         let y = Float(field.bottom - 82)
+        let statsY = y - 28
+        r.fillRect(RenderRect(x: x, y: statsY, width: 214, height: 24), color: RenderColor(6, 15, 30, 210))
+        r.fillRect(RenderRect(x: x, y: statsY, width: 4, height: 24), color: UITheme.Color.secondary)
+        text(r, t(game, "SHOTS", "弹幕") + "+\(game.projectileCountBonus)  •  " +
+             t(game, "PIERCE", "穿透") + "+\(game.projectilePenetration)  •  " +
+             t(game, "CRIT", "暴击") + "\(Int(game.criticalChance * 100))%",
+             x + 10, statsY + 5, UITheme.Color.secondary)
         r.fillRect(RenderRect(x: x, y: y, width: 214, height: 64), color: RenderColor(6, 15, 30, 222))
         r.fillRect(RenderRect(x: x, y: y, width: 4, height: 64), color: tint)
         r.fillCircle(center: (x + 34, y + 31), radius: 22, color: RenderColor(tint.red, tint.green, tint.blue, 48))
@@ -732,9 +724,7 @@ enum SDLNativeGameRenderer {
         }
 
         let title = t(game, "BOSS", "首领") + "  " + bossName + "  •  " + t(game, "PHASE", "阶段") + " \(boss.phase)"
-        text(r, title, 14, 5, UITheme.Color.text)
-        drawRightText(r, stateLabel, right: Float(width - 14), y: 5,
-                      color: boss.weakPointOpen ? UITheme.Color.energy : (boss.attackStage == .telegraph ? UITheme.Color.danger : UITheme.Color.secondary))
+        centeredText(r, title, centerX: Float(width) * 0.5, y: 2, role: .caption, color: UITheme.Color.text)
 
         let healthRatio = min(1, max(0, boss.health / max(1, boss.maxHealth)))
         let barWidth = Float(min(480, max(300, Double(width) * 0.46)))
@@ -743,25 +733,29 @@ enum SDLNativeGameRenderer {
         // the same bar refills with the next color instead of adding more rows.
         let layerValue: Double
         let layerColor: RenderColor
-        let layerBack: RenderColor
+        let revealedColor: RenderColor
         if healthRatio > 0.70 {
             layerValue = (healthRatio - 0.70) / 0.30
             layerColor = RenderColor(75, 222, 143)
-            layerBack = RenderColor(27, 54, 48)
+            revealedColor = RenderColor(255, 158, 72)
         } else if healthRatio > 0.30 {
             layerValue = (healthRatio - 0.30) / 0.40
             layerColor = RenderColor(255, 158, 72)
-            layerBack = RenderColor(63, 44, 30)
+            revealedColor = RenderColor(255, 72, 96)
         } else {
             layerValue = healthRatio / 0.30
             layerColor = RenderColor(255, 72, 96)
-            layerBack = RenderColor(62, 26, 39)
+            revealedColor = RenderColor(62, 26, 39)
         }
-        progress(r, UIProgressBar(rect: UIRect(x: Double(barX), y: 25, width: Double(barWidth), height: 9),
-                                  value: layerValue, fill: layerColor, back: layerBack), height: 9)
-        text(r, t(game, "L-TURRET", "左炮塔") + " \(Int(leftRatio * 100))%", 14, 25,
+        progress(r, UIProgressBar(rect: UIRect(x: Double(barX), y: 15, width: Double(barWidth), height: 9),
+                                  value: 1, fill: revealedColor, back: RenderColor(29, 24, 38)), height: 9)
+        progress(r, UIProgressBar(rect: UIRect(x: Double(barX), y: 15, width: Double(barWidth), height: 9),
+                                  value: layerValue, fill: layerColor, back: RenderColor(0, 0, 0, 0)), height: 9)
+        centeredText(r, stateLabel, centerX: Float(width) * 0.5, y: 26, role: .caption,
+                     color: boss.weakPointOpen ? UITheme.Color.energy : (boss.attackStage == .telegraph ? UITheme.Color.danger : UITheme.Color.secondary))
+        text(r, t(game, "L-TURRET", "左炮塔") + " \(Int(leftRatio * 100))%", barX, 26,
              boss.leftTurretHealth > 0 ? UITheme.Color.secondary : UITheme.Color.muted)
-        drawRightText(r, t(game, "R-TURRET", "右炮塔") + " \(Int(rightRatio * 100))%", right: Float(width - 14), y: 25,
+        drawRightText(r, t(game, "R-TURRET", "右炮塔") + " \(Int(rightRatio * 100))%", right: barX + barWidth, y: 26,
                       color: boss.rightTurretHealth > 0 ? UITheme.Color.secondary : UITheme.Color.muted)
     }
 

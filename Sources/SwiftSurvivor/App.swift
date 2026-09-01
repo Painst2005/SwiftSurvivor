@@ -741,7 +741,6 @@ final class Game: @unchecked Sendable {
     var hasArrayCore = false
     var hasOverdriveCore = false
     var fireRateBoostTime = 0.0
-    var pickupShieldCharges = 0
     var shieldBreakSpeedTime = 0.0
     var bloodLeechTime = 0.0
     var bloodLeechCooldown = 0.0
@@ -1051,7 +1050,8 @@ final class Game: @unchecked Sendable {
         armorDamageReduction = min(0.28, 0.08 + Double(max(0, armorLevel - 1)) * 0.012)
         if armorItem?.id.contains("frost") == true { armorDamageReduction = min(0.32, armorDamageReduction + 0.04) }
         if armorItem?.affix == 4 { armorDamageReduction = min(0.36, armorDamageReduction + 0.06) }
-        armorShieldCharges = 1 + max(0, armorLevel / 8)
+        // Armor and pickup shields share one non-stackable defensive layer.
+        armorShieldCharges = 1
         fireTimer = 0.10
         auxiliaryFireTimer = 0.65
         secondaryFireTimer = max(2.8, 4.6 - Double(secondaryLevel) * 0.12)
@@ -1087,7 +1087,6 @@ final class Game: @unchecked Sendable {
         hasArrayCore = false
         hasOverdriveCore = false
         fireRateBoostTime = 0
-        pickupShieldCharges = 0
         shieldBreakSpeedTime = 0
         bloodLeechTime = 0
         bloodLeechCooldown = 0
@@ -2488,10 +2487,14 @@ final class Game: @unchecked Sendable {
             notifyPickup(title: uiText("FIRE CONTROL OVERDRIVE", "火控超频"),
                          detail: uiText("Fire rate +50% • 5 seconds", "射速 +50% • 持续 5 秒"), tint: rgb(89, 236, 255))
         case 1:
-            pickupShieldCharges = 1
+            let alreadyProtected = armorShieldCharges > 0
+            armorShieldCharges = 1
             score += 280
-            notifyPickup(title: uiText("PHASE AEGIS", "相位壁垒"),
-                         detail: uiText("Blocks one hit • break grants speed and resets dash", "抵挡一次攻击 • 破裂后加速并重置闪避"), tint: rgb(126, 196, 255))
+            notifyPickup(title: uiText("PHASE SHIELD", "相位护盾"),
+                         detail: alreadyProtected
+                            ? uiText("Shield already active • charges do not stack", "护盾已生效 • 层数不会叠加")
+                            : uiText("Blocks one hit • break grants speed and resets dash", "抵挡一次攻击 • 破裂后加速并重置闪避"),
+                         tint: rgb(126, 196, 255))
         default:
             bloodLeechTime = max(bloodLeechTime, 8)
             score += 240
@@ -2510,32 +2513,18 @@ final class Game: @unchecked Sendable {
 
     private func damagePlayer(amount: Double) {
         let incomingDirection = (player - Vec2(x: player.x, y: player.y - 1)).normalized
-        if pickupShieldCharges > 0 {
-            pickupShieldCharges = 0
+        guard playerInvulnerability <= 0 else { return }
+        if armorShieldCharges > 0 {
+            armorShieldCharges = 0
             shieldBreakSpeedTime = 3.0
             dashCooldown = 0
-            playerInvulnerability = 0.36
+            playerInvulnerability = 0.72
             combatFeedback.play(.shieldBreak,
                                 context: FeedbackContext(position: player, direction: incomingDirection, damage: amount,
                                                          level: .heavy, damageKind: .enemyBullet, tint: rgb(126, 196, 255)), game: self)
-            notifyPickup(title: uiText("AEGIS BROKEN", "壁垒破裂"),
+            notifyPickup(title: uiText("SHIELD BROKEN", "护盾破裂"),
                          detail: uiText("Move speed +30% for 3s • dash reset", "移速 +30% 持续 3 秒 • 闪避已重置"),
                          tint: rgb(126, 196, 255))
-            return
-        }
-        guard playerInvulnerability <= 0 else { return }
-        if armorShieldCharges > 0 {
-            armorShieldCharges -= 1
-            playerInvulnerability = 0.72
-            notifyPickup(title: "ARMOR SHIELD ABSORBED", detail: "\(armorShieldCharges) charge(s) remaining", tint: rgb(122, 232, 204))
-            combatFeedback.play(.shieldHit,
-                                context: FeedbackContext(position: player, direction: incomingDirection, damage: amount,
-                                                         level: .medium, damageKind: .enemyBullet, tint: rgb(122, 232, 204)), game: self)
-            if armorShieldCharges == 0 {
-                combatFeedback.play(.shieldBreak,
-                                    context: FeedbackContext(position: player, direction: incomingDirection, damage: amount,
-                                                             level: .heavy, damageKind: .enemyBullet, tint: rgb(114, 222, 255)), game: self)
-            }
             return
         }
         let actualDamage = amount * (1.0 - armorDamageReduction)

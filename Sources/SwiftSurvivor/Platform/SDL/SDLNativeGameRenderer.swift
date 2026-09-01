@@ -897,7 +897,7 @@ enum SDLNativeGameRenderer {
     private static func drawSaveSlots(_ r: GameRenderer, game: Game, width: Int, height: Int) {
         panel(r, x: width / 2 - 455, y: 58, width: 910, height: height - 105)
         centeredText(r, t(game, "SAVE SELECT // PILOT DATA", "选择存档 // 飞行员数据"), centerX: Float(width / 2), y: 90, role: .pageTitle, shadow: true)
-        centeredText(r, t(game, "Choose a slot to continue. Progress is stored beside the game.", "选择一个存档继续，进度保存在游戏根目录。"), centerX: Float(width / 2), y: 122, role: .secondary)
+        centeredText(r, t(game, "Choose a slot to continue. Progress is stored in the Save folder.", "选择一个存档继续，进度保存在 Save 文件夹。"), centerX: Float(width / 2), y: 122, role: .secondary)
         let summaries = SaveManager.shared.slotSummaries()
         for (i, card) in saveSlotCards(width: Double(width), height: Double(height)).enumerated() {
             button(r, card, title: "", selected: i == SaveManager.shared.activeSlot)

@@ -255,7 +255,8 @@ final class SaveManager: @unchecked Sendable {
     private var summariesCache: [SaveSlotSummary]? = nil
 
     private init() {
-        let root = SaveManager.gameRootDirectory()
+        let gameRoot = SaveManager.gameRootDirectory()
+        let root = SaveManager.prepareSaveDirectory(gameRoot: gameRoot)
         rootDirectory = root
         activeSlotMarkerURL = root.appendingPathComponent("SwiftSurvivor.active-slot")
         activeSlot = SaveManager.readActiveSlot(from: activeSlotMarkerURL)
@@ -355,6 +356,29 @@ final class SaveManager: @unchecked Sendable {
                 .deletingLastPathComponent()
         }
         return current
+    }
+
+    /// Keep every user-generated save artifact in one predictable folder.
+    /// Existing root-level saves from versions before this layout are moved
+    /// on first launch without overwriting a newer file already in `Save`.
+    private static func prepareSaveDirectory(gameRoot: URL) -> URL {
+        let fileManager = FileManager.default
+        let saveRoot = gameRoot.appendingPathComponent("Save", isDirectory: true)
+        try? fileManager.createDirectory(at: saveRoot, withIntermediateDirectories: true)
+
+        var legacyNames = ["SwiftSurvivor.active-slot"]
+        for slot in 1...slotCount {
+            legacyNames.append("SwiftSurvivorSave\(slot).json")
+            legacyNames.append("SwiftSurvivorSave\(slot).backup.json")
+        }
+        for name in legacyNames {
+            let legacyURL = gameRoot.appendingPathComponent(name)
+            let destinationURL = saveRoot.appendingPathComponent(name)
+            guard fileManager.fileExists(atPath: legacyURL.path),
+                  !fileManager.fileExists(atPath: destinationURL.path) else { continue }
+            try? fileManager.moveItem(at: legacyURL, to: destinationURL)
+        }
+        return saveRoot
     }
 
     private static func slotURL(root: URL, slot: Int) -> URL {

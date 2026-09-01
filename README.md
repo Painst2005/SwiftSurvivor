@@ -92,7 +92,7 @@ Copy-Item Vendor\SDL3-3.4.14\lib\x64\SDL3.dll .build-game\x86_64-unknown-windows
 - 连续击杀会形成 **Combo**，擦过敌弹会触发 **Graze** 并积累雷霆能量
 - 雷霆能量达到 100% 后按 **Space** 释放雷霆超载：清除敌弹、短暂无敌并强化火力
 - 主菜单提供 **New Game / Controls / Hangar / Archive / Settings / Exit** 按钮，支持鼠标悬停和点击
-- 开始界面左上角提供 **SAVE SLOT** 存档入口，支持 3 个独立存档位；点击可载入已有档案或创建新档案，进度自动写入游戏根目录
+- 开始界面左上角提供 **SAVE SLOT** 存档入口，支持 3 个独立存档位；点击可载入已有档案或创建新档案，进度自动写入游戏根目录下的 `Save` 文件夹
 - 点击 **New Game** 会进入 Mission Control，可选择章节区域和飞行模式；章节完成后自动解锁下一关
 - 当前提供 **Campaign / Endless / Blitz / Zen** 四种模式：章节模式有明确时长和 Boss 目标，无尽模式持续挑战，爽快模式提高火力与掉落并要求限时击杀目标，禅模式降低受伤压力并保留密集编队
 - 不同章节拥有独立的难度、Boss 时间、推荐战力和奖励倍率，选定模式后会动态调整敌机数量、敌弹伤害、玩家火力和结算奖励；爽快模式会在 HUD 显示击杀目标
@@ -115,7 +115,7 @@ Copy-Item Vendor\SDL3-3.4.14\lib\x64\SDL3.dll .build-game\x86_64-unknown-windows
 - 模块仓库支持按槽位筛选、按品质/等级/槽位排序、分页浏览；五个装备槽位均可从仓库替换
 - Boss 稀有模块掉落带有保底计数，连续未掉落后会自动保证下一次稀有缓存
 - 存档带有版本号和备份副本，优先读取主档，异常时自动回退到备份档；旧版 v1/v2 存档会自动迁移，设置和成就也会保存
-- 存档文件位于游戏根目录：`SwiftSurvivorSave1.json`、`SwiftSurvivorSave2.json`、`SwiftSurvivorSave3.json`，并为每个存档保留 `.backup.json` 备份
+- 存档文件位于 `Save` 文件夹：`SwiftSurvivorSave1.json`、`SwiftSurvivorSave2.json`、`SwiftSurvivorSave3.json`，并为每个存档保留 `.backup.json` 备份
 - 窗口采用持久化双缓冲和无擦除刷新，避免高频重绘、爆炸特效和 Boss 战期间的画面闪烁
 - 游戏以无边框全屏方式运行，星空背景与战斗画布覆盖整个显示器；战斗使用 1000×760 逻辑分辨率并按 DPI 等比放大，保持战机、子弹和 HUD 的合适尺寸，避免高分辨率下画面空旷
 - 背景音乐使用 Windows 原生 `PlaySoundW` 循环播放由 `thunder_swift_battle.mp3` 解码得到的 `thunder_swift_battle.wav`，绕过 MCI 解码器并保留原始 MP3 资源

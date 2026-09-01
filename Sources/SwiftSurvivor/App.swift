@@ -3683,7 +3683,7 @@ final class Game: @unchecked Sendable {
         // SDLFullGame observes profile changes on its next frame.
         selectedMission = min(max(0, selectedMission), max(0, unlockedMissionCount - 1))
         hangarMessageTitle = uiText("SAVE SLOT \(slot + 1) SELECTED", "已选择存档 \(slot + 1)")
-        hangarMessageDetail = uiText("Progress will autosave in the game folder.", "进度会自动保存到游戏根目录。")
+        hangarMessageDetail = uiText("Progress will autosave in the Save folder.", "进度会自动保存到 Save 文件夹。")
         hangarMessageTimer = 2.8
         phase = phaseBeforeSaveSlots
     }

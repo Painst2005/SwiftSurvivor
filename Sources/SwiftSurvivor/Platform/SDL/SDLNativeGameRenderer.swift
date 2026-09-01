@@ -94,7 +94,6 @@ enum SDLNativeGameRenderer {
     private static func drawBattle(_ r: GameRenderer, uiRenderer: GameRenderer, game: Game, width: Int, height: Int) {
         let field = playfieldBounds(width: Double(width), height: Double(height))
         let camera = game.combatFeedback.cameraOffset
-        drawCombatHUD(uiRenderer, game: game, field: field, width: width)
 
         for enemy in game.enemies {
             let p = enemy.position + enemy.visualOffset + camera
@@ -251,6 +250,9 @@ enum SDLNativeGameRenderer {
             drawCombatNotification(uiRenderer, game: game, field: field)
         }
         drawTimedEffectBars(uiRenderer, game: game, width: width)
+        // HUD is deliberately rendered after every world-space sprite and VFX.
+        // Large bosses and explosions can never cover critical combat data.
+        drawCombatHUD(uiRenderer, game: game, field: field, width: width)
     }
 
     private static func enemyTextureName(for enemy: Enemy) -> String? {
@@ -604,13 +606,17 @@ enum SDLNativeGameRenderer {
         r.fillRect(RenderRect(x: 312, y: 8, width: 326, height: 43), color: UITheme.Color.panelSoft)
         r.fillRect(RenderRect(x: Float(max(646, width - 338)), y: 8, width: Float(min(328, width - max(646, width - 338) - 10)), height: 43), color: UITheme.Color.panelSoft)
         r.fillRect(RenderRect(x: 10, y: 56, width: Float(min(780, width - 20)), height: 24), color: RenderColor(12, 28, 46, 205))
-        text(r, t(game, "THUNDER SWIFT", "雷霆疾影"), 16, 16, UITheme.Color.text)
-        let progressLabel = game.gameMode == .endless
-            ? t(game, "WAVE", "波次") + " \(game.endlessWaveNumber)  •  " + (game.endlessWavePhase == .boss ? t(game, "BOSS", "首领") : t(game, "COMBAT", "战斗"))
-            : t(game, "STAGE", "关卡") + " \(game.stage)"
-        text(r, progressLabel, 190, 16, UITheme.Color.primary)
-        drawRightText(r, t(game, "SCORE", "分数") + " \(game.score)", right: Float(width - 16), y: 16, color: UITheme.Color.warning)
-        drawRightText(r, t(game, "KILLS", "击杀") + " \(game.kills)", right: Float(width - 196), y: 16, color: UITheme.Color.boss)
+        if let boss = game.boss {
+            drawBossTopHUD(r, game: game, boss: boss, width: width)
+        } else {
+            text(r, t(game, "THUNDER SWIFT", "雷霆疾影"), 16, 16, UITheme.Color.text)
+            let progressLabel = game.gameMode == .endless
+                ? t(game, "WAVE", "波次") + " \(game.endlessWaveNumber)  •  " + t(game, "COMBAT", "战斗")
+                : t(game, "STAGE", "关卡") + " \(game.stage)"
+            text(r, progressLabel, 190, 16, UITheme.Color.primary)
+            drawRightText(r, t(game, "SCORE", "分数") + " \(game.score)", right: Float(width - 16), y: 16, color: UITheme.Color.warning)
+            drawRightText(r, t(game, "KILLS", "击杀") + " \(game.kills)", right: Float(width - 196), y: 16, color: UITheme.Color.boss)
+        }
 
         let healthRatio = game.health / max(1, game.maxHealth)
         progress(r, UIProgressBar(rect: UIRect(x: 18, y: 39, width: 166, height: 10),
@@ -669,43 +675,52 @@ enum SDLNativeGameRenderer {
                  RenderColor(burstColor.red, burstColor.green, burstColor.blue, UInt8(255 * life)))
         }
 
-        if let boss = game.boss {
-            let ratio = boss.health / max(1, boss.maxHealth)
-            let barX = width / 2 - 220
-            progress(r, UIProgressBar(rect: UIRect(x: Double(barX), y: 92, width: 440, height: 10),
-                                      value: ratio, fill: UITheme.Color.boss, back: RenderColor(56, 24, 67)), height: 10)
-            r.fillRect(RenderRect(x: Float(barX + Int(440 * 0.30)), y: 90, width: 2, height: 14), color: UITheme.Color.warning)
-            r.fillRect(RenderRect(x: Float(barX + Int(440 * 0.70)), y: 90, width: 2, height: 14), color: UITheme.Color.warning)
-            let bossName = BossType(rawValue: boss.kind)?.title(for: game.language) ?? t(game, "DREADNOUGHT", "无畏战舰")
-            text(r, t(game, "BOSS", "首领") + "  " + bossName + "  •  " + t(game, "PHASE", "阶段") + " \(boss.phase)",
-                 Float(width / 2 - 135), 95, UITheme.Color.text)
-            let leftRatio = boss.leftTurretHealth / max(1, boss.leftTurretMaxHealth)
-            let rightRatio = boss.rightTurretHealth / max(1, boss.rightTurretMaxHealth)
-            text(r, t(game, "L-TURRET", "左炮塔") + " \(Int(leftRatio * 100))%", Float(width / 2 - 218), 112,
-                 boss.leftTurretHealth > 0 ? UITheme.Color.secondary : UITheme.Color.muted)
-            text(r, t(game, "R-TURRET", "右炮塔") + " \(Int(rightRatio * 100))%", Float(width / 2 + 108), 112,
-                 boss.rightTurretHealth > 0 ? UITheme.Color.secondary : UITheme.Color.muted)
-            let stateLabel: String
-            switch boss.lifecycle {
-            case .entering: stateLabel = t(game, "APPROACHING", "正在接近")
-            case .phaseTransition: stateLabel = t(game, "PHASE SHIFT", "阶段转换")
-            case .dying: stateLabel = t(game, "CORE COLLAPSE", "核心崩解")
-            case .combat:
-                if boss.attackStage == .telegraph {
-                    stateLabel = t(game, "WARNING", "预警") + " • " + boss.currentAttack.label(for: game.language)
-                } else if boss.weakPointOpen {
-                    stateLabel = t(game, "CORE EXPOSED", "核心暴露")
-                } else {
-                    stateLabel = boss.currentAttack.label(for: game.language)
-                }
-            }
-            text(r, stateLabel, Float(width / 2 - 72), 112,
-                 boss.weakPointOpen ? UITheme.Color.energy : (boss.attackStage == .telegraph ? UITheme.Color.danger : UITheme.Color.muted))
-        }
         if game.survivalTime < 8 {
             let hint = t(game, "WASD / ARROWS MOVE  •  SHIFT PRECISION  •  SPACE OVERLOAD", "WASD / 方向键移动  •  Shift 精准  •  Space 超载")
             text(r, hint, 18, Float(field.bottom - 24), UITheme.Color.muted)
         }
+    }
+
+    private static func drawBossTopHUD(_ r: GameRenderer, game: Game, boss: Boss, width: Int) {
+        // This opaque ribbon occupies the highest screen row. During a Boss
+        // encounter it replaces the less important stage/score header.
+        r.fillRect(RenderRect(x: 0, y: 0, width: Float(width), height: 38), color: RenderColor(5, 10, 24, 248))
+        r.fillRect(RenderRect(x: 0, y: 36, width: Float(width), height: 2), color: UITheme.Color.boss)
+
+        let bossName = BossType(rawValue: boss.kind)?.title(for: game.language) ?? t(game, "DREADNOUGHT", "无畏战舰")
+        let leftRatio = boss.leftTurretHealth / max(1, boss.leftTurretMaxHealth)
+        let rightRatio = boss.rightTurretHealth / max(1, boss.rightTurretMaxHealth)
+        let stateLabel: String
+        switch boss.lifecycle {
+        case .entering: stateLabel = t(game, "APPROACHING", "正在接近")
+        case .phaseTransition: stateLabel = t(game, "PHASE SHIFT", "阶段转换")
+        case .dying: stateLabel = t(game, "CORE COLLAPSE", "核心崩解")
+        case .combat:
+            if boss.attackStage == .telegraph {
+                stateLabel = t(game, "WARNING", "预警") + " • " + boss.currentAttack.label(for: game.language)
+            } else if boss.weakPointOpen {
+                stateLabel = t(game, "CORE EXPOSED", "核心暴露")
+            } else {
+                stateLabel = boss.currentAttack.label(for: game.language)
+            }
+        }
+
+        let title = t(game, "BOSS", "首领") + "  " + bossName + "  •  " + t(game, "PHASE", "阶段") + " \(boss.phase)"
+        text(r, title, 14, 5, UITheme.Color.text)
+        drawRightText(r, stateLabel, right: Float(width - 14), y: 5,
+                      color: boss.weakPointOpen ? UITheme.Color.energy : (boss.attackStage == .telegraph ? UITheme.Color.danger : UITheme.Color.secondary))
+
+        let barX: Float = 142
+        let barWidth = Float(max(260, width - 284))
+        progress(r, UIProgressBar(rect: UIRect(x: Double(barX), y: 25, width: Double(barWidth), height: 9),
+                                  value: boss.health / max(1, boss.maxHealth),
+                                  fill: UITheme.Color.boss, back: RenderColor(56, 24, 67)), height: 9)
+        r.fillRect(RenderRect(x: barX + barWidth * 0.30, y: 23, width: 2, height: 13), color: UITheme.Color.warning)
+        r.fillRect(RenderRect(x: barX + barWidth * 0.70, y: 23, width: 2, height: 13), color: UITheme.Color.warning)
+        text(r, t(game, "L-TURRET", "左炮塔") + " \(Int(leftRatio * 100))%", 14, 25,
+             boss.leftTurretHealth > 0 ? UITheme.Color.secondary : UITheme.Color.muted)
+        drawRightText(r, t(game, "R-TURRET", "右炮塔") + " \(Int(rightRatio * 100))%", right: Float(width - 14), y: 25,
+                      color: boss.rightTurretHealth > 0 ? UITheme.Color.secondary : UITheme.Color.muted)
     }
 
     private static func drawMenu(_ r: GameRenderer, game: Game, width: Int, height: Int) {

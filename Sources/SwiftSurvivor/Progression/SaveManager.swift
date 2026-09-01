@@ -74,7 +74,6 @@ struct PlayerProfile: Codable {
 
     static var starterEquipment: [EquipmentState] {
         [
-            EquipmentState(id: "thunder_frame", name: "THUNDER FRAME", slot: 0, level: 1, rarity: 1),
             EquipmentState(id: "arc_cannon", name: "ARC CANNON", slot: 1, level: 1, rarity: 1),
             EquipmentState(id: "nova_payload", name: "NOVA PAYLOAD", slot: 2, level: 1, rarity: 1),
             EquipmentState(id: "aegis_armor", name: "AEGIS ARMOR", slot: 3, level: 1, rarity: 0),
@@ -84,7 +83,7 @@ struct PlayerProfile: Codable {
 
     static var fresh: PlayerProfile {
         let starter = starterEquipment
-        return PlayerProfile(saveVersion: 5,
+        return PlayerProfile(saveVersion: 6,
                              credits: 0,
                              cores: 0,
                              alloy: 0,
@@ -136,7 +135,7 @@ struct PlayerProfile: Codable {
          totalRuns: Int,
          bossDropPity: Int,
          achievements: [String]) {
-        self.saveVersion = saveVersion
+        self.saveVersion = max(6, saveVersion)
         self.credits = credits
         self.cores = cores
         self.alloy = alloy
@@ -157,8 +156,8 @@ struct PlayerProfile: Codable {
         }
         self.uiScale = [80, 90, 100, 110, 120].contains(uiScale) ? uiScale : 100
         self.unlockedMission = max(1, unlockedMission)
-        self.equipment = equipment
-        self.inventory = inventory
+        self.equipment = equipment.filter { (1...4).contains($0.slot) }
+        self.inventory = inventory.filter { (1...4).contains($0.slot) }
         self.totalKills = totalKills
         self.totalBosses = totalBosses
         self.bestCombo = bestCombo
@@ -201,6 +200,10 @@ struct PlayerProfile: Codable {
         unlockedMission = max(1, try container.decodeIfPresent(Int.self, forKey: .unlockedMission) ?? 1)
         var loadedEquipment = try container.decodeIfPresent([EquipmentState].self, forKey: .equipment) ?? PlayerProfile.starterEquipment
         var loadedInventory = try container.decodeIfPresent([EquipmentState].self, forKey: .inventory) ?? loadedEquipment
+        // Save v6 removes the redundant airframe equipment slot. Fighter
+        // selection remains independent through selectedShip.
+        loadedEquipment.removeAll { $0.slot == 0 }
+        loadedInventory.removeAll { $0.slot == 0 }
         for index in loadedEquipment.indices {
             if loadedEquipment[index].id == "aegis_armor", loadedEquipment[index].slot == 2 { loadedEquipment[index].slot = 3 }
             if loadedEquipment[index].id == "orbit_drone", loadedEquipment[index].slot == 3 { loadedEquipment[index].slot = 4 }
@@ -209,17 +212,13 @@ struct PlayerProfile: Codable {
             if loadedInventory[index].id == "aegis_armor", loadedInventory[index].slot == 2 { loadedInventory[index].slot = 3 }
             if loadedInventory[index].id == "orbit_drone", loadedInventory[index].slot == 3 { loadedInventory[index].slot = 4 }
         }
-        if !loadedEquipment.contains(where: { $0.slot == 2 }) {
-            loadedEquipment.append(PlayerProfile.starterEquipment[2])
-        }
-        if !loadedInventory.contains(where: { $0.slot == 2 }) {
-            loadedInventory.append(PlayerProfile.starterEquipment[2])
-        }
-        if !loadedEquipment.contains(where: { $0.slot == 4 }) {
-            loadedEquipment.append(PlayerProfile.starterEquipment[4])
-        }
-        if !loadedInventory.contains(where: { $0.slot == 4 }) {
-            loadedInventory.append(PlayerProfile.starterEquipment[4])
+        for starter in PlayerProfile.starterEquipment {
+            if !loadedEquipment.contains(where: { $0.slot == starter.slot }) {
+                loadedEquipment.append(starter)
+            }
+            if !loadedInventory.contains(where: { $0.slot == starter.slot }) {
+                loadedInventory.append(starter)
+            }
         }
         equipment = loadedEquipment.sorted(by: { $0.slot < $1.slot })
         inventory = loadedInventory
@@ -269,7 +268,8 @@ final class SaveManager: @unchecked Sendable {
             ?? SaveManager.decode(UserDefaults.standard.data(forKey: legacyProfileKeyV1))
         profile = slotProfile ?? legacyProfile ?? PlayerProfile.fresh
 
-        let needsMigration = profile.saveVersion < 5 || profile.equipment.count < 5
+        let needsMigration = profile.saveVersion < 6 || profile.equipment.count != 4
+            || profile.equipment.contains(where: { $0.slot == 0 })
         if slotProfile == nil || needsMigration {
             save(profile)
         } else {
@@ -279,7 +279,16 @@ final class SaveManager: @unchecked Sendable {
 
     func save(_ value: PlayerProfile) {
         var normalized = value
-        normalized.saveVersion = 5
+        normalized.saveVersion = 6
+        normalized.equipment.removeAll { !(1...4).contains($0.slot) }
+        normalized.inventory.removeAll { !(1...4).contains($0.slot) }
+        for starter in PlayerProfile.starterEquipment where !normalized.equipment.contains(where: { $0.slot == starter.slot }) {
+            normalized.equipment.append(starter)
+        }
+        for starter in PlayerProfile.starterEquipment where !normalized.inventory.contains(where: { $0.slot == starter.slot }) {
+            normalized.inventory.append(starter)
+        }
+        normalized.equipment.sort { $0.slot < $1.slot }
         profile = normalized
         summariesCache = nil
         if let data = try? JSONEncoder().encode(normalized) {

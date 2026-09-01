@@ -85,9 +85,9 @@ func upgradeCards(width: Double, height: Double) -> [UIRect] {
 }
 func hangarCards(width: Double, height: Double) -> [UIRect] {
     let left = width / 2 - 350, top = 210.0
-    return (0..<5).map { index in
-        let row = index < 3 ? 0 : 1, column = index < 3 ? index : index - 3
-        return UIRect(x: left + (row == 0 ? 0 : 117.5) + Double(column) * 235, y: top + Double(row) * 135, width: 220, height: 118)
+    return (0..<4).map { index in
+        let row = index / 2, column = index % 2
+        return UIRect(x: left + 117.5 + Double(column) * 235, y: top + Double(row) * 135, width: 220, height: 118)
     }
 }
 func hangarUpgradeButton(width: Double, height: Double) -> UIRect { UIRect(x: width - 275, y: 466, width: 100, height: 42) }

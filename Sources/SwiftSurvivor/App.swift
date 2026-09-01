@@ -957,7 +957,6 @@ final class Game: @unchecked Sendable {
         dashCooldown = 0
         shipType = ShipType(rawValue: profile.selectedShip) ?? .thunder
         shipTraitTimer = 12.0
-        let frameLevel = profile.equipment.first(where: { $0.slot == 0 })?.level ?? 1
         let primaryLevel = profile.equipment.first(where: { $0.slot == 1 })?.level ?? 1
         let secondaryLevel = profile.equipment.first(where: { $0.slot == 2 })?.level ?? 1
         let armorLevel = profile.equipment.first(where: { $0.slot == 3 })?.level ?? 1
@@ -988,7 +987,7 @@ final class Game: @unchecked Sendable {
             shipDamageMultiplier = 1.08
             shipSpeedMultiplier = 0.95
         }
-        maxHealth = (120 + Double(max(0, frameLevel - 1)) * 8 + Double(max(0, armorLevel - 1)) * 4) * shipHealthMultiplier
+        maxHealth = (120 + Double(max(0, armorLevel - 1)) * 4) * shipHealthMultiplier
         health = maxHealth
         moveSpeed = 330 * shipSpeedMultiplier
         let rarityMultiplier = 1.0 + Double(primaryItem?.rarity ?? 0) * 0.06 + Double(secondaryItem?.rarity ?? 0) * 0.02
@@ -3335,7 +3334,6 @@ final class Game: @unchecked Sendable {
     func equipmentDisplayName(_ item: EquipmentState) -> String {
         guard language == .chinese else { return item.name }
         switch item.id {
-        case "thunder_frame": return "雷霆机框"
         case "arc_cannon": return "弧光机炮"
         case "nova_payload": return "新星弹舱"
         case "aegis_armor": return "神盾装甲"
@@ -3353,7 +3351,6 @@ final class Game: @unchecked Sendable {
     func equipmentBonusText(for item: EquipmentState) -> String {
         let base: String
         switch item.slot {
-        case 0: base = uiText("+8 MAX HP / LEVEL", "最大生命 +8 / 等级")
         case 1: base = uiText("+1.5 WEAPON DAMAGE / LEVEL", "武器伤害 +1.5 / 等级")
         case 2: base = uiText("+0.12 SECONDARY RATE / LEVEL", "副武器频率 +0.12 / 等级")
         case 3: base = uiText("+4 MAX HP / LEVEL", "最大生命 +4 / 等级")
@@ -3487,7 +3484,7 @@ final class Game: @unchecked Sendable {
     }
 
     func cycleVaultFilter() {
-        let filters: [Int?] = [nil, 0, 1, 2, 3, 4]
+        let filters: [Int?] = [nil, 1, 2, 3, 4]
         let current = filters.firstIndex { $0 == vaultFilterSlot } ?? 0
         vaultFilterSlot = filters[(current + 1) % filters.count]
         vaultPage = 0
@@ -3554,7 +3551,7 @@ final class Game: @unchecked Sendable {
     func equipInventoryItem(_ index: Int) {
         guard phase == .hangar, profile.inventory.indices.contains(index) else { return }
         let item = profile.inventory[index]
-        guard (0...4).contains(item.slot) else { return }
+        guard (1...4).contains(item.slot) else { return }
         guard let slotIndex = profile.equipment.firstIndex(where: { $0.slot == item.slot }) else { return }
         profile.equipment[slotIndex] = item
         persistProfile()

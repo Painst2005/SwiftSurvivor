@@ -1172,7 +1172,6 @@ enum SDLNativeGameRenderer {
 
     private static func equipmentShortStat(_ game: Game, _ item: EquipmentState) -> String {
         switch item.slot {
-        case 0: return t(game, "MAX HP +8 / LV", "每级最大生命 +8")
         case 1: return t(game, "WEAPON DMG +1.5 / LV", "每级武器伤害 +1.5")
         case 2: return t(game, "SECONDARY RATE +0.12", "副武器频率 +0.12")
         case 3: return t(game, "MAX HP +4 / LV", "每级最大生命 +4")
@@ -1181,9 +1180,13 @@ enum SDLNativeGameRenderer {
     }
 
     private static func equipmentSlotName(_ game: Game, _ slot: Int) -> String {
-        let names = [t(game, "AIRFRAME", "战机"), t(game, "PRIMARY", "主武器"), t(game, "SECONDARY", "副武器"),
-                     t(game, "ARMOR", "装甲"), t(game, "DRONE", "僚机")]
-        return names.indices.contains(slot) ? names[slot] : t(game, "MODULE", "模块")
+        switch slot {
+        case 1: return t(game, "PRIMARY", "主武器")
+        case 2: return t(game, "SECONDARY", "副武器")
+        case 3: return t(game, "ARMOR", "装甲")
+        case 4: return t(game, "DRONE", "僚机")
+        default: return t(game, "MODULE", "模块")
+        }
     }
 
     private static func equipmentShortAffix(_ game: Game, _ item: EquipmentState) -> String {
@@ -1202,8 +1205,7 @@ enum SDLNativeGameRenderer {
 
     private static func vaultFilterTitle(_ game: Game) -> String {
         if let slot = game.vaultFilterSlot {
-            let names = [t(game, "FRAME", "机体"), t(game, "PRIMARY", "主武器"), t(game, "SECONDARY", "副武器"), t(game, "ARMOR", "装甲"), t(game, "DRONE", "僚机")]
-            return t(game, "FILTER", "筛选") + ": " + (names.indices.contains(slot) ? names[slot] : t(game, "ALL", "全部"))
+            return t(game, "FILTER", "筛选") + ": " + equipmentSlotName(game, slot)
         }
         return t(game, "FILTER", "筛选") + ": " + t(game, "ALL", "全部")
     }

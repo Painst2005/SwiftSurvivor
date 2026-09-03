@@ -1,12 +1,69 @@
+# ---------------------------------------------------------------------------
+# Swift Package Manager / build
+# ---------------------------------------------------------------------------
 .build/
 .build-*/
-*.user
+.swiftpm/
+DerivedData/
+*.xcodeproj/
+*.xcworkspace/
 
-# Local save data is machine-specific and should never be published.
+# ---------------------------------------------------------------------------
+# Build outputs produced by PackageSDL.ps1
+# NOTE: these two are currently tracked in git. The rules only take effect
+# after running:  git rm --cached SwiftSurvivor-SDL.exe SDL3.dll
+# ---------------------------------------------------------------------------
+SwiftSurvivor-SDL.exe
+SDL3.dll
+
+# ---------------------------------------------------------------------------
+# Local save data — machine-specific, the game recreates /Save at runtime
+# ---------------------------------------------------------------------------
+Save/
+# Legacy save locations (older builds stored saves next to the executable).
 SwiftSurvivorSave*.json
 SwiftSurvivor.active-slot
 
-# Generated distribution packages are kept outside the source repository.
+# ---------------------------------------------------------------------------
+# Distribution packages (PrepareDistribution.ps1)
+# ---------------------------------------------------------------------------
+SwiftSurvivor-Portable-*/
 SwiftSurvivor-Portable-*.zip
 SwiftSurvivor-Repair-*.zip
 SwiftSurvivor-Setup-*.exe
+
+# ---------------------------------------------------------------------------
+# IDE / editor
+# ---------------------------------------------------------------------------
+*.user
+.vscode/
+.idea/
+.fleet/
+.trae/
+*.swp
+*.swo
+*~
+
+# ---------------------------------------------------------------------------
+# Windows
+# ---------------------------------------------------------------------------
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# ---------------------------------------------------------------------------
+# macOS / Linux (in case the repo is opened on other platforms)
+# ---------------------------------------------------------------------------
+.DS_Store
+.AppleDouble
+._*
+.directory
+
+# ---------------------------------------------------------------------------
+# Logs
+# ---------------------------------------------------------------------------
+*.log

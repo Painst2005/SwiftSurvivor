@@ -8,6 +8,9 @@ $targetExe = Join-Path $projectRoot "SwiftSurvivor-SDL.exe"
 $sdlDll = Join-Path $projectRoot "Vendor\SDL3-3.4.14\lib\x64\SDL3.dll"
 
 swift build -c release --scratch-path $scratchPath
+if ($LASTEXITCODE -ne 0) {
+    throw "SDL release build failed with exit code $LASTEXITCODE"
+}
 if (-not (Test-Path -LiteralPath $sourceExe)) {
     throw "SDL release executable was not produced at $sourceExe"
 }

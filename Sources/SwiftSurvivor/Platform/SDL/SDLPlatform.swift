@@ -14,7 +14,7 @@ enum SDLPlatformError: Error, CustomStringConvertible {
 }
 
 struct SDLInputEvent {
-    enum Kind { case quit, keyDown, keyUp, mouseMotion, mouseButtonDown, mouseButtonUp, windowResized }
+    enum Kind { case quit, keyDown, keyUp, mouseMotion, mouseButtonDown, mouseButtonUp, mouseWheel, windowResized }
     var kind: Kind
     var key: Int32 = 0
     var repeated = false
@@ -23,6 +23,8 @@ struct SDLInputEvent {
     var y: Float = 0
     var width = 0
     var height = 0
+    /// 滚轮刻度增量，向上滚为正。
+    var wheelDelta: Float = 0
 }
 
 /// Owns SDL lifetime and converts C event structs into Swift values.
@@ -67,6 +69,8 @@ final class SDLPlatform {
             case UInt32(bitPattern: SWIFT_SDL3_EVENT_WINDOW_RESIZED.rawValue):
                 windowSize = (Int(raw.width), Int(raw.height))
                 result.append(SDLInputEvent(kind: .windowResized, width: Int(raw.width), height: Int(raw.height)))
+            case UInt32(bitPattern: SWIFT_SDL3_EVENT_MOUSE_WHEEL.rawValue):
+                result.append(SDLInputEvent(kind: .mouseWheel, wheelDelta: raw.wheelY))
             default:
                 break
             }
@@ -149,6 +153,14 @@ final class SDLRenderer: GameRenderer, GameTextureProvider {
         _ = swift_sdl3_line(platform.context, start.x, start.y, end.x, end.y)
     }
 
+    func setClipRect(_ rect: RenderRect?) {
+        guard let rect else {
+            swift_sdl3_clear_clip_rect(platform.context)
+            return
+        }
+        _ = swift_sdl3_set_clip_rect(platform.context, rect.x, rect.y, rect.width, rect.height)
+    }
+
     func drawSprite(_ texture: GameTexture, in destination: RenderRect, alpha: UInt8 = 255) {
         guard let texture = texture as? SDLTexture else { return }
         _ = swift_sdl3_draw_texture(platform.context, texture.handle,
@@ -220,6 +232,7 @@ final class SDLInputManager {
     private var quitRequested = false
     private var clickPosition: (x: Float, y: Float)?
     private var primaryButtonHeld = false
+    private var wheelAccumulator: Float = 0
 
     func beginFrame(events: [SDLInputEvent]) {
         pressedKeys.removeAll(keepingCapacity: true)
@@ -239,6 +252,8 @@ final class SDLInputManager {
                 if event.button == 1 { clickPosition = (event.x, event.y); primaryButtonHeld = true }
             case .mouseButtonUp:
                 if event.button == 1 { primaryButtonHeld = false }
+            case .mouseWheel:
+                wheelAccumulator += event.wheelDelta
             case .windowResized:
                 break
             }
@@ -257,6 +272,11 @@ final class SDLInputManager {
     func isPressedFeedbackDebug() -> Bool { pressedKeys.contains(swift_sdl3_keycode_f8()) }
     func isPressedUIDebug() -> Bool { pressedKeys.contains(swift_sdl3_keycode_f9()) }
     func isPrimaryButtonHeld() -> Bool { primaryButtonHeld }
+    /// 取出并清空本帧累计的滚轮增量，避免事件在帧间重复生效。
+    func consumeWheelDelta() -> Float {
+        defer { wheelAccumulator = 0 }
+        return wheelAccumulator
+    }
     func consumePrimaryClick() -> (x: Float, y: Float)? {
         defer { clickPosition = nil }
         return clickPosition

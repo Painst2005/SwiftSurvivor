@@ -71,6 +71,9 @@ enum SDLFullGame {
                 let logicalMouse = viewport.logicalPoint(x: input.mousePosition.x, y: input.mousePosition.y)
                 Game.shared.updateMousePosition(Vec2(x: Double(logicalMouse.x), y: Double(logicalMouse.y)))
                 Game.shared.mousePrimaryDown = input.isPrimaryButtonHeld()
+                // 累加而非覆盖：Game.update 只在固定步长触发，若本帧没有步进，
+                // 滚轮事件必须留到下一次 update 消费，否则会被直接丢弃。
+                Game.shared.mouseWheelDelta += Double(input.consumeWheelDelta())
                 clock.advance(realDelta: realDelta) { delta in
                     Game.shared.update(delta: delta, width: Double(logicalWidth), height: Double(logicalHeight))
                 }
@@ -137,7 +140,8 @@ enum SDLFullGame {
         }
         if input.isPressed(keyCode: 13) {
             switch Game.shared.phase {
-            case .menu, .missionSelect: Game.shared.start(width: Double(viewport.logicalWidth), height: Double(viewport.logicalHeight))
+            case .menu: Game.shared.openMissionSelect()
+            case .missionSelect: Game.shared.start(width: Double(viewport.logicalWidth), height: Double(viewport.logicalHeight))
             case .gameOver: Game.shared.start(width: Double(viewport.logicalWidth), height: Double(viewport.logicalHeight))
             default: break
             }
@@ -160,7 +164,7 @@ enum SDLFullGame {
                 }
             }
         }
-        if input.isPressedQ(), Game.shared.phase == .playing { Game.shared.cycleWeapon() }
+        // 规格冻结项：战斗中不再支持 Q 切换 WeaponType，弹道由出战装备系列唯一决定。
         if input.isPressedDash(), Game.shared.phase == .playing {
             Game.shared.tryDash(width: Double(viewport.logicalWidth), height: Double(viewport.logicalHeight))
         }

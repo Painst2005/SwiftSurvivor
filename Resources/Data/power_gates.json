@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "source": "雷霆战机机库装备系统 AI 改造规格 Prompt 第 7.4 节（战力门槛→伤害折算）+ 第 12.2 节（平滑可解释公式）",
+  "comment": "damageScale = power >= gate ? 1 : max(minScale, power / gate)。8 章门槛锚定原版第 72 关 11737 战力口径（规格第 7.4 节：72 关需 11737，四件五等品满阶 11424 打终章伤害折算 97% = '稍吃力'；一等品满阶 13216 与战神 build 无衰减通关）。中段章节对应当期装备进化台阶。无尽模式 gate = endlessBase * endlessGrowth^(wave-1)，越往后越吃战力，minScale 保证不会完全打不动。",
+  "missionGates": [700, 1500, 2400, 3600, 5000, 6600, 8600, 11737],
+  "endlessBase": 6500,
+  "endlessGrowth": 1.18,
+  "minScale": 0.2
+}

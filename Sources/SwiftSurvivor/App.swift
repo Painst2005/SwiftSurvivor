@@ -142,7 +142,9 @@ struct MissionDefinition {
     let frontWaveCount: Int
     let difficulty: Double
     let rewardMultiplier: Double
-    let recommendedPower: Int
+
+    /// 关卡战力门槛（规格第 7.4 节，数值外置在 power_gates.json）。
+    var powerGate: Int { EquipmentCatalog.shared.powerGate(mission: id) }
 
     func title(for language: GameLanguage) -> String {
         language == .chinese ? chineseTitle : title
@@ -158,35 +160,35 @@ enum MissionCatalog {
         MissionDefinition(id: 1, title: "NEON FRONT", chineseTitle: "霓虹前线",
                           description: "The first defense line is under attack",
                           chineseDescription: "第一道防线正在遭受攻击",
-                          frontWaveCount: 4, difficulty: 0.86, rewardMultiplier: 1.0, recommendedPower: 100),
+                          frontWaveCount: 4, difficulty: 0.86, rewardMultiplier: 1.0),
         MissionDefinition(id: 2, title: "VOID RIFT", chineseTitle: "虚空裂隙",
                           description: "Enemy formations emerge from a broken gate",
                           chineseDescription: "敌方编队从破碎的空间门涌出",
-                          frontWaveCount: 4, difficulty: 1.08, rewardMultiplier: 1.35, recommendedPower: 180),
+                          frontWaveCount: 4, difficulty: 1.08, rewardMultiplier: 1.35),
         MissionDefinition(id: 3, title: "STAR FORGE", chineseTitle: "星铸核心",
                           description: "Hold the forge while its reactor overloads",
                           chineseDescription: "守住星铸核心，直到反应堆完成过载",
-                          frontWaveCount: 5, difficulty: 1.32, rewardMultiplier: 1.75, recommendedPower: 290),
+                          frontWaveCount: 5, difficulty: 1.32, rewardMultiplier: 1.75),
         MissionDefinition(id: 4, title: "THUNDER CITADEL", chineseTitle: "雷霆堡垒",
                           description: "Break through the fortress command fleet",
                           chineseDescription: "突破堡垒舰队，摧毁敌方指挥中枢",
-                          frontWaveCount: 5, difficulty: 1.58, rewardMultiplier: 2.2, recommendedPower: 430),
+                          frontWaveCount: 5, difficulty: 1.58, rewardMultiplier: 2.2),
         MissionDefinition(id: 5, title: "FROSTLINE", chineseTitle: "寒霜防线",
                           description: "Escort the last convoy through a frozen storm",
                           chineseDescription: "护送最后的运输队穿越寒霜风暴",
-                          frontWaveCount: 6, difficulty: 1.82, rewardMultiplier: 2.7, recommendedPower: 580),
+                          frontWaveCount: 6, difficulty: 1.82, rewardMultiplier: 2.7),
         MissionDefinition(id: 6, title: "ECLIPSE GATE", chineseTitle: "日蚀之门",
                           description: "Close the gate before the eclipse reaches orbit",
                           chineseDescription: "在日蚀抵达轨道前关闭虚空之门",
-                          frontWaveCount: 6, difficulty: 2.08, rewardMultiplier: 3.2, recommendedPower: 760),
+                          frontWaveCount: 6, difficulty: 2.08, rewardMultiplier: 3.2),
         MissionDefinition(id: 7, title: "STARFALL", chineseTitle: "星陨禁区",
                           description: "Survive the meteor field and break the siege",
                           chineseDescription: "穿越陨石场，突破敌军围攻",
-                          frontWaveCount: 7, difficulty: 2.38, rewardMultiplier: 3.8, recommendedPower: 980),
+                          frontWaveCount: 7, difficulty: 2.38, rewardMultiplier: 3.8),
         MissionDefinition(id: 8, title: "ORIGIN CORE", chineseTitle: "起源核心",
                           description: "Enter the origin core and end the invasion",
                           chineseDescription: "进入起源核心，终结这场入侵",
-                          frontWaveCount: 7, difficulty: 2.72, rewardMultiplier: 4.5, recommendedPower: 1250)
+                          frontWaveCount: 7, difficulty: 2.72, rewardMultiplier: 4.5)
     ]
 }
 
@@ -602,6 +604,21 @@ enum BossType: Int, CaseIterable {
         case .originArchitect: return "起源构造者"
         }
     }
+
+    /// 配置口径 id：战神配方 bossTypeDefeated 条件用（如 "rift"）。
+    var configID: String {
+        switch self {
+        case .dreadnought: return "dreadnought"
+        case .riftBehemoth: return "rift"
+        case .frostWarden: return "frost"
+        case .originArchitect: return "origin"
+        }
+    }
+
+    /// 由配置 id 反查 Boss 类型。
+    static func fromConfigID(_ id: String) -> BossType? {
+        allCases.first { $0.configID == id }
+    }
 }
 
 enum BossCatalog {
@@ -639,48 +656,58 @@ final class Game: @unchecked Sendable {
     var runCreditsEarned = 0
     var runCoresEarned = 0
     var runAlloyEarned = 0
-    var runRareDropName = ""
-    var runRareDropRarity = 0
+    /// 本局 Boss 稀有掉落（同名装备）：存系列 ID + 阶，显示名按语言实时解析。
+    var runRareDropSeriesId = ""
+    var runRareDropStage = 0
     var hangarMessageTitle = ""
     var hangarMessageDetail = ""
     var hangarMessageTimer = 0.0
     var hangarTab = 0
     var selectedEquipmentSlot = 0
+    /// 装备 Tab 换装子视图：非 nil 时中栏显示该槽位的仓库选择列表。
+    var hangarVaultSlot: EquipmentSlot? = nil
     var selectedVaultInventoryIndex: Int? = nil
     var vaultPage = 0
-    var vaultFilterSlot: Int? = nil
-    var vaultSortMode = 0
+    /// 仓库过滤始终跟随换装子视图的槽位，不再单独循环切换。
+    var vaultFilterSlot: EquipmentSlot? = nil
+    /// 机体列表滚动：显示值由弹簧动画插值，目标值由输入（滚轮/拖拽/轨道）直接设置。
+    /// 两者分离后，输入立即生效、画面平滑追赶，且动画只作用在显示值上。
+    var shipListScroll = 0.0
+    private var shipListScrollTarget = 0.0
+    private var shipScrollVelocity = 0.0
+    private var shipScrollDragging = false
+    private var shipScrollGrabOffset = 0.0
+    /// 滚轮增量累加器：高分辨率滚轮/触控板的单次增量常小于 1 格，需累积到整格再滚动。
+    private var shipWheelAccumulator = 0.0
     var archiveTab = 0
     var codexCategory = CodexCategory.weapons
     var codexPage = 0
     var language: GameLanguage {
         GameLanguage(rawValue: profile.language) ?? .english
     }
+    /// 换装列表固定顺序：战力降序，同级再比阶与等级，保证次序稳定可预期。
     var visibleVaultIndices: [Int] {
-        var indices = profile.inventory.indices.filter { index in
-            guard let slot = vaultFilterSlot else { return true }
-            return profile.inventory[index].slot == slot
-        }
-        if vaultSortMode == 0 {
-            indices.sort { lhs, rhs in
+        profile.inventory.indices
+            .filter { index in
+                guard let filter = vaultFilterSlot else { return true }
+                return profile.inventory[index].slot == filter
+            }
+            .sorted { lhs, rhs in
                 let left = profile.inventory[lhs]
                 let right = profile.inventory[rhs]
-                if left.rarity != right.rarity { return left.rarity > right.rarity }
+                if left.unitPower != right.unitPower { return left.unitPower > right.unitPower }
+                if left.stage != right.stage { return left.stage > right.stage }
                 if left.level != right.level { return left.level > right.level }
-                return left.name < right.name
+                return left.uid < right.uid
             }
-        } else if vaultSortMode == 1 {
-            indices.sort { profile.inventory[$0].level > profile.inventory[$1].level }
-        } else {
-            indices.sort { profile.inventory[$0].slot < profile.inventory[$1].slot }
-        }
-        return indices
     }
     var vaultPageCount: Int {
         max(1, (visibleVaultIndices.count + 3) / 4)
     }
     var mousePosition = Vec2(x: 500, y: 630)
     var mousePrimaryDown = false
+    /// 本帧累计的鼠标滚轮刻度（向上滚为正），由 SDL 层每帧写入。
+    var mouseWheelDelta = 0.0
     var precisionMode = false
     var player = Vec2(x: 500, y: 630)
     var playerRadius = 18.0
@@ -697,6 +724,8 @@ final class Game: @unchecked Sendable {
     var secondaryFireTimer = 3.8
     var armorShieldCharges = 0
     var armorDamageReduction = 0.0
+    /// 魔龙之鳞回血技能的计时器。
+    var armorRegenTimer = 0.0
     var waveTimer = 1.2
     var waveIndex = 0
     var endlessWaveNumber = 1
@@ -711,8 +740,37 @@ final class Game: @unchecked Sendable {
     var stageBannerDetail = ""
     var bossDefeats = 0
     var enemyBulletClearPending = false
-    var weaponType: WeaponType = .cannon
     var weaponLevel = 1
+    /// 出战主武器名称（弹道签名所属装备系列，HUD 展示）。
+    var activeWeaponName = ""
+    /// 出战战机的弹道签名（规格：弹道由出战装备决定，废除战斗中切武器）。
+    var activeWeaponProfile: WeaponProfile?
+    /// 出战副武器的弹道签名。
+    var activeSubWeaponProfile: WeaponProfile?
+    /// 出战僚机的弹道签名。
+    var activeWingProfile: WeaponProfile?
+    /// 出战装甲的生存技能。
+    var activeArmorSkill: ArmorSkill?
+    /// 关卡战力门槛伤害折算（1.0 = 达标无衰减）。
+    var activePowerGateScale = 1.0
+    /// 出战战神的同步率乘数（无战神 = 1.0）。
+    var activeWarriorSynergy = 1.0
+    /// 副武器/僚机战神的同步率乘数（各自槽位独立结算）。
+    var warriorSubSynergy = 1.0
+    var warriorWingSynergy = 1.0
+    /// 部署中的装甲战神（素材面板技能生效）。
+    var activeWarriorArmor: WarriorState? = nil
+    /// 副武器/僚机当前生效等级（战神部署时取素材面板）。
+    var activeSubLevel = 1
+    var activeWingLevel = 1
+    /// 机库升级 Tab 当前选中的经验素材。
+    var selectedExpMaterial = "exp_wreckage"
+    /// 装备 uid 单调序号（配合时间戳保证唯一）。
+    private var equipmentUIDCounter = 0
+    /// 战神 Tab 当前选中的配方（nil = 未选中）。
+    var selectedWarriorRecipe: String? = nil
+    /// 战神 Tab 当前选中的已激活战神（profile.warriors 下标，nil = 未选中）。
+    var selectedWarriorIndex: Int? = nil
     var projectileDamageMultiplier = 1.0
     var projectilePenetration = 0
     var projectileCountBonus = 0
@@ -876,9 +934,9 @@ final class Game: @unchecked Sendable {
     }
     var effectiveFireCooldown: Double {
         let base: Double
-        switch weaponType {
+        switch activeWeaponProfile?.archetype {
         case .missile: base = max(fireCooldown * 2.15, 0.32)
-        case .electromagnetic: base = max(fireCooldown * 0.72, 0.065)
+        case .emp: base = max(fireCooldown * 0.72, 0.065)
         default: base = fireCooldown
         }
         return fireRateBoostTime > 0 ? base / 1.5 : base
@@ -957,13 +1015,40 @@ final class Game: @unchecked Sendable {
         dashCooldown = 0
         shipType = ShipType(rawValue: profile.selectedShip) ?? .thunder
         shipTraitTimer = 12.0
-        let primaryLevel = profile.equipment.first(where: { $0.slot == 1 })?.level ?? 1
-        let secondaryLevel = profile.equipment.first(where: { $0.slot == 2 })?.level ?? 1
-        let armorLevel = profile.equipment.first(where: { $0.slot == 3 })?.level ?? 1
-        let droneLevel = profile.equipment.first(where: { $0.slot == 4 })?.level ?? 1
-        let primaryItem = profile.equipment.first(where: { $0.slot == 1 })
-        let armorItem = profile.equipment.first(where: { $0.slot == 3 })
-        let secondaryItem = profile.equipment.first(where: { $0.slot == 2 })
+        // 战神部署后，对应槽位的面板由战神素材合成（规格第 8 节：占用不消耗、出力 = 素材面板 × 出力倍率 × 同步率）。
+        let warriorFighter = deployedWarrior(for: .fighter)
+        let warriorSub = deployedWarrior(for: .subweapon)
+        let warriorArmor = deployedWarrior(for: .armor)
+        let warriorWing = deployedWarrior(for: .wingman)
+        let fighterItem = warriorFighter.flatMap { warriorMaterialPanel($0) } ?? profile.equipment.first { $0.slot == .fighter }
+        let subItem = warriorSub.flatMap { warriorMaterialPanel($0) } ?? profile.equipment.first { $0.slot == .subweapon }
+        let armorItem = warriorArmor.flatMap { warriorMaterialPanel($0) } ?? profile.equipment.first { $0.slot == .armor }
+        let wingItem = warriorWing.flatMap { warriorMaterialPanel($0) } ?? profile.equipment.first { $0.slot == .wingman }
+        let primaryLevel = fighterItem?.level ?? 1
+        let secondaryLevel = subItem?.level ?? 1
+        let armorLevel = armorItem?.level ?? 1
+        let droneLevel = wingItem?.level ?? 1
+        // 弹道签名归装备系列：出战战机/副武器/僚机各带唯一 WeaponProfile。
+        activeWeaponProfile = fighterItem?.series?.weaponProfile
+            ?? EquipmentCatalog.shared.series(id: "fighter_assault")?.weaponProfile
+        activeSubWeaponProfile = subItem?.series?.weaponProfile
+        activeWingProfile = wingItem?.series?.weaponProfile
+        activeArmorSkill = armorItem?.series?.skill
+        // 出战战神：实际输出 = 素材面板 × baseOutputScale × 同步率（规格第 8.3 节）。
+        if let warrior = warriorFighter {
+            activeWarriorSynergy = EquipmentCatalog.shared.synergyConfig.baseOutputScale * warrior.synergyRate
+        } else {
+            activeWarriorSynergy = 1.0
+        }
+        // 副武器/僚机战神同样按 出力倍率 × 同步率 放大（各自槽位独立结算）。
+        warriorSubSynergy = warriorSub.map { EquipmentCatalog.shared.synergyConfig.baseOutputScale * $0.synergyRate } ?? 1.0
+        warriorWingSynergy = warriorWing.map { EquipmentCatalog.shared.synergyConfig.baseOutputScale * $0.synergyRate } ?? 1.0
+        activeSubLevel = subItem?.level ?? 1
+        activeWingLevel = wingItem?.level ?? 1
+        // 装甲战神：素材面板的生存技能直接生效（增攻/减伤/免秒/回血/加分）。
+        activeWarriorArmor = warriorArmor
+        // 战力门槛伤害折算：达标无衰减，不足按比例线性衰减（规格第 7.4 节）。
+        activePowerGateScale = powerGateScale()
         var shipHealthMultiplier = 1.0
         var shipDamageMultiplier = 1.0
         var shipSpeedMultiplier = 1.0
@@ -990,20 +1075,22 @@ final class Game: @unchecked Sendable {
         maxHealth = (120 + Double(max(0, armorLevel - 1)) * 4) * shipHealthMultiplier
         health = maxHealth
         moveSpeed = 330 * shipSpeedMultiplier
-        let rarityMultiplier = 1.0 + Double(primaryItem?.rarity ?? 0) * 0.06 + Double(secondaryItem?.rarity ?? 0) * 0.02
-        fireCooldown = 0.24
-        damage = (18 + Double(max(0, primaryLevel - 1)) * 1.5 + Double(max(0, droneLevel - 1)) * 0.6) * shipDamageMultiplier * rarityMultiplier * activePlayerDamageMultiplier
-        if primaryItem?.affix == 1 { damage *= 1.10 }
-        if primaryItem?.affix == 2 { criticalChance = min(0.75, criticalChance + 0.05) }
-        if primaryItem?.affix == 3 { fireCooldown *= 0.90 }
+        // 主武器射速与伤害由出战战机的弹道签名参数化。
+        fireCooldown = 0.24 / max(0.5, min(2.0, activeWeaponProfile?.fireRateScale ?? 1.0))
+        let weaponDamageScale = activeWeaponProfile?.damageScale ?? 1.0
+        // 装甲技能：黄金之铠=增攻 8%；金刚护盾=减伤；神圣之力=免秒（双层护盾）。
+        let armorDamageBonus = activeArmorSkill == .damageBonus ? 1.08 : 1.0
+        damage = (18 + Double(max(0, primaryLevel - 1)) * 1.5 + Double(max(0, droneLevel - 1)) * 0.6)
+            * shipDamageMultiplier * weaponDamageScale * armorDamageBonus * activePowerGateScale * activeWarriorSynergy * activePlayerDamageMultiplier
+        // 装甲技能：金刚护盾=减伤，神圣之力=免秒（双层护盾），其余见 power-up 结算。
         armorDamageReduction = min(0.28, 0.08 + Double(max(0, armorLevel - 1)) * 0.012)
-        if armorItem?.id.contains("frost") == true { armorDamageReduction = min(0.32, armorDamageReduction + 0.04) }
-        if armorItem?.affix == 4 { armorDamageReduction = min(0.36, armorDamageReduction + 0.06) }
+        if activeArmorSkill == .damageReduction { armorDamageReduction = min(0.36, armorDamageReduction + 0.08) }
         // Armor and pickup shields share one non-stackable defensive layer.
-        armorShieldCharges = 1
+        armorShieldCharges = activeArmorSkill == .surviveLethal ? 2 : 1
         fireTimer = 0.10
         auxiliaryFireTimer = 0.65
-        secondaryFireTimer = max(2.8, 4.6 - Double(secondaryLevel) * 0.12)
+        let subWeaponRate = max(0.5, min(2.0, activeSubWeaponProfile?.fireRateScale ?? 1.0))
+        secondaryFireTimer = max(1.6, (4.6 - Double(secondaryLevel) * 0.12) / subWeaponRate)
         waveTimer = 1.20
         waveIndex = 0
         endlessWaveNumber = 1
@@ -1018,17 +1105,17 @@ final class Game: @unchecked Sendable {
         stageBannerDetail = ""
         bossDefeats = 0
         enemyBulletClearPending = false
-        weaponType = WeaponType(rawValue: profile.equippedWeapon) ?? .cannon
-        // In-run weapon growth has no level cap. Pattern thresholds still
-        // unlock naturally, while later upgrades continue adding firepower.
-        weaponLevel = max(1, 1 + primaryLevel / 5 + (primaryItem?.evolution ?? 0))
+        // 武器形态由出战装备的阶决定（废除战斗中 Q 切武器）。
+        weaponLevel = min(9, 1 + primaryLevel / 5 + (fighterItem?.stage ?? 0) / 2)
+        activeWeaponName = fighterItem.map { equipmentDisplayName($0) } ?? ""
         projectileDamageMultiplier = 1.0
-        projectilePenetration = max(0, (primaryItem?.stars ?? 1) - 1)
+        projectilePenetration = activeWeaponProfile?.pierce ?? 0
         projectileCountBonus = 0
-        laserWidthLevel = min(4, primaryItem?.evolution ?? 0)
+        laserWidthLevel = min(4, (fighterItem?.stage ?? 0) / 2)
         thunderGainMultiplier = 1.0
         grazeRadiusBonus = 0.0
-        comboScoreMultiplier = 1.0
+        // 装甲技能：聚能之光 = 得分 +15%（规格第 2 节）。
+        comboScoreMultiplier = activeArmorSkill == .scoreBonus ? 1.15 : 1.0
         hasLaserCore = false
         hasCryoCore = false
         hasThunderCore = false
@@ -1065,8 +1152,8 @@ final class Game: @unchecked Sendable {
         runCreditsEarned = 0
         runCoresEarned = 0
         runAlloyEarned = 0
-        runRareDropName = ""
-        runRareDropRarity = 0
+        runRareDropSeriesId = ""
+        runRareDropStage = 0
         experience = 0
         experienceGoal = 10
         enemies.removeAll(keepingCapacity: true)
@@ -1076,17 +1163,25 @@ final class Game: @unchecked Sendable {
         damageNumbers.removeAll(keepingCapacity: true)
         upgradeOptions.removeAll()
         selectedBuildCoreKinds.removeAll(keepingCapacity: true)
+        armorRegenTimer = 0
+        // 保底兜底：装备练到 75 级时任务线赠送一整套紫色材料（每槽位一次）。
+        claimQuarkGiftIfEligible()
         if stars.isEmpty { initializeStars(width: width, height: height) }
     }
 
     func update(delta rawDelta: Double, width: Double, height: Double) {
         let realDelta = min(max(rawDelta, 0), 0.05)
+        // 滚轮增量每次 update 只消费一次：既不会被固定步长循环重复应用，
+        // 也不会在非机库界面堆积成延迟生效的队列。
+        let wheelDelta = mouseWheelDelta
+        mouseWheelDelta = 0
         uiAnimationTime += realDelta
         if stars.isEmpty { initializeStars(width: width, height: height) }
         if phase == .menu || phase == .saveSlots || phase == .missionSelect || phase == .controls || phase == .hangar || phase == .settings || phase == .archive {
             updateStars(delta: realDelta, height: height)
             updateParticles(delta: realDelta)
             hangarMessageTimer = max(0, hangarMessageTimer - realDelta)
+            if phase == .hangar { updateShipListScroll(delta: realDelta, wheelDelta: wheelDelta, width: width, height: height) }
             return
         }
         // The death/defeat screen still needs to advance presentation-only feedback.
@@ -1126,6 +1221,14 @@ final class Game: @unchecked Sendable {
             playerInvulnerability = max(playerInvulnerability, 1.2)
             shipTraitTimer = 18.0
             notifyPickup(title: "GHOST PHASE", detail: "Periodic immunity window activated", tint: rgb(169, 200, 255))
+        }
+        // 魔龙之鳞（回血）：每 2 秒恢复 2% 最大生命。
+        if activeArmorSkill == .regen, health > 0, health < maxHealth {
+            armorRegenTimer -= delta
+            if armorRegenTimer <= 0 {
+                armorRegenTimer = 2.0
+                health = min(maxHealth, health + maxHealth * 0.02)
+            }
         }
 
         var direction = Vec2.zero
@@ -1185,13 +1288,12 @@ final class Game: @unchecked Sendable {
         auxiliaryFireTimer -= delta
         if auxiliaryFireTimer <= 0 {
             fireAuxiliaryWeapon()
-            let droneLevel = profile.equipment.first(where: { $0.slot == 4 })?.level ?? 1
-            auxiliaryFireTimer = max(0.28, 0.82 - Double(droneLevel) * 0.025)
+            auxiliaryFireTimer = max(0.28, 0.82 - Double(activeWingLevel) * 0.025)
         }
         secondaryFireTimer -= delta
         if secondaryFireTimer <= 0 {
             fireSecondaryWeapon()
-            secondaryFireTimer = max(2.8, 6.4 - Double(profile.equipment.first(where: { $0.slot == 2 })?.level ?? 1) * 0.22)
+            secondaryFireTimer = max(2.8, 6.4 - Double(activeSubLevel) * 0.22)
         }
 
         if stageClearTimer <= 0 {
@@ -1208,12 +1310,21 @@ final class Game: @unchecked Sendable {
             combatFeedback.play(.playerKilled,
                                 context: FeedbackContext(position: player, level: .critical, tint: rgb(255, 118, 140)), game: self)
             phase = .gameOver
-            profile.bestCombo = max(profile.bestCombo, comboBest)
-            profile.bestScore = max(profile.bestScore, score)
-            if score > highScore {
-                highScore = score
-            }
+            recordRunScore()
+            claimQuarkGiftIfEligible()
             persistProfile()
+        }
+    }
+
+    /// 记录本局最高分：总榜 + 无尽单独记账（战神配方 endlessBestScore 条件）。
+    private func recordRunScore() {
+        profile.bestCombo = max(profile.bestCombo, comboBest)
+        profile.bestScore = max(profile.bestScore, score)
+        if gameMode == .endless {
+            profile.endlessBestScore = max(profile.endlessBestScore, score)
+        }
+        if score > highScore {
+            highScore = score
         }
     }
 
@@ -1287,6 +1398,33 @@ final class Game: @unchecked Sendable {
                          tint: rgb(126, 220, 255))
         }
         waveIndex += 1
+        grantWaveMaterials()
+    }
+
+    /// 规格第 6 节 + material_drops.json：闯关普通波次掉绿色量子系（必掉）；
+    /// 无尽模式每 equipmentCratePerWaves 波投放一个装备宝箱（随机系列）。
+    private func grantWaveMaterials() {
+        if gameMode == .campaign {
+            guard let drops = EquipmentCatalog.shared.missionDrops(activeMission.id) else { return }
+            for materialID in drops.normalWaves { addMaterial(materialID, amount: 1) }
+        } else {
+            guard waveIndex % EquipmentCatalog.shared.drops.endless.equipmentCratePerWaves == 0,
+                  profile.inventory.count < 96 else { return }
+            let series = EquipmentCatalog.shared.seriesList.randomElement(using: &rng)
+            guard let series else { return }
+            profile.inventory.append(EquipmentState(uid: nextEquipmentUID(),
+                                                    seriesId: series.id, stage: 0, level: 1,
+                                                    exp: 0, locked: false, equipped: false))
+            notifyPickup(title: uiText("EQUIPMENT CRATE", "装备宝箱"),
+                         detail: uiText("\(series.displayName(stage: 0, suffix: "")) secured", "获得了\(series.displayName(stage: 0, suffix: ""))"),
+                         tint: rgb(126, 220, 255))
+        }
+    }
+
+    /// 装备 uid 生成：时间戳 + 单调序号，保证跨会话唯一（迁移与战神占用都以 uid 为准）。
+    func nextEquipmentUID() -> String {
+        equipmentUIDCounter += 1
+        return "eq_\(Int(Date().timeIntervalSince1970 * 1000))_\(equipmentUIDCounter)"
     }
 
     private func nextWaveDelay() -> Double {
@@ -1472,128 +1610,156 @@ final class Game: @unchecked Sendable {
         if bulletPool.count > bulletLimit * 2 { bulletPool.removeLast(bulletPool.count - bulletLimit * 2) }
     }
 
-    private func fireWeapon() {
-        AudioManager.shared.playSFX("sfx_shoot")
-        let laserBoost = weaponType == .laser ? (frostRayActive ? 2.0 : 1.6) : 1.0
-        let origin = player + Vec2(x: 0, y: -22)
-        switch weaponType {
+    /// 每种弹道原型的子弹参数（规格第 12.4/12.5 节：archetype 路由 + scale 参数化）。
+    private struct ArchetypeBullet {
+        var speed: Double
+        var radius: Double
+        var damageMultiplier: Double
+        var life: Double
+        var tint: COLORREF
+        var style: Int
+        var pierceBonus: Int
+    }
+
+    /// 默认弹道签名（找不到出战装备时兜底，等价于突击系单发机炮）。
+    private var defaultWeaponProfile: WeaponProfile {
+        WeaponProfile(archetype: .cannon, damageScale: 1.0, fireRateScale: 1.0,
+                      projectileCount: 1, spread: 0.0, speedScale: 1.0,
+                      pierce: 0, homingTurn: 0, radiusScale: 1.0)
+    }
+
+    private func archetypeBullet(_ weapon: WeaponProfile, laserBoost: Double) -> ArchetypeBullet {
+        switch weapon.archetype {
         case .cannon:
-            let baseSpread: [Double]
-            switch min(weaponLevel, 7) {
-            case 2: baseSpread = [-0.055, 0.055]
-            case 3: baseSpread = [-0.11, 0, 0.11]
-            case 4: baseSpread = [-0.16, -0.055, 0.055, 0.16]
-            case 5: baseSpread = [-0.20, -0.10, 0, 0.10, 0.20]
-            case 6: baseSpread = [-0.26, -0.17, -0.085, 0, 0.085, 0.17, 0.26]
-            case 7: baseSpread = [-0.32, -0.21, -0.105, 0, 0.105, 0.21, 0.32]
-            default: baseSpread = [0]
-            }
-            var spread = baseSpread
-            let auxiliaryCount = projectileCountBonus + (arrayOverdriveActive ? 1 : 0)
-            for index in 0..<min(auxiliaryCount, 3) {
-                let offset = 0.38 + Double(index) * 0.065
-                spread.append(-offset)
-                spread.append(offset)
-            }
-            for angle in spread {
-                appendPlayerBullet(origin: origin, angle: angle, speed: 720, radius: 4.5,
-                                   damage: damage * projectileDamageMultiplier * laserBoost,
-                                   life: 2.0, tint: laserBoost > 1.0 && frostRayActive ? rgb(174, 239, 255) : rgb(155, 239, 255),
-                                   pierce: projectilePenetration)
-            }
+            return ArchetypeBullet(speed: 720, radius: 4.5, damageMultiplier: 1.0,
+                                   life: 2.0, tint: rgb(155, 239, 255),
+                                   style: WeaponType.cannon.rawValue, pierceBonus: 0)
         case .laser:
-            var beamAngles: [Double] = [0]
-            if weaponLevel >= 3 { beamAngles = [-0.018, 0.018] }
-            if weaponLevel >= 6 { beamAngles = [-0.032, 0, 0.032] }
-            for angle in beamAngles {
-                appendPlayerBullet(origin: origin, angle: angle, speed: 900, radius: 5.5 + Double(laserWidthLevel) * 0.6,
-                                   damage: damage * projectileDamageMultiplier * 1.18 * laserBoost,
+            return ArchetypeBullet(speed: 900, radius: 5.5 + Double(laserWidthLevel) * 0.6,
+                                   damageMultiplier: 1.18 * laserBoost,
                                    life: 1.55, tint: frostRayActive ? rgb(174, 239, 255) : rgb(112, 224, 255),
-                                   pierce: max(2, projectilePenetration + 3), style: WeaponType.laser.rawValue)
-            }
+                                   style: WeaponType.laser.rawValue, pierceBonus: 3)
         case .scatter:
-            let pelletCount = min(13, 3 + weaponLevel + projectileCountBonus + (arrayOverdriveActive ? 1 : 0))
-            let spreadAngle = 0.72
-            for index in 0..<pelletCount {
-                let t = pelletCount == 1 ? 0.5 : Double(index) / Double(pelletCount - 1)
-                let angle = -spreadAngle + t * spreadAngle * 2
-                appendPlayerBullet(origin: origin, angle: angle, speed: 650, radius: 5.0,
-                                   damage: damage * projectileDamageMultiplier * 0.68 * laserBoost,
-                                   life: 1.35, tint: rgb(255, 202, 119), pierce: projectilePenetration,
-                                   style: WeaponType.scatter.rawValue)
-            }
+            return ArchetypeBullet(speed: 650, radius: 5.0, damageMultiplier: 0.68,
+                                   life: 1.35, tint: rgb(255, 202, 119),
+                                   style: WeaponType.scatter.rawValue, pierceBonus: 0)
         case .missile:
-            let missileCount = min(6, 1 + (weaponLevel >= 4 ? 1 : 0) + (weaponLevel >= 7 ? 2 : 0) + projectileCountBonus)
-            let spreadAngle = missileCount == 1 ? 0 : (weaponLevel >= 7 ? 0.24 : 0.16)
-            for index in 0..<missileCount {
-                let angle = missileCount == 1 ? 0 : (Double(index) - Double(missileCount - 1) / 2) * (spreadAngle * 2 / Double(max(1, missileCount - 1)))
-                appendPlayerBullet(origin: origin, angle: angle, speed: 430, radius: 7.0,
-                                   damage: damage * projectileDamageMultiplier * 1.72,
-                                   life: 3.4, tint: rgb(255, 133, 92), pierce: projectilePenetration,
-                                   style: WeaponType.missile.rawValue)
-            }
-        case .electromagnetic:
-            let orbCount = min(6, 1 + (weaponLevel >= 3 ? 1 : 0) + (weaponLevel >= 6 ? 1 : 0) + (weaponLevel >= 7 ? 1 : 0) + projectileCountBonus)
-            let spreadAngle = orbCount == 1 ? 0 : (weaponLevel >= 7 ? 0.34 : 0.22)
-            for index in 0..<orbCount {
-                let t = orbCount == 1 ? 0.5 : Double(index) / Double(orbCount - 1)
-                let angle = -spreadAngle + t * spreadAngle * 2
-                appendPlayerBullet(origin: origin, angle: angle, speed: 560, radius: 7.0,
-                                   damage: damage * projectileDamageMultiplier * 0.82,
-                                   life: 2.2, tint: rgb(191, 133, 255), pierce: max(1, projectilePenetration),
-                                   style: WeaponType.electromagnetic.rawValue)
-            }
+            return ArchetypeBullet(speed: 430, radius: 7.0, damageMultiplier: 1.72,
+                                   life: 3.4, tint: rgb(255, 133, 92),
+                                   style: WeaponType.missile.rawValue, pierceBonus: 0)
+        case .emp:
+            return ArchetypeBullet(speed: 560, radius: 7.0, damageMultiplier: 0.82,
+                                   life: 2.2, tint: rgb(191, 133, 255),
+                                   style: WeaponType.electromagnetic.rawValue, pierceBonus: 1)
         }
     }
 
+    /// 主武器：由出战战机的弹道签名驱动（废除战斗中切武器）。
+    private func fireWeapon() {
+        AudioManager.shared.playSFX("sfx_shoot")
+        let weapon = activeWeaponProfile ?? defaultWeaponProfile
+        fireProfile(weapon, level: weaponLevel, origin: player + Vec2(x: 0, y: -22))
+    }
+
+    /// 副武器：与主武器弹道互补，出力占比 0.72。
+    private func fireSecondaryWeapon() {
+        guard let weapon = activeSubWeaponProfile else { return }
+        fireProfile(weapon, level: activeSubLevel, origin: player + Vec2(x: 0, y: -20),
+                    damageFraction: 0.72, synergyScale: warriorSubSynergy)
+    }
+
+    /// 僚机：广域支援 lanes 几何 + 各自系列的弹道原型参数。
     private func fireAuxiliaryWeapon() {
-        let droneLevel = profile.equipment.first(where: { $0.slot == 4 })?.level ?? 1
-        let droneItem = profile.equipment.first(where: { $0.slot == 4 })
-        let count = min(4, 1 + droneLevel / 4 + (shipType == .carrier ? 1 : 0))
-        let isStormDrone = droneItem?.id.contains("storm") == true
-        let isFrostDrone = droneItem?.id.contains("frost") == true
-        for index in 0..<count {
+        guard let weapon = activeWingProfile else { return }
+        let level = activeWingLevel
+        let laserBoost = weapon.archetype == .laser ? (frostRayActive ? 2.0 : 1.6) : 1.0
+        let bullet = archetypeBullet(weapon, laserBoost: laserBoost)
+        let lanes = min(4, 1 + level / 4 + (shipType == .carrier ? 1 : 0))
+        for index in 0..<lanes {
             let side = index % 2 == 0 ? -1.0 : 1.0
             let lane = Double(index / 2)
             let origin = player + Vec2(x: side * (28 + lane * 13), y: -8)
-            let angle = side * (isStormDrone ? (0.16 + lane * 0.05) : (0.10 + lane * 0.035))
-            let tint = isStormDrone ? rgb(194, 156, 255) : (isFrostDrone ? rgb(169, 239, 255) : rgb(118, 210, 255))
+            let angle = side * (0.10 + lane * 0.035)
             appendPlayerBullet(origin: origin,
                                angle: angle,
-                               speed: isFrostDrone ? 680 : 620,
-                               radius: isStormDrone ? 5.0 : 4.0,
-                               damage: damage * (shipType == .carrier ? 0.44 : 0.32) * (isStormDrone ? 1.14 : 1.0),
-                               life: isFrostDrone ? 1.95 : 1.85,
-                               tint: tint,
-                               pierce: max(0, projectilePenetration - 1),
-                               style: isFrostDrone ? WeaponType.laser.rawValue : (isStormDrone ? WeaponType.electromagnetic.rawValue : WeaponType.cannon.rawValue))
+                               speed: bullet.speed * weapon.speedScale,
+                               radius: bullet.radius * weapon.radiusScale,
+                               damage: damage * (shipType == .carrier ? 0.44 : 0.32) * bullet.damageMultiplier * warriorWingSynergy,
+                               life: bullet.life,
+                               tint: bullet.tint,
+                               pierce: max(0, projectilePenetration + bullet.pierceBonus + weapon.pierce - 1),
+                               style: bullet.style, homingTurn: weapon.homingTurn)
         }
     }
 
-    private func fireSecondaryWeapon() {
-        let item = profile.equipment.first(where: { $0.slot == 2 })
-        let level = item?.level ?? 1
-        let isMissile = item?.id.contains("missile") == true || item?.id.contains("nova") == true
-        let isFrost = item?.id.contains("frost") == true
-        let isStorm = item?.id.contains("storm") == true
-        let count = min(4, 1 + level / 8 + (isStorm ? 1 : 0))
-        for index in 0..<count {
-            let spread = isFrost ? 0.24 : (isStorm ? 0.30 : 0.16)
-            let angle = count == 1 ? 0 : (Double(index) - Double(count - 1) / 2) * spread
-            let explosive = isMissile && !isStorm
-            appendPlayerBullet(origin: player + Vec2(x: 0, y: -20),
-                               angle: angle,
-                               speed: explosive ? 390 : (isFrost ? 560 : 510),
-                               radius: explosive ? 7.5 : 5.5,
-                               damage: damage * (explosive ? 1.15 : (isFrost ? 0.86 : 0.72)),
-                               life: explosive ? 3.1 : (isFrost ? 2.25 : 2.0),
-                               tint: explosive ? rgb(255, 144, 96) : (isFrost ? rgb(152, 232, 255) : rgb(242, 205, 106)),
-                               pierce: isFrost ? max(1, projectilePenetration + 1) : projectilePenetration,
-                               style: explosive ? WeaponType.missile.rawValue : (isFrost ? WeaponType.laser.rawValue : WeaponType.electromagnetic.rawValue))
+    /// 弹道签名统一发射器：archetype 决定弹形， WeaponProfile 决定数量/扇面/速度/穿透。
+    private func fireProfile(_ weapon: WeaponProfile, level: Int, origin: Vec2,
+                             damageFraction: Double = 1.0, synergyScale: Double = 1.0) {
+        let laserBoost = weapon.archetype == .laser ? (frostRayActive ? 2.0 : 1.6) : 1.0
+        let bullet = archetypeBullet(weapon, laserBoost: laserBoost)
+        let count = max(1, weapon.projectileCount)
+        let half = max(0.0, weapon.spread)
+        let shotDamage = damage * damageFraction * projectileDamageMultiplier * bullet.damageMultiplier * synergyScale
+        let pierce = projectilePenetration + bullet.pierceBonus + weapon.pierce
+
+        switch weapon.archetype {
+        case .cannon:
+            var pellets = count + (level >= 4 ? 1 : 0) + (level >= 7 ? 2 : 0) + projectileCountBonus
+                + (arrayOverdriveActive ? 1 : 0)
+            pellets = min(9, pellets)
+            for index in 0..<pellets {
+                let t = pellets == 1 ? 0.5 : Double(index) / Double(pellets - 1)
+                appendPlayerBullet(origin: origin, angle: -half + t * half * 2,
+                                   speed: bullet.speed * weapon.speedScale,
+                                   radius: bullet.radius * weapon.radiusScale,
+                                   damage: shotDamage, life: bullet.life, tint: bullet.tint,
+                                   pierce: pierce, homingTurn: weapon.homingTurn)
+            }
+        case .laser:
+            let beams = min(5, count + (level >= 6 ? 1 : 0))
+            for index in 0..<beams {
+                let t = beams == 1 ? 0.5 : Double(index) / Double(beams - 1)
+                appendPlayerBullet(origin: origin, angle: -half + t * half * 2,
+                                   speed: bullet.speed * weapon.speedScale,
+                                   radius: bullet.radius * weapon.radiusScale,
+                                   damage: shotDamage, life: bullet.life, tint: bullet.tint,
+                                   pierce: max(2, pierce), style: bullet.style, homingTurn: weapon.homingTurn)
+            }
+        case .scatter:
+            let pellets = min(13, count + level - 1 + projectileCountBonus + (arrayOverdriveActive ? 1 : 0))
+            for index in 0..<pellets {
+                let t = pellets == 1 ? 0.5 : Double(index) / Double(pellets - 1)
+                appendPlayerBullet(origin: origin, angle: -half + t * half * 2,
+                                   speed: bullet.speed * weapon.speedScale,
+                                   radius: bullet.radius * weapon.radiusScale,
+                                   damage: shotDamage, life: bullet.life, tint: bullet.tint,
+                                   pierce: pierce, style: bullet.style, homingTurn: weapon.homingTurn)
+            }
+        case .missile:
+            var missiles = count + (level >= 4 ? 1 : 0) + (level >= 7 ? 2 : 0) + projectileCountBonus
+            missiles = min(6, missiles)
+            for index in 0..<missiles {
+                let t = missiles == 1 ? 0.5 : Double(index) / Double(missiles - 1)
+                appendPlayerBullet(origin: origin, angle: -half + t * half * 2,
+                                   speed: bullet.speed * weapon.speedScale,
+                                   radius: bullet.radius * weapon.radiusScale,
+                                   damage: shotDamage, life: bullet.life, tint: bullet.tint,
+                                   pierce: pierce, style: bullet.style, homingTurn: weapon.homingTurn)
+            }
+        case .emp:
+            let orbs = min(6, count + (level >= 3 ? 1 : 0) + (level >= 6 ? 1 : 0) + (level >= 7 ? 1 : 0) + projectileCountBonus)
+            for index in 0..<orbs {
+                let t = orbs == 1 ? 0.5 : Double(index) / Double(orbs - 1)
+                appendPlayerBullet(origin: origin, angle: -half + t * half * 2,
+                                   speed: bullet.speed * weapon.speedScale,
+                                   radius: bullet.radius * weapon.radiusScale,
+                                   damage: shotDamage, life: bullet.life, tint: bullet.tint,
+                                   pierce: max(1, pierce), style: bullet.style, homingTurn: weapon.homingTurn)
+            }
         }
     }
 
-    private func appendPlayerBullet(origin: Vec2, angle: Double, speed: Double, radius: Double, damage: Double, life: Double, tint: COLORREF, pierce: Int, style: Int = WeaponType.cannon.rawValue) {
+    private func appendPlayerBullet(origin: Vec2, angle: Double, speed: Double, radius: Double, damage: Double, life: Double, tint: COLORREF, pierce: Int, style: Int = WeaponType.cannon.rawValue, homingTurn: Double = 0) {
         spawnBullet(Bullet(position: origin,
                               velocity: rotated(Vec2(x: 0, y: -1), by: angle) * speed,
                               radius: radius,
@@ -1607,7 +1773,7 @@ final class Game: @unchecked Sendable {
                               weaponStyle: style,
                               modifierPhase: Double.random(in: 0...(Double.pi * 2), using: &rng),
                               homingTimeRemaining: style == WeaponType.missile.rawValue ? 1.8 : 0,
-                              maxTurnRate: style == WeaponType.missile.rawValue ? 2.6 : 0,
+                              maxTurnRate: homingTurn > 0 ? homingTurn : (style == WeaponType.missile.rawValue ? 2.6 : 0),
                               acceleration: 0))
     }
 
@@ -1880,7 +2046,7 @@ final class Game: @unchecked Sendable {
             currentBoss.position.y += 9 * delta
             boss = currentBoss
             if currentBoss.stateTimer <= 0 {
-                registerBossDefeat(at: currentBoss.position)
+                registerBossDefeat(at: currentBoss.position, kind: currentBoss.kind)
                 boss = nil
             }
             return
@@ -1916,8 +2082,8 @@ final class Game: @unchecked Sendable {
 
         if currentBoss.lifecycle == .phaseTransition {
             currentBoss.stateTimer -= delta
-            currentBoss.position.x += (field.centerX - currentBoss.position.x) * min(1, delta * 5)
-            currentBoss.position.y += (138 - currentBoss.position.y) * min(1, delta * 5)
+            advanceBossPosition(&currentBoss.position, toward: Vec2(x: field.centerX, y: 138),
+                                delta: delta, response: 5, maximumSpeed: 340)
             currentBoss.phaseFlash = max(currentBoss.phaseFlash, 0.25)
             if currentBoss.stateTimer <= 0 {
                 currentBoss.phase = currentBoss.pendingPhase
@@ -2004,20 +2170,38 @@ final class Game: @unchecked Sendable {
 
     private func updateBossMovement(_ boss: inout Boss, delta: Double, field: PlayfieldBounds) {
         let horizontalLimit = min(max(120, field.width * 0.27), field.width * 0.5 - ThunderCarrierBossDefinition.visualWidth * 0.34)
+        let target: Vec2
+        let maximumSpeed: Double
         switch boss.movement {
         case .positionLock:
-            boss.position.x += (field.centerX - boss.position.x) * min(1, delta * 2.3)
-            boss.position.y += (138 - boss.position.y) * min(1, delta * 2.3)
+            target = Vec2(x: field.centerX, y: 138)
+            maximumSpeed = 440
         case .horizontalSweep:
-            boss.position.x = field.centerX + sin(boss.age * 0.60) * horizontalLimit
-            boss.position.y = 142 + sin(boss.age * 0.74) * 12
+            target = Vec2(x: field.centerX + sin(boss.age * 0.60) * horizontalLimit,
+                          y: 142 + sin(boss.age * 0.74) * 12)
+            maximumSpeed = 300
         case .aggressiveHover:
-            boss.position.x = field.centerX + sin(boss.age * 0.98) * min(horizontalLimit * 1.15, field.width * 0.5 - 132)
-            boss.position.y = 145 + sin(boss.age * 1.12) * 24
+            target = Vec2(x: field.centerX + sin(boss.age * 0.98) * min(horizontalLimit * 1.15, field.width * 0.5 - 132),
+                          y: 145 + sin(boss.age * 1.12) * 24)
+            maximumSpeed = 440
         case .hover:
-            boss.position.x = field.centerX + sin(boss.age * 0.44) * horizontalLimit * 0.75
-            boss.position.y = 136 + sin(boss.age * 0.58) * 10
+            target = Vec2(x: field.centerX + sin(boss.age * 0.44) * horizontalLimit * 0.75,
+                          y: 136 + sin(boss.age * 0.58) * 10)
+            maximumSpeed = 220
         }
+        // Attack selection changes the target curve, never the actual position.
+        // A bounded step keeps entrance, attack switches and phase changes continuous.
+        advanceBossPosition(&boss.position, toward: target, delta: delta,
+                            response: 8, maximumSpeed: maximumSpeed)
+    }
+
+    private func advanceBossPosition(_ position: inout Vec2, toward target: Vec2,
+                                     delta: Double, response: Double, maximumSpeed: Double) {
+        guard delta > 0 else { return }
+        let desiredStep = (target - position) * min(1, delta * response)
+        let stepLimit = maximumSpeed * delta
+        position = position + (desiredStep.length > stepLimit
+            ? desiredStep.normalized * stepLimit : desiredStep)
     }
 
     private func prepareBossTelegraph(_ boss: inout Boss, definition: BossAttackDefinition, field: PlayfieldBounds) {
@@ -2587,18 +2771,35 @@ final class Game: @unchecked Sendable {
         recycleAllBullets()
         let field = playfieldBounds(width: width, height: height)
         spawnBoss(field: field)
-        for _ in 0..<120 { updateBoss(delta: 1.0 / 60.0, field: field) }
-        guard var testBoss = boss, testBoss.lifecycle == .combat, testBoss.phase == 1 else { return false }
+        // A trajectory change may move the target abruptly, but the boss
+        // itself must not cross a visible part of the arena in one frame.
+        func advanceBoss() -> Bool {
+            guard let previous = boss?.position else { return false }
+            updateBoss(delta: 1.0 / 60.0, field: field)
+            guard let current = boss?.position else { return false }
+            let step = distance(previous, current)
+            if step > 8.5 {
+                print(String(format: "BOSS_MOTION_JUMP %.2fpx", step))
+                return false
+            }
+            return true
+        }
+        for _ in 0..<120 { guard advanceBoss() else { return false } }
+        guard boss?.lifecycle == .combat, boss?.phase == 1 else { return false }
+        // Exercise the first combat frames before changing health. This is
+        // where the old absolute hover curve jumped away from the entry path.
+        for _ in 0..<30 { guard advanceBoss() else { return false } }
 
+        guard var testBoss = boss else { return false }
         testBoss.health = testBoss.maxHealth * 0.69
         boss = testBoss
-        for _ in 0..<80 { updateBoss(delta: 1.0 / 60.0, field: field) }
+        for _ in 0..<80 { guard advanceBoss() else { return false } }
         guard boss?.phase == 2, boss?.lifecycle == .combat else { return false }
 
         testBoss = boss!
         testBoss.health = testBoss.maxHealth * 0.29
         boss = testBoss
-        for _ in 0..<80 { updateBoss(delta: 1.0 / 60.0, field: field) }
+        for _ in 0..<80 { guard advanceBoss() else { return false } }
         guard boss?.phase == 3, boss?.lifecycle == .combat else { return false }
 
         testBoss = boss!
@@ -2608,7 +2809,7 @@ final class Game: @unchecked Sendable {
         testBoss.leftTurretHealth = 0
         testBoss.rightTurretHealth = 0
         boss = testBoss
-        for _ in 0..<55 { updateBoss(delta: 1.0 / 60.0, field: field) }
+        for _ in 0..<55 { guard advanceBoss() else { return false } }
         let enemyBulletCount = bullets.reduce(0) { $0 + ($1.playerOwned ? 0 : 1) }
         guard enemyBulletCount > 0, boss?.weakPointOpen == true else { return false }
 
@@ -2616,7 +2817,7 @@ final class Game: @unchecked Sendable {
         let simulationStart = Date().timeIntervalSinceReferenceDate
         let simulationFrames = 1_080
         for _ in 0..<simulationFrames {
-            updateBoss(delta: 1.0 / 60.0, field: field)
+            guard advanceBoss() else { return false }
             updateBullets(delta: 1.0 / 60.0, field: field)
             let activeEnemyBullets = bullets.reduce(0) { $0 + ($1.playerOwned ? 0 : 1) }
             bossSmokePeakBullets = max(bossSmokePeakBullets, activeEnemyBullets)
@@ -2652,23 +2853,6 @@ final class Game: @unchecked Sendable {
             case "THUNDER BURST":
                 translatedTitle = "雷霆爆发"
                 translatedDetail = "短暂强化火力并清除部分敌弹 • 持续 2.8 秒"
-            case "BOSS REWARD CACHE":
-                translatedTitle = "首领奖励"
-                if detail == "Boss materials secured" {
-                    translatedDetail = "已获得首领材料"
-                } else if detail.hasPrefix("RARE MODULE CACHE  •  ") {
-                    let rawName = detail.replacingOccurrences(of: "RARE MODULE CACHE  •  ", with: "")
-                    let localizedName: String
-                    switch rawName {
-                    case "NOVA MISSILE": localizedName = "新星导弹"
-                    case "FROST PLATING": localizedName = "寒霜装甲"
-                    case "STORM DRONE": localizedName = "风暴僚机"
-                    default: localizedName = rawName
-                    }
-                    translatedDetail = "获得稀有模块 •  \(localizedName)"
-                } else {
-                    translatedDetail = detail
-                }
             case "ARMOR SHIELD ABSORBED":
                 translatedTitle = "装甲护盾已吸收伤害"
                 translatedDetail = detail.replacingOccurrences(of: "charge(s) remaining", with: "层护盾剩余")
@@ -2813,6 +2997,13 @@ final class Game: @unchecked Sendable {
         score += Int(Double(baseScore) * multiplier * comboScoreMultiplier)
         experience += isElite ? 3 : 1
         thunderEnergy = min(100, thunderEnergy + (isElite ? 16.0 : 5.0 + min(Double(combo), 20.0) * 0.20) * thunderGainMultiplier)
+        // 规格第 5/6 节：闯关掉落经验素材（敌机残骸/魔方），升级只吃经验。
+        if isElite {
+            addMaterial("exp_wreckage", amount: 2)
+            addMaterial("exp_cube", amount: 1)
+        } else if Int.random(in: 0..<100, using: &rng) < 22 {
+            addMaterial("exp_wreckage", amount: 1)
+        }
         if isElite, powerUps.count < 18 {
             powerUps.append(PowerUp(position: position, kind: Int.random(in: 0...2, using: &rng), life: 12))
         }
@@ -2845,11 +3036,8 @@ final class Game: @unchecked Sendable {
             profile.unlockedMission = max(profile.unlockedMission,
                                           min(MissionCatalog.all.count, selectedMission + 2))
         }
-        profile.bestCombo = max(profile.bestCombo, comboBest)
-        profile.bestScore = max(profile.bestScore, score)
-        if score > highScore {
-            highScore = score
-        }
+        recordRunScore()
+        claimQuarkGiftIfEligible()
         stageBannerTitle = uiText("MISSION COMPLETE", "任务完成")
         stageBannerDetail = uiText("SECTOR SECURED  •  EXTRA REWARDS GRANTED",
                                    "区域已肃清  •  已发放额外奖励")
@@ -2857,10 +3045,14 @@ final class Game: @unchecked Sendable {
         phase = .gameOver
     }
 
-    private func registerBossDefeat(at position: Vec2) {
+    private func registerBossDefeat(at position: Vec2, kind: Int) {
         AudioManager.shared.playSFX("sfx_boss")
         bossDefeats += 1
         missionBossDefeated = true
+        // 规格第 8.1 节：按 Boss 类型记录击败（战神配方 bossTypeDefeated 条件）。
+        if let bossType = BossType(rawValue: kind), !profile.bossTypesDefeated.contains(bossType.configID) {
+            profile.bossTypesDefeated.append(bossType.configID)
+        }
         kills += 1
         combo = min(999, combo + 10)
         comboBest = max(comboBest, combo)
@@ -2879,34 +3071,45 @@ final class Game: @unchecked Sendable {
         runCreditsEarned += credits
         runCoresEarned += cores
         runAlloyEarned += alloy
-        let guaranteedDrop = profile.bossDropPity >= 2
+        let guaranteedDrop = profile.bossDropPity >= EquipmentCatalog.shared.drops.sameNameDrop.pityBossDefeats
         let rareDrop = guaranteedDrop || Int.random(in: 0..<100, using: &rng) < 28
-        var dropDetail = "Boss materials secured"
+        var dropDetail = uiText("Boss materials secured", "已获得首领材料")
+        // 规格第 6 节：Boss 关必掉本章蓝色材料（第 5 章起含夸克系）。
+        let bossMaterials = gameMode == .campaign
+            ? (EquipmentCatalog.shared.missionDrops(activeMission.id)?.boss ?? [])
+            : []
+        for materialID in bossMaterials { addMaterial(materialID, amount: 1) }
+        // 规格第 8 节：无尽模式每 warriorMaterialPerBossWaves 个 Boss 波次掉战神进阶材料。
+        if gameMode == .endless, endlessWaveNumber % EquipmentCatalog.shared.drops.endless.warriorMaterialPerBossWaves == 0 {
+            for materialID in EquipmentCatalog.shared.synergyConfig.advanceMaterials { addMaterial(materialID, amount: 1) }
+            dropDetail = uiText("WARRIOR CORE MATERIALS SECURED", "已获得战神核心材料")
+        }
         if rareDrop {
             profile.bossDropPity = 0
             profile.cores += 2
             runCoresEarned += 2
-            let dropNames = ["NOVA MISSILE", "FROST PLATING", "STORM DRONE"]
-            let dropSlots = [2, 3, 4]
-            let dropIndex = Int.random(in: 0..<dropNames.count, using: &rng)
-            let dropRarity = min(3, 1 + Int.random(in: 1...2, using: &rng))
-            runRareDropName = dropNames[dropIndex]
-            runRareDropRarity = dropRarity
-            profile.inventory.append(EquipmentState(id: "boss_\(bossDefeats)_\(dropIndex)",
-                                                     name: dropNames[dropIndex],
-                                                     slot: dropSlots[dropIndex],
-                                                     level: 1,
-                                                     rarity: dropRarity,
-                                                     stars: 1,
-                                                     evolution: 0,
-                                                     affix: Int.random(in: 1...4, using: &rng)))
-            dropDetail = "RARE MODULE CACHE  •  \(dropNames[dropIndex])"
-            combatFeedback.play(.rareDrop,
-                                context: FeedbackContext(position: position, level: .heavy, tint: rgb(255, 211, 112)),
-                                game: self)
+            // 同名装备（进阶材料本体）：只从三个传奇系列掉；保底掉蓝四星，常规白/绿随机。
+            let rareSeries = EquipmentCatalog.shared.drops.sameNameDrop.bossRareDropSeries
+            if let seriesID = rareSeries.randomElement(using: &rng),
+               let series = EquipmentCatalog.shared.series(id: seriesID) {
+                let dropStage: Int = guaranteedDrop ? 2 : (Int.random(in: 0..<100, using: &rng) < 30 ? 1 : 0)
+                let drop = EquipmentState(uid: nextEquipmentUID(), seriesId: series.id,
+                                          stage: dropStage, level: EquipmentCatalog.shared.levelMin(stage: dropStage),
+                                          exp: 0, locked: false, equipped: false)
+                profile.inventory.append(drop)
+                runRareDropSeriesId = series.id
+                runRareDropStage = dropStage
+                dropDetail = uiText("RARE MODULE CACHE  •  \(drop.displayNameEn) (Lv.\(drop.level)/\(drop.levelCap))",
+                                    "获得稀有模块  •  \(drop.displayName) (Lv.\(drop.level)/\(drop.levelCap))")
+                combatFeedback.play(.rareDrop,
+                                    context: FeedbackContext(position: position, level: .heavy, tint: rgb(255, 211, 112)),
+                                    game: self)
+            }
         } else {
             profile.bossDropPity += 1
         }
+        // 经验素材：Boss 必掉魔方（升级只吃经验）。
+        addMaterial("exp_cube", amount: 2)
         thunderEnergy = min(100, thunderEnergy + 40)
         health = min(maxHealth, health + maxHealth * 0.22)
         playerInvulnerability = max(playerInvulnerability, 1.8)
@@ -2937,7 +3140,7 @@ final class Game: @unchecked Sendable {
         }
         waveTimer = 1.25
         addCameraShake(strength: 18)
-        notifyPickup(title: "BOSS REWARD CACHE", detail: dropDetail, tint: rgb(255, 211, 112))
+        notifyPickup(title: uiText("BOSS REWARD CACHE", "首领奖励"), detail: dropDetail, tint: rgb(255, 211, 112))
         checkForUpgradeReady()
         persistProfile()
         if gameMode == .campaign {
@@ -3193,27 +3396,6 @@ final class Game: @unchecked Sendable {
         checkForUpgradeReady()
     }
 
-    func cycleWeapon() {
-        guard phase == .playing else { return }
-        let all = WeaponType.allCases
-        guard let currentIndex = all.firstIndex(of: weaponType) else { return }
-        weaponType = all[(currentIndex + 1) % all.count]
-        let detail: String
-        switch weaponType {
-        case .cannon: detail = uiText("Stable DPS • balanced spread", "稳定输出 • 均衡散射")
-        case .laser: detail = uiText("Piercing beam • high single-target damage", "穿透光束 • 单体高伤害")
-        case .scatter: detail = uiText("Wide burst • close-range crowd control", "宽幅爆发 • 近距离控场")
-        case .missile: detail = uiText("Homing payloads • heavy impact damage", "追踪弹头 • 高额爆炸伤害")
-        case .electromagnetic: detail = uiText("Oscillating energy orbs • rapid suppression", "摆动电磁球 • 快速压制")
-        }
-        profile.equippedWeapon = weaponType.rawValue
-        persistProfile()
-        let title = language == .chinese
-            ? "已选择武器：" + weaponType.label(for: .chinese)
-            : "WEAPON SELECTED: " + weaponType.label
-        notifyPickup(title: title, detail: detail, tint: weaponType == .laser ? rgb(132, 229, 255) : (weaponType == .scatter ? rgb(255, 185, 104) : rgb(170, 211, 255)))
-    }
-
     func tryDash(width: Double, height: Double) {
         guard phase == .playing, dashCooldown <= 0 else { return }
 
@@ -3284,10 +3466,11 @@ final class Game: @unchecked Sendable {
         hangarMessageTimer = 0
         hangarTab = 0
         selectedEquipmentSlot = 0
+        hangarVaultSlot = nil
         selectedVaultInventoryIndex = nil
         vaultPage = 0
         vaultFilterSlot = nil
-        vaultSortMode = 0
+        resetShipScroll()
         phase = .hangar
     }
 
@@ -3310,189 +3493,352 @@ final class Game: @unchecked Sendable {
         gameMode = mode
     }
 
-    func equipmentUpgradeCost(for item: EquipmentState) -> Int {
-        let level = max(1, item.level)
-        let value = 120.0 + Double(level - 1) * 90.0 + Double(max(0, item.evolution)) * 180.0
-        return Int(min(9_000_000_000_000_000, max(120, value)))
+    // MARK: - 材料背包（进阶材料 / 经验素材 / 战神材料共用一本账）
+
+    func materialCount(_ id: String) -> Int { profile.materials[id] ?? 0 }
+
+    func addMaterial(_ id: String, amount: Int) {
+        guard amount != 0 else { return }
+        let next = max(0, materialCount(id) + amount)
+        if next == 0 {
+            profile.materials.removeValue(forKey: id)
+        } else {
+            profile.materials[id] = next
+        }
     }
 
-    func equipmentCoreCost(for item: EquipmentState) -> Int {
-        item.level >= 10 ? 1 + item.evolution : 0
+    /// 消耗材料；数量不足返回 false，不产生部分扣费。
+    @discardableResult
+    func spendMaterial(_ id: String, amount: Int) -> Bool {
+        guard amount > 0, materialCount(id) >= amount else { return false }
+        addMaterial(id, amount: -amount)
+        return true
     }
 
-    func equipmentAlloyCost(for item: EquipmentState) -> Int {
-        let level = max(1, item.level)
-        let value = 2.0 + Double(level) * 2.0 + Double(max(0, item.evolution)) * 4.0
-        return Int(min(9_000_000_000_000_000, max(2, value)))
+    /// 经验素材单件经验值。
+    func experienceValue(_ id: String) -> Int { EquipmentCatalog.shared.experience(id)?.exp ?? 0 }
+
+    /// 切换升级 Tab 选中的经验素材（规格第 5 节：下方小格选素材）。
+    func cycleExpMaterial() {
+        let sources = EquipmentCatalog.shared.experienceSources
+        guard !sources.isEmpty else { return }
+        let current = sources.firstIndex { $0.id == selectedExpMaterial } ?? -1
+        selectedExpMaterial = sources[(current + 1) % sources.count].id
     }
 
-    func equipmentPromoteCost(for item: EquipmentState) -> (credits: Int, alloy: Int, cores: Int) {
-        let nextRarity = min(4, item.rarity + 1)
-        return (420 + nextRarity * 260, 24 + nextRarity * 18, 1 + nextRarity)
+    /// 直接选中指定经验素材（机库经验素材格点击）。
+    func selectExpMaterial(_ id: String) {
+        guard EquipmentCatalog.shared.experience(id) != nil else { return }
+        selectedExpMaterial = id
     }
+
+    /// 素材展示名。经验素材（敌机残骸 / 魔方）单独成表，必须先查经验表：
+    /// 进阶材料表查不到它们，否则会退化成把内部 ID 直接显示在界面上。
+    func materialDisplayName(_ id: String) -> String {
+        if let source = EquipmentCatalog.shared.experience(id) {
+            return language == .chinese ? source.name : source.nameEn
+        }
+        return language == .chinese ? EquipmentCatalog.shared.materialName(id) : EquipmentCatalog.shared.materialNameEn(id)
+    }
+
+    // MARK: - 机库展示助手（名称 / 品质 / 阶标签全部由配置表派生）
 
     func equipmentDisplayName(_ item: EquipmentState) -> String {
-        guard language == .chinese else { return item.name }
-        switch item.id {
-        case "arc_cannon": return "弧光机炮"
-        case "nova_payload": return "新星弹舱"
-        case "aegis_armor": return "神盾装甲"
-        case "orbit_drone": return "轨道僚机"
-        default:
-            switch item.name {
-            case "NOVA MISSILE": return "新星导弹"
-            case "FROST PLATING": return "寒霜装甲"
-            case "STORM DRONE": return "风暴僚机"
-            default: return item.name
+        language == .chinese ? item.displayName : item.displayNameEn
+    }
+
+    /// 按系列 ID + 阶取当前语言的装备名（掉落提示等只有 ID 的场景使用）。
+    func equipmentName(seriesId: String, stage: Int) -> String {
+        language == .chinese
+            ? EquipmentCatalog.shared.displayName(seriesId: seriesId, stage: stage)
+            : EquipmentCatalog.shared.displayNameEn(seriesId: seriesId, stage: stage)
+    }
+
+    /// 阶 → 颜色品质名（规格第 4 节：白 / 绿 / 蓝 / 紫 四色）。
+    func equipmentQualityName(stage: Int) -> String {
+        let color = EquipmentCatalog.shared.stageInfo(stage)?.color ?? "white"
+        switch color {
+        case "green": return uiText("GREEN", "绿色")
+        case "blue": return uiText("BLUE", "蓝色")
+        case "purple": return uiText("PURPLE", "紫色")
+        default: return uiText("WHITE", "白色")
+        }
+    }
+
+    /// 阶 → 完整阶标签，如“蓝四星+2”。
+    func equipmentStageLabel(_ stage: Int) -> String {
+        guard let info = EquipmentCatalog.shared.stageInfo(stage) else { return "" }
+        if language == .chinese {
+            let numerals = ["零", "一", "二", "三", "四", "五", "六"]
+            let color: String
+            switch info.color {
+            case "green": color = "绿"
+            case "blue": color = "蓝"
+            case "purple": color = "紫"
+            default: color = "白"
+            }
+            return "\(color)\(numerals[min(numerals.count - 1, max(0, info.stars))])星\(info.suffix)"
+        }
+        return "\(info.color.uppercased()) \(info.stars)STAR\(info.suffix)"
+    }
+
+    /// 装备特性说明：装甲展示生存被动，武器槽展示弹道签名摘要。
+    func equipmentBonusText(_ item: EquipmentState) -> String {
+        guard let series = item.series else { return "" }
+        if let skill = series.skill {
+            switch skill {
+            case .regen: return uiText("Regen: restores 2% max HP every 2s", "回血：每 2 秒恢复 2% 最大生命")
+            case .scoreBonus: return uiText("Focus: +15% score gain", "聚能：得分 +15%")
+            case .damageBonus: return uiText("Assault: +8% weapon damage", "增攻：武器伤害 +8%")
+            case .surviveLethal: return uiText("Bless: survives one lethal hit", "免秒：每局抵挡一次致命伤害")
+            case .damageReduction: return uiText("Guard: -8% damage taken", "减伤：所受伤害 -8%")
             }
         }
+        guard let profile = series.weaponProfile else { return "" }
+        let archetype: String
+        switch profile.archetype {
+        case .cannon: archetype = uiText("Cannon", "机炮")
+        case .laser: archetype = uiText("Laser", "激光")
+        case .scatter: archetype = uiText("Scatter", "散射")
+        case .missile: archetype = uiText("Missile", "导弹")
+        case .emp: archetype = uiText("EMP", "电磁")
+        }
+        return "\(archetype)  •  \(uiText("DMG", "伤害")) x\(String(format: "%.2f", profile.damageScale))  •  \(uiText("RATE", "射速")) x\(String(format: "%.2f", profile.fireRateScale))"
     }
 
-    func equipmentBonusText(for item: EquipmentState) -> String {
-        let base: String
-        switch item.slot {
-        case 1: base = uiText("+1.5 WEAPON DAMAGE / LEVEL", "武器伤害 +1.5 / 等级")
-        case 2: base = uiText("+0.12 SECONDARY RATE / LEVEL", "副武器频率 +0.12 / 等级")
-        case 3: base = uiText("+4 MAX HP / LEVEL", "最大生命 +4 / 等级")
-        default: base = uiText("+0.6 DRONE DAMAGE / LEVEL", "僚机伤害 +0.6 / 等级")
+    /// 进阶消耗摘要（机库进阶按钮旁展示）。
+    func equipmentAdvanceCostText(_ item: EquipmentState) -> String {
+        guard let cost = item.advanceCost() else { return uiText("MAX STAGE", "满阶") }
+        var parts: [String] = []
+        for materialID in cost.materials where cost.each > 0 {
+            let owned = materialCount(materialID)
+            let satisfied = owned >= cost.each
+            let text = "\(materialDisplayName(materialID)) \(owned)/\(cost.each)"
+            parts.append(satisfied ? text : "[\(text)]")
         }
-        let affix: String
-        switch item.affix {
-        case 1: affix = uiText("DAMAGE +10%", "伤害 +10%")
-        case 2: affix = uiText("CRIT +5%", "暴击 +5%")
-        case 3: affix = uiText("FIRE RATE +10%", "射速 +10%")
-        case 4: affix = uiText("DAMAGE TAKEN -6%", "所受伤害 -6%")
-        default: affix = uiText("STABLE CORE", "稳定核心")
+        if cost.sameName > 0 {
+            let owned = sameNameCandidateIndices(for: item).count
+            let text = "\(uiText("DUPLICATES", "同名装备")) \(owned)/\(cost.sameName)"
+            parts.append(owned >= cost.sameName ? text : "[\(text)]")
         }
-        return base + "  •  " + uiText("EV ", "进阶 ") + "\(item.evolution)  •  \(affix)"
+        if cost.gold > 0 {
+            let satisfied = profile.credits >= cost.gold
+            let text = "\(uiText("CREDITS", "金币")) \(profile.credits)/\(cost.gold)"
+            parts.append(satisfied ? text : "[\(text)]")
+        }
+        return parts.joined(separator: "  ")
     }
 
-    func upgradeEquipment(_ slot: Int) {
+    /// 同名装备同色段名（进阶材料提示用）。
+    private func colorSegmentName(_ stage: Int) -> String {
+        switch stage {
+        case 2...5: return uiText("BLUE", "蓝色")
+        case 6...8: return uiText("PURPLE", "紫色")
+        default: return uiText("SAME-SERIES", "同名")
+        }
+    }
+
+    // MARK: - 升级（吃经验素材，规格第 5 节）
+
+    /// 同名装备进阶候选（仓库下标）：同系列同色段、未锁定、未被战神占用，按等级升序。
+    /// 蓝段（阶 2...5）喂蓝段，紫段（阶 6...9）喂紫段；等级不限（规格第 4 节）。
+    func sameNameCandidateIndices(for item: EquipmentState) -> [Int] {
+        let band: ClosedRange<Int>
+        switch item.stage {
+        case 2...5: band = 2...5
+        case 6...8: band = 6...9
+        default: band = 0...0
+        }
+        let occupied = Set(profile.warriors.flatMap { $0.materialUIDs })
+        return profile.inventory.indices.filter { index in
+            let candidate = profile.inventory[index]
+            return candidate.seriesId == item.seriesId
+                && band.contains(candidate.stage)
+                && !candidate.locked
+                && !occupied.contains(candidate.uid)
+        }.sorted { profile.inventory[$0].level < profile.inventory[$1].level }
+    }
+
+    /// 经验结算：按 expToNext 曲线连续升级，满级后清空溢出经验。
+    private func applyExperience(to slot: Int, amount: Int) {
+        guard profile.equipment.indices.contains(slot), amount > 0 else { return }
+        var item = profile.equipment[slot]
+        var remaining = max(0, item.exp) + amount
+        while !item.isMaxLevel {
+            let need = EquipmentCatalog.shared.expToNext(level: item.level, stage: item.stage)
+            if remaining < need { break }
+            remaining -= need
+            item.level += 1
+        }
+        item.exp = item.isMaxLevel ? 0 : remaining
+        profile.equipment[slot] = item
+    }
+
+    /// 单次升级：消耗 1 件选中的经验素材。
+    func upgradeEquipmentWithExp(slot: Int) {
         guard phase == .hangar, profile.equipment.indices.contains(slot) else { return }
         let item = profile.equipment[slot]
-        let creditCost = equipmentUpgradeCost(for: item)
-        let alloyCost = equipmentAlloyCost(for: item)
-        let coreCost = equipmentCoreCost(for: item)
-        guard profile.credits >= creditCost, profile.alloy >= alloyCost, profile.cores >= coreCost else {
-            hangarMessageTitle = uiText("INSUFFICIENT RESOURCES", "资源不足")
-            hangarMessageDetail = uiText("Need \(creditCost) C  /  \(alloyCost) A  /  \(coreCost) CORE",
-                                         "需要 \(creditCost) 金 / \(alloyCost) 合金 / \(coreCost) 核心")
-            hangarMessageTimer = 2.4
+        guard !item.isMaxLevel else {
+            showHangarMessage(uiText("LEVEL CAP REACHED", "已达当前阶满级"),
+                              uiText("Advance to the next stage to raise the cap", "进阶到下一阶可提升等级上限"))
             return
         }
-        profile.credits -= creditCost
-        profile.alloy -= alloyCost
-        profile.cores -= coreCost
-        profile.equipment[slot].level += 1
-        if profile.equipment[slot].level % 10 == 0 {
-            profile.equipment[slot].evolution = min(5, profile.equipment[slot].evolution + 1)
-            profile.equipment[slot].stars = min(5, profile.equipment[slot].stars + 1)
+        let value = experienceValue(selectedExpMaterial)
+        guard value > 0 else {
+            showHangarMessage(uiText("INVALID MATERIAL", "无效素材"),
+                              uiText("Pick an experience material below", "请在下方选择经验素材"))
+            return
         }
-        let upgraded = profile.equipment[slot]
-        if let inventoryIndex = profile.inventory.firstIndex(where: { $0.id == upgraded.id }) {
-            profile.inventory[inventoryIndex] = upgraded
+        guard spendMaterial(selectedExpMaterial, amount: 1) else {
+            showHangarMessage(uiText("INSUFFICIENT MATERIALS", "经验素材不足"),
+                              uiText("Need 1x \(materialDisplayName(selectedExpMaterial))",
+                                     "需要 1 个\(materialDisplayName(selectedExpMaterial))"))
+            return
         }
+        applyExperience(to: slot, amount: value)
         persistProfile()
-        hangarMessageTitle = uiText("MODULE UPGRADED", "模块已强化")
-        hangarMessageDetail = uiText("\(upgraded.name)  •  LEVEL \(upgraded.level)  •  EV \(upgraded.evolution)",
-                                     "\(equipmentDisplayName(upgraded))  •  等级 \(upgraded.level)  •  进阶 \(upgraded.evolution)")
-        hangarMessageTimer = 2.4
+        let upgraded = profile.equipment[slot]
+        let nextNeed = EquipmentCatalog.shared.expToNext(level: upgraded.level, stage: upgraded.stage)
+        showHangarMessage(uiText("LEVEL UP", "等级提升"),
+                          uiText("\(equipmentDisplayName(upgraded))  •  Lv.\(upgraded.level)  •  EXP \(upgraded.exp)/\(nextNeed)",
+                                 "\(equipmentDisplayName(upgraded))  •  等级 \(upgraded.level)  •  经验 \(upgraded.exp)/\(nextNeed)"))
         AudioManager.shared.playSFX("sfx_upgrade")
     }
 
-    func upgradeEquipmentMultiple(_ slot: Int, count: Int) {
-        guard phase == .hangar, profile.equipment.indices.contains(slot), count > 0 else { return }
-        let startingLevel = profile.equipment[slot].level
-        var completed = 0
-        while completed < count {
-            let item = profile.equipment[slot]
-            let creditCost = equipmentUpgradeCost(for: item)
-            let alloyCost = equipmentAlloyCost(for: item)
-            let coreCost = equipmentCoreCost(for: item)
-            guard profile.credits >= creditCost, profile.alloy >= alloyCost, profile.cores >= coreCost else { break }
-            profile.credits -= creditCost
-            profile.alloy -= alloyCost
-            profile.cores -= coreCost
-            profile.equipment[slot].level += 1
-            if profile.equipment[slot].level % 10 == 0 {
-                profile.equipment[slot].evolution = min(5, profile.equipment[slot].evolution + 1)
-                profile.equipment[slot].stars = min(5, profile.equipment[slot].stars + 1)
+    /// 一键填充：把背包内全部经验素材灌入选中装备（规格第 5 节）。
+    func autoFillEquipmentExp(slot: Int) {
+        guard phase == .hangar, profile.equipment.indices.contains(slot) else { return }
+        let item = profile.equipment[slot]
+        guard !item.isMaxLevel else {
+            showHangarMessage(uiText("LEVEL CAP REACHED", "已达当前阶满级"),
+                              uiText("Advance to the next stage to raise the cap", "进阶到下一阶可提升等级上限"))
+            return
+        }
+        var total = 0
+        for source in EquipmentCatalog.shared.experienceSources {
+            let count = materialCount(source.id)
+            guard count > 0 else { continue }
+            total += count * source.exp
+            addMaterial(source.id, amount: -count)
+        }
+        guard total > 0 else {
+            showHangarMessage(uiText("NO EXPERIENCE MATERIALS", "没有经验素材"),
+                              uiText("Clear missions to collect wreckage and cubes", "闯关掉落敌机残骸与魔方"))
+            return
+        }
+        applyExperience(to: slot, amount: total)
+        persistProfile()
+        let upgraded = profile.equipment[slot]
+        showHangarMessage(uiText("AUTO-FILL COMPLETE", "一键填充完成"),
+                          uiText("+\(total) EXP  •  \(equipmentDisplayName(upgraded)) Lv.\(upgraded.level)",
+                                 "灌入 \(total) 点经验  •  \(equipmentDisplayName(upgraded)) 等级 \(upgraded.level)"))
+        AudioManager.shared.playSFX("sfx_upgrade")
+    }
+
+    // MARK: - 进阶（品质阶 +1，规格第 4 节）
+
+    /// 进阶流程：满级锁 → 四色材料 → 同名装备 → 金币 → 阶 +1、等级落到新阶下限。
+    func advanceEquipment(slot: Int) {
+        guard phase == .hangar, profile.equipment.indices.contains(slot) else { return }
+        let item = profile.equipment[slot]
+        guard !item.isMaxStage else {
+            showHangarMessage(uiText("MAX STAGE", "已达满阶"),
+                              uiText("This module is already PURPLE +3 (stage 9)", "该装备已是紫五星+3（满阶）"))
+            return
+        }
+        // 冻结项 3：必须达到当前阶满级才能进阶。
+        guard item.isMaxLevel else {
+            showHangarMessage(uiText("LEVEL CAP REACHED", "未达当前阶满级"),
+                              uiText("Reach Lv.\(item.levelCap) before advancing", "升到 \(item.levelCap) 级后才能进阶"))
+            return
+        }
+        guard let cost = item.advanceCost() else {
+            showHangarMessage(uiText("MAX STAGE", "已达满阶"),
+                              uiText("This module cannot advance further", "该装备无法继续进阶"))
+            return
+        }
+        // 1) 四色进阶材料（阶 0/1/5 的材料进阶）。
+        for materialID in cost.materials where cost.each > 0 {
+            guard materialCount(materialID) >= cost.each else {
+                showHangarMessage(uiText("INSUFFICIENT MATERIALS", "进阶材料不足"),
+                                  uiText("Need \(cost.each)x \(materialDisplayName(materialID))",
+                                         "需要 \(cost.each) 个\(materialDisplayName(materialID))"))
+                return
             }
-            completed += 1
         }
-        guard completed > 0 else {
-            let item = profile.equipment[slot]
-            hangarMessageTitle = uiText("INSUFFICIENT RESOURCES", "资源不足")
-            hangarMessageDetail = uiText("Next level needs \(equipmentUpgradeCost(for: item)) C / \(equipmentAlloyCost(for: item)) A / \(equipmentCoreCost(for: item)) CORE",
-                                         "下一级需要 \(equipmentUpgradeCost(for: item)) 金币 / \(equipmentAlloyCost(for: item)) 合金 / \(equipmentCoreCost(for: item)) 核心")
-            hangarMessageTimer = 2.4
+        // 2) 同名装备本体（阶 2..4 / 6..8，等级不限）。
+        let candidates = sameNameCandidateIndices(for: item)
+        guard candidates.count >= cost.sameName else {
+            showHangarMessage(uiText("INSUFFICIENT DUPLICATES", "同名装备不足"),
+                              uiText("Need \(cost.sameName)x same-series \(colorSegmentName(item.stage)) module(s)",
+                                     "需要 \(cost.sameName) 件同系列\(colorSegmentName(item.stage))装备"))
             return
         }
-        let upgraded = profile.equipment[slot]
-        if let inventoryIndex = profile.inventory.firstIndex(where: { $0.id == upgraded.id }) {
-            profile.inventory[inventoryIndex] = upgraded
+        // 3) 金币。
+        guard profile.credits >= cost.gold else {
+            showHangarMessage(uiText("INSUFFICIENT CREDITS", "金币不足"),
+                              uiText("Need \(cost.gold) credits", "需要 \(cost.gold) 金币"))
+            return
         }
+        for materialID in cost.materials where cost.each > 0 { spendMaterial(materialID, amount: cost.each) }
+        profile.credits -= cost.gold
+        for index in candidates.prefix(cost.sameName).sorted(by: >) {
+            profile.inventory.remove(at: index)
+        }
+        profile.equipment[slot].stage += 1
+        let newStage = profile.equipment[slot].stage
+        // 等级落到新阶下限（levelMin = 上一阶 levelCap），只升不降；经验清零。
+        profile.equipment[slot].level = EquipmentCatalog.shared.levelMin(stage: newStage)
+        profile.equipment[slot].exp = 0
         persistProfile()
-        hangarMessageTitle = uiText("BATCH UPGRADE COMPLETE", "批量强化完成")
-        hangarMessageDetail = uiText("LEVEL \(startingLevel) → \(upgraded.level)  •  \(completed) upgrade(s)",
-                                     "等级 \(startingLevel) → \(upgraded.level)  •  成功强化 \(completed) 次")
-        hangarMessageTimer = 2.4
+        let upgraded = profile.equipment[slot]
+        showHangarMessage(uiText("STAGE ADVANCED", "进阶成功"),
+                          uiText("\(upgraded.displayNameEn)  •  \(equipmentStageLabel(newStage))  •  CAP \(upgraded.levelCap)",
+                                 "\(equipmentDisplayName(upgraded))  •  \(equipmentStageLabel(newStage))  •  等级上限 \(upgraded.levelCap)"))
         AudioManager.shared.playSFX("sfx_upgrade")
     }
 
-    func promoteEquipment(_ slot: Int) {
-        guard phase == .hangar, profile.equipment.indices.contains(slot) else { return }
-        let item = profile.equipment[slot]
-        guard item.rarity < 4 else {
-            hangarMessageTitle = uiText("MAX QUALITY", "已达最高品质")
-            hangarMessageDetail = uiText("This module is already RED quality", "该模块已经是红色品质")
-            hangarMessageTimer = 2.4
-            return
+    /// 保底兜底（规格第 6 节）：装备练到触发等级时任务线赠送一整套紫色材料，每槽位一次。
+    func claimQuarkGiftIfEligible() {
+        let gift = EquipmentCatalog.shared.guaranteedGift
+        var claimedAny = false
+        for (index, slot) in EquipmentSlot.allCases.enumerated() {
+            guard index < profile.quarkGiftClaimed.count, !profile.quarkGiftClaimed[index] else { continue }
+            guard let item = profile.equipment.first(where: { $0.slot == slot }),
+                  item.level >= gift.triggerLevel else { continue }
+            for materialID in gift.grant { addMaterial(materialID, amount: 1) }
+            profile.quarkGiftClaimed[index] = true
+            claimedAny = true
         }
-        let cost = equipmentPromoteCost(for: item)
-        guard profile.credits >= cost.credits, profile.alloy >= cost.alloy, profile.cores >= cost.cores else {
-            hangarMessageTitle = uiText("INSUFFICIENT RESOURCES", "资源不足")
-            hangarMessageDetail = uiText("Need \(cost.credits) C / \(cost.alloy) A / \(cost.cores) CORE",
-                                         "需要 \(cost.credits) 金 / \(cost.alloy) 合金 / \(cost.cores) 核心")
-            hangarMessageTimer = 2.4
-            return
-        }
-        profile.credits -= cost.credits
-        profile.alloy -= cost.alloy
-        profile.cores -= cost.cores
-        profile.equipment[slot].rarity += 1
-        profile.equipment[slot].stars = min(5, max(profile.equipment[slot].stars + 1, profile.equipment[slot].rarity))
-        profile.equipment[slot].evolution = min(5, max(profile.equipment[slot].evolution, profile.equipment[slot].rarity - 1))
-        if profile.equipment[slot].affix == 0 {
-            profile.equipment[slot].affix = Int.random(in: 1...4, using: &rng)
-        }
-        let upgraded = profile.equipment[slot]
-        if let inventoryIndex = profile.inventory.firstIndex(where: { $0.id == upgraded.id }) {
-            profile.inventory[inventoryIndex] = upgraded
-        }
+        guard claimedAny else { return }
         persistProfile()
-        hangarMessageTitle = uiText("QUALITY PROMOTED", "品质已提升")
-        hangarMessageDetail = uiText("\(upgraded.name)  •  \(equipmentQualityName(upgraded.rarity))",
-                                     "\(equipmentDisplayName(upgraded))  •  \(equipmentQualityName(upgraded.rarity))")
+        notifyPickup(title: uiText("QUARK MATERIAL GRANT", "夸克材料赠送"),
+                     detail: uiText("Task line granted a full purple material set", "任务线赠送了一整套紫色进阶材料"),
+                     tint: rgb(198, 132, 255))
+    }
+
+    private func showHangarMessage(_ title: String, _ detail: String) {
+        hangarMessageTitle = title
+        hangarMessageDetail = detail
         hangarMessageTimer = 2.4
-        AudioManager.shared.playSFX("sfx_upgrade")
     }
 
-    func equipmentQualityName(_ rarity: Int) -> String {
-        let names = language == .chinese ? ["白色", "蓝色", "紫色", "金色", "红色"] : ["WHITE", "BLUE", "PURPLE", "GOLD", "RED"]
-        return names[min(names.count - 1, max(0, rarity))]
-    }
-
-    func cycleVaultFilter() {
-        let filters: [Int?] = [nil, 1, 2, 3, 4]
-        let current = filters.firstIndex { $0 == vaultFilterSlot } ?? 0
-        vaultFilterSlot = filters[(current + 1) % filters.count]
+    /// 装备 Tab：点击槽位卡进入该槽位的仓库换装子视图。
+    /// 入参是出战件数组下标；槽位由装备自身派生，避免下标与槽位枚举混用。
+    func openVaultForSlot(_ equipmentIndex: Int) {
+        guard phase == .hangar, profile.equipment.indices.contains(equipmentIndex) else { return }
+        let slot = profile.equipment[equipmentIndex].slot
+        selectedEquipmentSlot = equipmentIndex
+        hangarVaultSlot = slot
+        vaultFilterSlot = slot
         vaultPage = 0
         selectedVaultInventoryIndex = nil
     }
 
-    func cycleVaultSort() {
-        vaultSortMode = (vaultSortMode + 1) % 3
+    /// 退出换装子视图，回到装备槽位总览。
+    func closeVaultForSlot() {
+        hangarVaultSlot = nil
+        vaultFilterSlot = nil
         vaultPage = 0
         selectedVaultInventoryIndex = nil
     }
@@ -3500,6 +3846,62 @@ final class Game: @unchecked Sendable {
     func moveVaultPage(_ delta: Int) {
         vaultPage = min(max(0, vaultPage + delta), vaultPageCount - 1)
         selectedVaultInventoryIndex = nil
+    }
+
+    /// 机体列表滚动：输入只改目标值，显示值随后由弹簧动画平滑追赶。
+    /// 指针坐标需经 uiPoint 转换，才能与布局热区保持同一坐标系。
+    private func updateShipListScroll(delta: Double, wheelDelta: Double, width: Double, height: Double) {
+        let maxScroll = shipListMaxScroll(width: width, height: height)
+        guard maxScroll > 0 else {
+            resetShipScroll()
+            return
+        }
+        // 滚轮：累积到整格后每格滚动一行。按行对齐可避免出现半截卡片。
+        shipWheelAccumulator += wheelDelta
+        let notches = shipWheelAccumulator.rounded(.towardZero)
+        if notches != 0 {
+            shipWheelAccumulator -= notches
+            shipListScrollTarget = alignedShipScroll(shipListScrollTarget - notches * shipRowStride(),
+                                                     width: width, height: height)
+        }
+        if mousePrimaryDown {
+            let pointer = uiPoint(for: mousePosition, width: width, height: height)
+            let knob = shipScrollKnob(width: width, height: height, scroll: shipListScroll)
+            if !shipScrollDragging, knob.contains(pointer) {
+                shipScrollDragging = true
+                shipScrollGrabOffset = pointer.y - knob.y
+            }
+            if shipScrollDragging {
+                // 拖拽同样走目标值：指针位置决定目标行，显示值平滑跟随。
+                shipListScrollTarget = shipScrollValue(forKnobY: pointer.y - shipScrollGrabOffset,
+                                                       width: width, height: height)
+            }
+        } else {
+            shipScrollDragging = false
+        }
+        advanceShipScrollSpring(delta: delta)
+    }
+
+    /// 阻尼弹簧插值：帧率无关（显式欧拉 + 指数衰减），约 0.3 秒收敛、几乎不过冲。
+    private func advanceShipScrollSpring(delta: Double) {
+        let target = shipListScrollTarget
+        shipScrollVelocity += (target - shipListScroll) * UITheme.Animation.scrollStiffness * delta
+        shipScrollVelocity *= pow(UITheme.Animation.scrollDamping, delta * 60)
+        shipListScroll += shipScrollVelocity * delta
+        // 收敛后吸附，避免长期停留在肉眼不可见的微动状态。
+        if abs(target - shipListScroll) < 0.5, abs(shipScrollVelocity) < 2 {
+            shipListScroll = target
+            shipScrollVelocity = 0
+        }
+    }
+
+    /// 复位机体列表滚动（进入机库或列表不可滚动时）。
+    private func resetShipScroll() {
+        shipListScroll = 0
+        shipListScrollTarget = 0
+        shipScrollVelocity = 0
+        shipScrollDragging = false
+        shipWheelAccumulator = 0
     }
 
     func selectShip(_ value: ShipType) {
@@ -3515,6 +3917,7 @@ final class Game: @unchecked Sendable {
     func setHangarTab(_ tab: Int) {
         guard phase == .hangar, tab == 0 || tab == 1 else { return }
         hangarTab = tab
+        hangarVaultSlot = nil
         selectedVaultInventoryIndex = nil
     }
 
@@ -3522,10 +3925,6 @@ final class Game: @unchecked Sendable {
         guard phase == .hangar, profile.equipment.indices.contains(slot) else { return }
         let nextValue = !profile.equipment[slot].locked
         profile.equipment[slot].locked = nextValue
-        let itemID = profile.equipment[slot].id
-        for index in profile.inventory.indices where profile.inventory[index].id == itemID {
-            profile.inventory[index].locked = nextValue
-        }
         persistProfile()
         hangarMessageTitle = nextValue ? uiText("MODULE LOCKED", "模块已锁定") : uiText("MODULE UNLOCKED", "模块已解锁")
         hangarMessageDetail = equipmentDisplayName(profile.equipment[slot])
@@ -3536,10 +3935,6 @@ final class Game: @unchecked Sendable {
     func toggleInventoryLock(_ inventoryIndex: Int) {
         guard phase == .hangar, profile.inventory.indices.contains(inventoryIndex) else { return }
         profile.inventory[inventoryIndex].locked.toggle()
-        let itemID = profile.inventory[inventoryIndex].id
-        if let equippedIndex = profile.equipment.firstIndex(where: { $0.id == itemID }) {
-            profile.equipment[equippedIndex].locked = profile.inventory[inventoryIndex].locked
-        }
         persistProfile()
         let locked = profile.inventory[inventoryIndex].locked
         hangarMessageTitle = locked ? uiText("MODULE LOCKED", "模块已锁定") : uiText("MODULE UNLOCKED", "模块已解锁")
@@ -3548,30 +3943,317 @@ final class Game: @unchecked Sendable {
         AudioManager.shared.playSFX("sfx_upgrade")
     }
 
+    /// 仓库 → 出战槽位换装（同槽位替换，旧件回仓库）。
     func equipInventoryItem(_ index: Int) {
         guard phase == .hangar, profile.inventory.indices.contains(index) else { return }
         let item = profile.inventory[index]
-        guard (1...4).contains(item.slot) else { return }
         guard let slotIndex = profile.equipment.firstIndex(where: { $0.slot == item.slot }) else { return }
-        profile.equipment[slotIndex] = item
+        let previous = profile.equipment[slotIndex]
+        var incoming = item
+        incoming.equipped = true
+        profile.equipment[slotIndex] = incoming
+        var outgoing = previous
+        outgoing.equipped = false
+        let equippedUID = incoming.uid
+        profile.inventory.removeAll { $0.uid == equippedUID }
+        profile.inventory.append(outgoing)
         persistProfile()
         hangarMessageTitle = uiText("LOADOUT UPDATED", "装备配置已更新")
-        hangarMessageDetail = uiText("\(item.name) equipped in slot \(item.slot + 1)",
-                                     "\(equipmentDisplayName(item)) 已装备至第 \(item.slot + 1) 槽位")
+        hangarMessageDetail = uiText("\(equipmentDisplayName(incoming)) equipped (\(item.slot.rawValue))",
+                                     "\(equipmentDisplayName(incoming)) 已装备至\(item.slot.rawValue)槽位")
         hangarMessageTimer = 2.4
     }
 
-    func combatPower() -> Int {
-        var value = 100
-        for item in profile.equipment {
-            value += item.level * 18
-            value += item.rarity * 24
-            value += item.stars * 12
-            value += item.evolution * 75
+    // MARK: - 雷霆战神（规格第 8 节）
+
+    /// 战神槽位 → 装备槽位映射（战神是四槽位之上的第五层，按槽位覆盖）。
+    func warriorCoversSlot(_ warrior: WarriorState) -> EquipmentSlot {
+        switch warrior.slot {
+        case .warriorFighter: return .fighter
+        case .warriorSubweapon: return .subweapon
+        case .warriorArmor: return .armor
+        case .warriorWingman: return .wingman
         }
-        value += (ShipType(rawValue: profile.selectedShip) ?? .thunder).rawValue * 20
-        value += profile.totalBosses * 12
-        return value
+    }
+
+    /// 部署在某装备槽位的战神（同槽位取第一个）。
+    func deployedWarrior(for slot: EquipmentSlot) -> WarriorState? {
+        profile.warriors.first { $0.equipped && warriorCoversSlot($0) == slot }
+    }
+
+    /// 战神素材合成面板（规格第 8.2 节属性继承）：两件素材按档位优先、阶高、级高取本体；
+    /// 素材本体保留原状，只是被占用，拆解即释放。
+    func warriorMaterialPanel(_ warrior: WarriorState) -> EquipmentState? {
+        let occupied = Set(warrior.materialUIDs)
+        let materials = profile.equipment.filter { occupied.contains($0.uid) }
+            + profile.inventory.filter { occupied.contains($0.uid) }
+        return materials.min { lhs, rhs in
+            if lhs.tier != rhs.tier { return lhs.tier < rhs.tier }
+            if lhs.stage != rhs.stage { return lhs.stage > rhs.stage }
+            return lhs.level < rhs.level
+        }
+    }
+
+    /// 配方激活条件是否满足（双重前置之一：关卡/无尽分数/Boss 类型/币种）。
+    func warriorConditionMet(_ recipe: WarriorRecipe) -> Bool {
+        let condition = recipe.condition
+        switch condition.kind {
+        case .campaignMission:
+            // unlockedMission = 已通关章数 + 1；通关第 N 章 ⇔ unlockedMission >= N + 1。
+            return profile.unlockedMission >= condition.value + 1
+        case .endlessBestScore:
+            return profile.endlessBestScore >= condition.value
+        case .bossTypeDefeated:
+            return profile.bossTypesDefeated.contains(condition.rawValue)
+        case .currencyTotal:
+            let currency = condition.currency ?? "alloy"
+            if currency == "alloy" { return profile.alloy >= condition.value }
+            return materialCount(currency) >= condition.value
+        }
+    }
+
+    /// 配方条件文案（机库展示）。
+    func warriorConditionText(_ recipe: WarriorRecipe) -> String {
+        let condition = recipe.condition
+        let met = warriorConditionMet(recipe)
+        let text: String
+        switch condition.kind {
+        case .campaignMission:
+            text = uiText("Clear campaign mission \(condition.value)", "通关战役第 \(condition.value) 章")
+        case .endlessBestScore:
+            text = uiText("Endless best score \(condition.value)", "无尽模式最高分 \(condition.value)")
+        case .bossTypeDefeated:
+            let bossName = BossType.fromConfigID(condition.rawValue)?.title(for: .chinese) ?? condition.rawValue
+            text = uiText("Defeat \(condition.rawValue.uppercased()) boss", "击败\(bossName)")
+        case .currencyTotal:
+            let currency = condition.currency ?? "alloy"
+            let name = currency == "alloy" ? uiText("ALLOY", "合金") : materialDisplayName(currency)
+            text = uiText("Own \(condition.value) \(currency)", "持有 \(condition.value) \(name)")
+        }
+        return met ? text : "[\(text)]"
+    }
+
+    /// 配方素材位候选（仓库下标）：满足 seriesId + minStage、未锁定、未被其他战神占用。
+    func warriorMaterialIndices(for recipe: WarriorRecipe) -> [[Int]] {
+        let occupied = Set(profile.warriors.flatMap { $0.materialUIDs })
+        return recipe.materials.map { ref in
+            profile.inventory.indices.filter { index in
+                let item = profile.inventory[index]
+                return item.seriesId == ref.seriesId
+                    && item.stage >= ref.minStage
+                    && !item.locked
+                    && !occupied.contains(item.uid)
+            }.sorted { profile.inventory[$0].unitPower > profile.inventory[$1].unitPower }
+        }
+    }
+
+    /// 激活战神（规格第 8.1 节双重前置：条件 + 两件指定紫装；占用不消耗）。
+    func activateWarrior(recipeId: String) {
+        guard phase == .hangar, let recipe = EquipmentCatalog.shared.recipe(id: recipeId) else { return }
+        guard !profile.warriors.contains(where: { $0.recipeId == recipeId }) else {
+            showHangarMessage(uiText("ALREADY FUSED", "已激活"),
+                              uiText("\(recipe.name) is already deployed", "\(recipe.name) 已经激活"))
+            return
+        }
+        guard warriorConditionMet(recipe) else {
+            showHangarMessage(uiText("CONDITION NOT MET", "激活条件未满足"),
+                              warriorConditionText(recipe).replacingOccurrences(of: "[", with: "").replacingOccurrences(of: "]", with: ""))
+            return
+        }
+        let slotCandidates = warriorMaterialIndices(for: recipe)
+        guard slotCandidates.allSatisfy({ !$0.isEmpty }) else {
+            showHangarMessage(uiText("MATERIALS NOT FOUND", "素材装备不足"),
+                              uiText("Need two \(recipe.materials.map { EquipmentCatalog.shared.displayName(seriesId: $0.seriesId, stage: $0.minStage) }.joined(separator: " + "))",
+                                     "需要两件指定紫装：\(recipe.materials.map { EquipmentCatalog.shared.displayName(seriesId: $0.seriesId, stage: $0.minStage) }.joined(separator: " + "))"))
+            return
+        }
+        let materialUIDs = slotCandidates.compactMap { $0.first.map { profile.inventory[$0].uid } }
+        // 激活即部署：该战神槽位为空时自动出战，否则转入待命。
+        let slotBusy = profile.warriors.contains { $0.equipped && $0.slot == recipe.slot }
+        // 阶级保留（规格第 8.2 节）：同配方若拆过，重新激活继承归档的阶级/等级/黄金态，不洗白。
+        let archived = profile.dissolvedWarriors.first { $0.recipeId == recipe.id }
+        let warrior = WarriorState(uid: nextEquipmentUID(), recipeId: recipe.id,
+                                   level: min(archived?.level ?? 1, EquipmentCatalog.shared.warriorLevelCap(golden: archived?.golden ?? false)),
+                                   advanceStage: archived?.advanceStage ?? 0,
+                                   golden: archived?.golden ?? false,
+                                   materialUIDs: materialUIDs, equipped: !slotBusy)
+        profile.warriors.append(warrior)
+        if let archived, let archiveIndex = profile.dissolvedWarriors.firstIndex(where: { $0.uid == archived.uid }) {
+            profile.dissolvedWarriors.remove(at: archiveIndex)
+        }
+        persistProfile()
+        showHangarMessage(uiText("WARRIOR FUSED", "战神激活成功"),
+                          uiText("\(recipe.name)  •  SYNERGY \(Int(warrior.synergyRate * 100))%",
+                                 "\(recipe.name)  •  同步率 \(Int(warrior.synergyRate * 100))%"))
+        AudioManager.shared.playSFX("sfx_upgrade")
+    }
+
+    /// 无损拆解（冻结项 9）：释放占用素材，素材装备原样保留。
+    /// 阶级保留（规格第 8.2 节）：战神记录归档不删除，重新激活同配方时继承阶级/等级/黄金态。
+    func dissolveWarrior(index: Int) {
+        guard phase == .hangar, profile.warriors.indices.contains(index) else { return }
+        let warrior = profile.warriors.remove(at: index)
+        if let archivedIndex = profile.dissolvedWarriors.firstIndex(where: { $0.recipeId == warrior.recipeId }) {
+            profile.dissolvedWarriors[archivedIndex] = warrior
+        } else {
+            profile.dissolvedWarriors.append(warrior)
+        }
+        persistProfile()
+        if let selected = selectedWarriorIndex {
+            if selected == index {
+                selectedWarriorIndex = nil
+            } else if selected > index {
+                selectedWarriorIndex = selected - 1
+            }
+        }
+        showHangarMessage(uiText("WARRIOR DISSOLVED", "战神已拆解"),
+                          uiText("Materials returned to the vault • stage preserved", "素材装备已无损归还仓库 • 阶级已保留"))
+        AudioManager.shared.playSFX("sfx_upgrade")
+    }
+
+    /// 战神部署 / 待命切换（同槽位只部署一个战神）。
+    func toggleWarriorDeploy(index: Int) {
+        guard phase == .hangar, profile.warriors.indices.contains(index) else { return }
+        let warrior = profile.warriors[index]
+        if warrior.equipped {
+            profile.warriors[index].equipped = false
+        } else {
+            // 同槽位其他战神先待命，保证唯一部署。
+            for other in profile.warriors.indices where profile.warriors[other].slot == warrior.slot {
+                profile.warriors[other].equipped = false
+            }
+            profile.warriors[index].equipped = true
+        }
+        persistProfile()
+        AudioManager.shared.playSFX("sfx_upgrade")
+    }
+
+    /// 战神升级：吃经验素材（与装备同一经验池），满级后可进阶（规格第 8.4 节）。
+    func upgradeWarriorWithExp(index: Int) {
+        guard phase == .hangar, profile.warriors.indices.contains(index) else { return }
+        let warrior = profile.warriors[index]
+        guard !warrior.isMaxLevel else {
+            showHangarMessage(uiText("LEVEL CAP REACHED", "已达本体满级"),
+                              uiText("Advance to raise the warrior cap", "进阶可提升战神等级上限"))
+            return
+        }
+        let value = experienceValue(selectedExpMaterial)
+        guard value > 0 else {
+            showHangarMessage(uiText("INVALID MATERIAL", "无效素材"),
+                              uiText("Pick an experience material in the upgrade tab", "请在升级页选择经验素材"))
+            return
+        }
+        guard spendMaterial(selectedExpMaterial, amount: 1) else {
+            showHangarMessage(uiText("INSUFFICIENT MATERIALS", "经验素材不足"),
+                              uiText("Need 1x \(materialDisplayName(selectedExpMaterial))",
+                                     "需要 1 个\(materialDisplayName(selectedExpMaterial))"))
+            return
+        }
+        var level = warrior.level
+        var remaining = max(0, warrior.exp) + value
+        while level < warrior.levelCap {
+            let need = EquipmentCatalog.shared.expToNext(level: level, stage: 0)
+            if remaining < need { break }
+            remaining -= need
+            level += 1
+        }
+        profile.warriors[index].level = level
+        profile.warriors[index].exp = level >= warrior.levelCap ? 0 : remaining
+        persistProfile()
+        let updated = profile.warriors[index]
+        showHangarMessage(uiText("WARRIOR LEVEL UP", "战神等级提升"),
+                          uiText("\(updated.displayName)  •  Lv.\(updated.level)/\(updated.levelCap)",
+                                 "\(updated.displayName)  •  等级 \(updated.level)/\(updated.levelCap)"))
+        AudioManager.shared.playSFX("sfx_upgrade")
+    }
+
+    /// 战神进阶 +0..+9：满级后消耗四种战神专属材料各 N 个（N = 当前阶级 + 1，规格第 8.4 节）。
+    func advanceWarrior(index: Int) {
+        guard phase == .hangar, profile.warriors.indices.contains(index) else { return }
+        let warrior = profile.warriors[index]
+        guard warrior.advanceStage < 9 else {
+            showHangarMessage(uiText("MAX ADVANCE", "已达最高进阶"),
+                              uiText("Promote to GOLDEN warrior instead", "可晋级为黄金战神"))
+            return
+        }
+        guard warrior.isMaxLevel else {
+            showHangarMessage(uiText("LEVEL CAP REQUIRED", "需先升满本体等级"),
+                              uiText("Reach Lv.\(warrior.levelCap) before advancing", "升到 \(warrior.levelCap) 级后才能进阶"))
+            return
+        }
+        let need = warrior.advanceStage + 1
+        for materialID in EquipmentCatalog.shared.synergyConfig.advanceMaterials {
+            guard materialCount(materialID) >= need else {
+                showHangarMessage(uiText("INSUFFICIENT WARRIOR MATERIALS", "战神进阶材料不足"),
+                                  uiText("Need \(need)x \(materialDisplayName(materialID))",
+                                         "需要 \(need) 个\(materialDisplayName(materialID))"))
+                return
+            }
+        }
+        for materialID in EquipmentCatalog.shared.synergyConfig.advanceMaterials {
+            spendMaterial(materialID, amount: need)
+        }
+        profile.warriors[index].advanceStage += 1
+        persistProfile()
+        let updated = profile.warriors[index]
+        showHangarMessage(uiText("WARRIOR ADVANCED", "战神进阶成功"),
+                          uiText("+\(updated.advanceStage)  •  SYNERGY \(Int(updated.synergyRate * 100))%",
+                                 "+\(updated.advanceStage)  •  同步率 \(Int(updated.synergyRate * 100))%"))
+        AudioManager.shared.playSFX("sfx_upgrade")
+    }
+
+    /// 黄金战神（规格第 8.5 节）：+9 满进阶 + 10 套黄金材料 → 等级上限 60、同步率上限 90%。
+    func promoteWarriorGolden(index: Int) {
+        guard phase == .hangar, profile.warriors.indices.contains(index) else { return }
+        let warrior = profile.warriors[index]
+        guard !warrior.golden else {
+            showHangarMessage(uiText("ALREADY GOLDEN", "已是黄金战神"), warrior.displayName)
+            return
+        }
+        let goldenConfig = EquipmentCatalog.shared.synergyConfig.golden
+        guard warrior.advanceStage >= goldenConfig.requiredAdvanceStage else {
+            showHangarMessage(uiText("ADVANCE STAGE REQUIRED", "进阶阶级不足"),
+                              uiText("Reach +\(goldenConfig.requiredAdvanceStage) first", "需先进阶到 +\(goldenConfig.requiredAdvanceStage)"))
+            return
+        }
+        for materialID in EquipmentCatalog.shared.synergyConfig.goldenMaterials {
+            guard materialCount(materialID) >= goldenConfig.goldenMaterialSets else {
+                showHangarMessage(uiText("INSUFFICIENT GOLDEN MATERIALS", "黄金材料不足"),
+                                  uiText("Need \(goldenConfig.goldenMaterialSets)x \(materialDisplayName(materialID))",
+                                         "需要 \(goldenConfig.goldenMaterialSets) 个\(materialDisplayName(materialID))"))
+                return
+            }
+        }
+        for materialID in EquipmentCatalog.shared.synergyConfig.goldenMaterials {
+            spendMaterial(materialID, amount: goldenConfig.goldenMaterialSets)
+        }
+        profile.warriors[index].golden = true
+        persistProfile()
+        let updated = profile.warriors[index]
+        showHangarMessage(uiText("GOLDEN WARRIOR", "黄金战神达成"),
+                          uiText("\(updated.displayName)  •  SYNERGY CAP \(Int(updated.synergyRate * 100))%  •  CAP Lv.\(updated.levelCap)",
+                                 "\(updated.displayName)  •  同步率上限 \(Int(updated.synergyRate * 100))%  •  等级上限 \(updated.levelCap)"))
+        AudioManager.shared.playSFX("sfx_upgrade")
+    }
+
+    // MARK: - 战力与关卡门槛（规格第 7 节）
+
+    /// 总战力 = Σ 四件单件战力（归一化：同品质同阶同级四槽相等；战神不进战力）。
+    func combatPower() -> Int {
+        profile.equipment.reduce(0) { $0 + $1.unitPower }
+    }
+
+    /// 当前关卡战力门槛：闯关按章、无尽按波次。
+    func activePowerGate() -> Int {
+        if gameMode == .endless {
+            return EquipmentCatalog.shared.powerGate(endlessWave: max(1, endlessWaveNumber))
+        }
+        return EquipmentCatalog.shared.powerGate(mission: activeMission.id)
+    }
+
+    /// 战力门槛伤害折算（规格第 7.4 节）：达标 1.0，不足按 战力/门槛 线性衰减，下限 minScale。
+    func powerGateScale(gate: Int? = nil) -> Double {
+        EquipmentCatalog.shared.powerScale(power: combatPower(), gate: gate ?? activePowerGate())
     }
 
     func updateMousePosition(_ point: Vec2) {
@@ -3791,36 +4473,110 @@ final class Game: @unchecked Sendable {
                 setHangarTab(index)
                 return
             }
-            for (index, card) in shipCards(width: width, height: height).enumerated() where card.contains(point) {
-                if let ship = ShipType(rawValue: index) { selectShip(ship) }
+            let shipArea = shipListArea(width: width, height: height)
+            if shipScrollTrack(width: width, height: height).contains(point) {
+                // 点击轨道空白处：让滑块中心跳到点击位置（拖拽滑块由 updateShipListScroll 处理）。
+                // 只改目标值，显示值由弹簧动画平滑跟随。
+                if !shipScrollKnob(width: width, height: height, scroll: shipListScroll).contains(point) {
+                    let knobHeight = shipScrollKnob(width: width, height: height, scroll: 0).height
+                    shipListScrollTarget = shipScrollValue(forKnobY: point.y - knobHeight * 0.5,
+                                                           width: width, height: height)
+                }
+                return
+            }
+            if shipArea.contains(point) {
+                // 机体卡按滚动偏移判定；视口外的部分已被裁剪，不应响应点击。
+                for (index, card) in shipCards(width: width, height: height).enumerated() {
+                    let visible = UIRect(x: card.x, y: card.y - shipListScroll, width: card.width, height: card.height)
+                    if visible.contains(point), let ship = ShipType(rawValue: index) { selectShip(ship) }
+                }
                 return
             }
             if hangarTab == 0 {
-                for (index, card) in hangarCards(width: width, height: height).enumerated() where card.contains(point) {
-                    selectedEquipmentSlot = index
-                    break
-                }
-                if hangarUpgradeButton(width: width, height: height).contains(point) { upgradeEquipment(selectedEquipmentSlot) }
-                else if hangarBatchUpgradeButton(width: width, height: height).contains(point) { upgradeEquipmentMultiple(selectedEquipmentSlot, count: 5) }
-                else if hangarPromoteButton(width: width, height: height).contains(point) { promoteEquipment(selectedEquipmentSlot) }
-                else if hangarLockButton(width: width, height: height).contains(point) { toggleEquipmentLock(selectedEquipmentSlot) }
-            } else {
-                if vaultFilterButton(width: width, height: height).contains(point) { cycleVaultFilter(); return }
-                if vaultSortButton(width: width, height: height).contains(point) { cycleVaultSort(); return }
-                if vaultPrevButton(width: width, height: height).contains(point) { moveVaultPage(-1); return }
-                if vaultNextButton(width: width, height: height).contains(point) { moveVaultPage(1); return }
-                let visible = visibleVaultIndices
-                for (cardIndex, card) in vaultCards(width: width, height: height).enumerated() where card.contains(point) {
-                    let absoluteIndex = vaultPage * 4 + cardIndex
-                    if visible.indices.contains(absoluteIndex) {
-                        let inventoryIndex = visible[absoluteIndex]
-                        selectedVaultInventoryIndex = inventoryIndex
+                if hangarVaultSlot != nil {
+                    // 换装子视图：返回 / 翻页 / 选卡 / 装备 / 锁定。
+                    if vaultBackToSlotsButton(width: width, height: height).contains(point) { closeVaultForSlot(); return }
+                    if vaultPrevButton(width: width, height: height).contains(point) { moveVaultPage(-1); return }
+                    if vaultNextButton(width: width, height: height).contains(point) { moveVaultPage(1); return }
+                    let visible = visibleVaultIndices
+                    for (cardIndex, card) in vaultCards(width: width, height: height).enumerated() where card.contains(point) {
+                        let absoluteIndex = vaultPage * 4 + cardIndex
+                        if visible.indices.contains(absoluteIndex) {
+                            selectedVaultInventoryIndex = visible[absoluteIndex]
+                        }
+                        return
                     }
-                    break
+                    if let selectedVaultInventoryIndex {
+                        if vaultEquipButton(width: width, height: height).contains(point) {
+                            equipInventoryItem(selectedVaultInventoryIndex)
+                            closeVaultForSlot()
+                        } else if vaultSelectedLockButton(width: width, height: height).contains(point) {
+                            toggleInventoryLock(selectedVaultInventoryIndex)
+                        }
+                    }
+                    return
                 }
-                if let selectedVaultInventoryIndex {
-                    if vaultEquipButton(width: width, height: height).contains(point) { equipInventoryItem(selectedVaultInventoryIndex) }
-                    else if vaultSelectedLockButton(width: width, height: height).contains(point) { toggleInventoryLock(selectedVaultInventoryIndex) }
+                for (index, card) in hangarCards(width: width, height: height).enumerated() where card.contains(point) {
+                    openVaultForSlot(index)
+                    return
+                }
+                // 经验素材格（规格第 5 节）。
+                let sources = EquipmentCatalog.shared.experienceSources
+                for (index, cell) in hangarExpCells(width: width, height: height).enumerated() where cell.contains(point) {
+                    if sources.indices.contains(index) { selectExpMaterial(sources[index].id) }
+                    return
+                }
+                if hangarUpgradeButton(width: width, height: height).contains(point) { upgradeEquipmentWithExp(slot: selectedEquipmentSlot) }
+                else if hangarBatchUpgradeButton(width: width, height: height).contains(point) { autoFillEquipmentExp(slot: selectedEquipmentSlot) }
+                else if hangarAdvanceButton(width: width, height: height).contains(point) { advanceEquipment(slot: selectedEquipmentSlot) }
+                else if hangarLockButton(width: width, height: height).contains(point) { toggleEquipmentLock(selectedEquipmentSlot) }
+            } else if hangarTab == 1 {
+                // 战神 Tab：先点配方卡，再点已激活战神卡。
+                let recipes = EquipmentCatalog.shared.recipes
+                for (index, card) in warriorRecipeCards(width: width, height: height).enumerated() where card.contains(point) {
+                    if recipes.indices.contains(index) {
+                        selectedWarriorRecipe = recipes[index].id
+                        selectedWarriorIndex = nil
+                    }
+                    return
+                }
+                for (index, card) in warriorSlotCards(width: width, height: height).enumerated() where card.contains(point) {
+                    let slot = WarriorSlot.allCases[index]
+                    if let found = profile.warriors.enumerated().first(where: { $0.element.slot == slot })?.0 {
+                        selectedWarriorIndex = found
+                        selectedWarriorRecipe = nil
+                    } else {
+                        selectedWarriorIndex = nil
+                    }
+                    return
+                }
+                if warriorFuseButton(width: width, height: height).contains(point) {
+                    if let recipeId = selectedWarriorRecipe {
+                        activateWarrior(recipeId: recipeId)
+                    } else {
+                        showHangarMessage(uiText("SELECT A RECIPE", "请先选择配方"),
+                                          uiText("Pick a warrior recipe on the left", "在左侧配方卡中选择一个战神"))
+                    }
+                }
+                else if warriorLevelButton(width: width, height: height).contains(point) {
+                    if let index = selectedWarriorIndex { upgradeWarriorWithExp(index: index) }
+                }
+                else if warriorAdvanceButton(width: width, height: height).contains(point) {
+                    if let index = selectedWarriorIndex {
+                        let warrior = profile.warriors[index]
+                        // +9 满阶且非黄金时，进阶按钮切换为黄金晋级（规格第 8.5 节）。
+                        if warrior.advanceStage >= 9 && !warrior.golden { promoteWarriorGolden(index: index) }
+                        else { advanceWarrior(index: index) }
+                    }
+                }
+                else if warriorDeployButton(width: width, height: height).contains(point) {
+                    if let index = selectedWarriorIndex { toggleWarriorDeploy(index: index) }
+                }
+                else if warriorDissolveButton(width: width, height: height).contains(point) {
+                    if let index = selectedWarriorIndex { dissolveWarrior(index: index) }
+                }
+                else if warriorExpButton(width: width, height: height).contains(point) {
+                    cycleExpMaterial()
                 }
             }
             if hangarBackButton(width: width, height: height).contains(point) { phase = .menu }
@@ -4214,13 +4970,14 @@ func rarityColor(_ rarity: UpgradeRarity) -> COLORREF {
     }
 }
 
-func equipmentRarityColor(_ rarity: Int) -> COLORREF {
-    switch rarity {
-    case 0: return rgb(187, 199, 219)
-    case 1: return rgb(97, 209, 255)
-    case 2: return rgb(204, 143, 255)
-    case 3: return rgb(255, 211, 105)
-    default: return rgb(255, 110, 136)
+/// 阶 → 品质色（规格第 4 节四色：白 / 绿 / 蓝 / 紫；黄金战神单独用 warning 色）。
+func equipmentStageColor(_ stage: Int) -> COLORREF {
+    let color = EquipmentCatalog.shared.stageInfo(stage)?.color ?? "white"
+    switch color {
+    case "green": return rgb(97, 209, 255)
+    case "blue": return rgb(204, 143, 255)
+    case "purple": return rgb(255, 211, 105)
+    default: return rgb(187, 199, 219)
     }
 }
 
@@ -4251,6 +5008,8 @@ struct SwiftSurvivorApp {
         if CommandLine.arguments.contains("--sdl-smoke") { SDLSmoke.run(); return }
         if CommandLine.arguments.contains("--sdl-game") { SDLGameplaySlice.run(); return }
         if CommandLine.arguments.contains("--sdl-audio-smoke") { SDLAudioSmoke.run(); return }
+        if CommandLine.arguments.contains("--equipment-self-check") { EquipmentSelfCheck.run(); return }
+        if CommandLine.arguments.contains("--font-coverage") { FontCoverageCheck.run(); return }
         SDLFullGame.run()
     }
 }

@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "source": "雷霆战机机库装备系统 AI 改造规格 Prompt 第 8 节（雷霆战神融合层）",
+  "comment": "7 个战神配方，全部数据驱动。激活双重前置：关卡/模式条件 + 两件指定紫色装备（stage>=6）本体；激活不消耗素材（占用）。合成材料以系列 ID 表示，避开规格第 15 节冲突 3/4 的译名问题（极光幻影/激光幻影、神圣之力/祝福按系列 ID 统一）。关卡门槛 32/48/56 关按项目 8 章等比映射为第 3/5/6 章；原种进化体映射为裂隙巨兽 Boss；800 挑战币映射为 800 合金。",
+  "slots": ["warrior_fighter", "warrior_armor", "warrior_subweapon", "warrior_wingman"],
+  "recipes": [
+    {
+      "id": "warrior_assault", "slot": "warrior_fighter", "tier": 3,
+      "name": "强袭斗士", "nameEn": "ASSAULT CHAMPION",
+      "materials": [
+        { "seriesId": "fighter_phoenix", "minStage": 6 },
+        { "seriesId": "fighter_phantom", "minStage": 6 }
+      ],
+      "condition": { "kind": "campaignMission", "value": 3 },
+      "names": { "0": "强袭斗士", "9": "强袭斗士" }
+    },
+    {
+      "id": "warrior_freedom", "slot": "warrior_fighter", "tier": 2,
+      "name": "自由悍将", "nameEn": "FREEDOM BRAWLER",
+      "materials": [
+        { "seriesId": "fighter_alien", "minStage": 6 },
+        { "seriesId": "fighter_phantom", "minStage": 6 }
+      ],
+      "condition": { "kind": "campaignMission", "value": 5 },
+      "names": { "0": "自由悍将", "9": "自由悍将" }
+    },
+    {
+      "id": "warrior_darkblade", "slot": "warrior_fighter", "tier": 1,
+      "name": "暗夜神锋", "nameEn": "NIGHT EDGE",
+      "materials": [
+        { "seriesId": "fighter_alien", "minStage": 6 },
+        { "seriesId": "fighter_assault", "minStage": 6 }
+      ],
+      "condition": { "kind": "campaignMission", "value": 6 },
+      "names": { "0": "暗夜神锋", "9": "暗夜神锋" }
+    },
+    {
+      "id": "warrior_goldsoul", "slot": "warrior_armor", "tier": 3,
+      "name": "止战金魂", "nameEn": "PEACE GOLD SOUL",
+      "materials": [
+        { "seriesId": "armor_gold", "minStage": 6 },
+        { "seriesId": "armor_focus", "minStage": 6 }
+      ],
+      "condition": { "kind": "endlessBestScore", "value": 400000 },
+      "names": { "0": "止战金魂", "9": "止战金魂" }
+    },
+    {
+      "id": "warrior_moonfall", "slot": "warrior_armor", "tier": 2,
+      "name": "守月魔殇", "nameEn": "MOON GUARD FALL",
+      "materials": [
+        { "seriesId": "armor_dragon", "minStage": 6 },
+        { "seriesId": "armor_focus", "minStage": 6 }
+      ],
+      "condition": { "kind": "endlessBestScore", "value": 600000 },
+      "names": { "0": "守月魔殇", "9": "守月魔殇" }
+    },
+    {
+      "id": "warrior_thunderbomb", "slot": "warrior_subweapon", "tier": 3,
+      "name": "雷鸣核弹", "nameEn": "THUNDER NUKE",
+      "materials": [
+        { "seriesId": "sub_lightning", "minStage": 6 },
+        { "seriesId": "sub_nuke", "minStage": 6 }
+      ],
+      "condition": { "kind": "bossTypeDefeated", "value": "rift" },
+      "names": { "0": "雷鸣核弹", "9": "雷鸣核弹" }
+    },
+    {
+      "id": "warrior_swiftguard", "slot": "warrior_wingman", "tier": 3,
+      "name": "极速守卫", "nameEn": "SWIFT GUARD",
+      "materials": [
+        { "seriesId": "wing_guardian", "minStage": 6 },
+        { "seriesId": "wing_rapid", "minStage": 6 }
+      ],
+      "condition": { "kind": "currencyTotal", "value": 800, "currency": "alloy" },
+      "names": { "0": "极速守卫", "9": "极速守卫" }
+    }
+  ]
+}

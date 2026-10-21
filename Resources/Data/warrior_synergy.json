@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "source": "雷霆战机装备系统 AI 改造规格 Prompt 第 8.3/8.4/8.5 节（同步率与战神进阶）",
+  "comment": "同步率初值 61%，战神本体每进阶 1 阶 +2%，上限 80%（黄金战神再 +10% 至 90%）。同步率只与战神本体等级/阶级相关，与素材机是否满级无关（冻结项 10）。战神进阶 +1..+9 消耗四种专属材料各 N 个（N=阶数），材料只从无尽模式 Boss 战产出（原版英雄难度映射）。黄金战神需 +9 满级 + 10 套黄金进阶材料，等级上限 30->60。",
+  "initialSynergy": 0.61,
+  "synergyPerAdvance": 0.02,
+  "synergyCap": 0.80,
+  "baseOutputScale": 1.6,
+  "golden": {
+    "bonusSynergy": 0.10,
+    "synergyCap": 0.90,
+    "requiredAdvanceStage": 9,
+    "goldenMaterialSets": 10,
+    "levelCap": 60
+  },
+  "baseLevelCap": 30,
+  "advanceMaterials": [
+    "warrior_core_design", "warrior_core_controller", "warrior_core_alloy", "warrior_core_reactor"
+  ],
+  "goldenMaterials": [
+    "warrior_gold_design", "warrior_gold_controller", "warrior_gold_alloy", "warrior_gold_reactor"
+  ],
+  "synergyDamage": {
+    "comment": "同步率直接乘算实际输出：实际伤害 = 素材装备面板 x baseOutputScale x 同步率（0.61 起步约等于素材本体出力，进阶到 80% 为 +28%，黄金战神 90% 为 +44%）。拆解无损、阶级保留、可无限次拆合（冻结项 9）。",
+    "multipliesPlayerDamage": true
+  }
+}

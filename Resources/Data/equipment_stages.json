@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "source": "雷霆战机机库装备系统 AI 改造规格 Prompt 第 4 节（10 阶品质链）",
+  "comment": "stage 0..9 为完整晋升链。advance 为进阶到下一阶的消耗：materials 为四色材料各 N 个，sameName 为同名装备件数（等级不限），gold 为金币。stage 9 为满阶不可再进阶。",
+  "slotOrder": ["fighter", "subweapon", "armor", "wingman"],
+  "stages": [
+    {
+      "stage": 0, "color": "white", "stars": 2, "suffix": "",
+      "levelMin": 1, "levelCap": 25,
+      "advance": {
+        "materials": ["quantum_design", "quantum_controller", "quantum_alloy", "quantum_cell"],
+        "each": 1, "sameName": 0, "gold": 500
+      }
+    },
+    {
+      "stage": 1, "color": "green", "stars": 3, "suffix": "",
+      "levelMin": 25, "levelCap": 30,
+      "advance": {
+        "materials": ["mega_design", "mega_controller", "mega_alloy", "mega_thruster"],
+        "each": 1, "sameName": 0, "gold": 1000
+      }
+    },
+    {
+      "stage": 2, "color": "blue", "stars": 4, "suffix": "",
+      "levelMin": 30, "levelCap": 60,
+      "advance": { "materials": [], "each": 0, "sameName": 1, "gold": 50 }
+    },
+    {
+      "stage": 3, "color": "blue", "stars": 4, "suffix": "+1",
+      "levelMin": 60, "levelCap": 65,
+      "advance": { "materials": [], "each": 0, "sameName": 2, "gold": 100 }
+    },
+    {
+      "stage": 4, "color": "blue", "stars": 4, "suffix": "+2",
+      "levelMin": 65, "levelCap": 70,
+      "advance": { "materials": [], "each": 0, "sameName": 3, "gold": 150 }
+    },
+    {
+      "stage": 5, "color": "blue", "stars": 4, "suffix": "+3",
+      "levelMin": 70, "levelCap": 75,
+      "advance": {
+        "materials": ["quark_design", "quark_controller", "quark_alloy", "quark_reactor"],
+        "each": 1, "sameName": 0, "gold": 10000
+      }
+    },
+    {
+      "stage": 6, "color": "purple", "stars": 5, "suffix": "",
+      "levelMin": 75, "levelCap": 75,
+      "advance": { "materials": [], "each": 0, "sameName": 1, "gold": 500 }
+    },
+    {
+      "stage": 7, "color": "purple", "stars": 5, "suffix": "+1",
+      "levelMin": 75, "levelCap": 80,
+      "advance": { "materials": [], "each": 0, "sameName": 2, "gold": 1000 }
+    },
+    {
+      "stage": 8, "color": "purple", "stars": 5, "suffix": "+2",
+      "levelMin": 80, "levelCap": 85,
+      "advance": { "materials": [], "each": 0, "sameName": 3, "gold": 1500 }
+    },
+    {
+      "stage": 9, "color": "purple", "stars": 5, "suffix": "+3",
+      "levelMin": 85, "levelCap": 90,
+      "advance": null
+    }
+  ],
+  "expSources": {
+    "enemyWreckage": "闯关掉落：敌机残骸",
+    "cube": "闯关掉落：魔方",
+    "equipment": "垃圾装备可作经验素材（原版核心资源观）"
+  }
+}

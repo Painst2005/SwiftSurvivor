@@ -2,7 +2,13 @@
 
 Run this after adding or changing localized copy. The atlas embeds its UTF-8
 mapping, so the runtime needs no platform font API and missing Chinese glyphs
-are caught before packaging rather than silently disappearing in-game.
+are caught before packaging rather than silently disappearing in-game
+(`--font-coverage` re-checks the packaged atlas against the same character set).
+
+The character set deliberately covers BOTH the Swift sources and the
+configuration tables under Resources/Data. Equipment and material names were
+externalized into those tables, so scanning only the sources would silently drop
+every Chinese character that appears in data but not in code.
 """
 
 from __future__ import annotations
@@ -16,17 +22,31 @@ from PIL import Image, ImageDraw, ImageFont
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SOURCE_ROOT = ROOT / "Sources"
+DATA_ROOT = ROOT / "Resources" / "Data"
+CONFIG_SUFFIXES = (".json", ".csv")
 OUTPUT = ROOT / "Resources" / "Fonts" / "ui_font.rgba"
 FONT_CANDIDATES = (
     pathlib.Path(r"C:\Windows\Fonts\msyh.ttc"),
     pathlib.Path(r"C:\Windows\Fonts\simhei.ttf"),
 )
-CELL_SIZE = 24
+# Rasterize at twice the original resolution. The runtime still renders each
+# cell at 20 logical pixels, so existing label spacing and layout stay intact.
+CELL_SIZE = 48
+FONT_SIZE = 38
 COLUMNS = 32
 
 
 def ui_characters() -> str:
-    source = "\n".join(path.read_text(encoding="utf-8") for path in SOURCE_ROOT.rglob("*.swift"))
+    """Every character the UI can put on screen.
+
+    Sources carry the authored copy; Resources/Data carries the externalized
+    equipment and material tables. Both must be scanned, because a character
+    that only lives in a data table is just as visible to the player as one
+    written in code.
+    """
+    files = list(SOURCE_ROOT.rglob("*.swift"))
+    files += [path for path in DATA_ROOT.rglob("*") if path.suffix in CONFIG_SUFFIXES]
+    source = "\n".join(path.read_text(encoding="utf-8") for path in files)
     ascii_printable = "".join(chr(value) for value in range(33, 127))
     localized = {
         character
@@ -48,7 +68,7 @@ def main() -> None:
     width, height = COLUMNS * CELL_SIZE, rows * CELL_SIZE
     image = Image.new("RGBA", (width, height), (255, 255, 255, 0))
     draw = ImageDraw.Draw(image)
-    font = ImageFont.truetype(str(font_path), 19)
+    font = ImageFont.truetype(str(font_path), FONT_SIZE)
 
     for index, character in enumerate(mapping):
         left = (index % COLUMNS) * CELL_SIZE

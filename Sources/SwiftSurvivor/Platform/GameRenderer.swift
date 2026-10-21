@@ -39,6 +39,8 @@ protocol GameRenderer: AnyObject {
     /// Optional typography scaling hook used by the UI accessibility scale.
     /// Backends that only expose a fixed-size font can keep the default.
     func drawTextScaled(_ text: String, at position: (x: Float, y: Float), scale: Float, color: RenderColor)
+    /// 可选裁剪：滚动列表需要把内容限制在视口内。传 nil 取消裁剪。
+    func setClipRect(_ rect: RenderRect?)
     func present()
 }
 
@@ -46,4 +48,7 @@ extension GameRenderer {
     func drawTextScaled(_ text: String, at position: (x: Float, y: Float), scale: Float, color: RenderColor) {
         drawText(text, at: position, color: color)
     }
+
+    /// Backends without a clip primitive simply ignore the request.
+    func setClipRect(_ rect: RenderRect?) {}
 }

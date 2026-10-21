@@ -80,6 +80,7 @@ bool swift_sdl3_poll_event(SwiftSDL3Event *output) {
     output->y = 0.0f;
     output->width = 0;
     output->height = 0;
+    output->wheelY = 0.0f;
 
     switch (event.type) {
         case SDL_EVENT_QUIT:
@@ -116,6 +117,12 @@ bool swift_sdl3_poll_event(SwiftSDL3Event *output) {
             output->width = event.window.data1;
             output->height = event.window.data2;
             break;
+        case SDL_EVENT_MOUSE_WHEEL:
+            output->kind = SWIFT_SDL3_EVENT_MOUSE_WHEEL;
+            /* FLIPPED means the platform reports natural scrolling, so the
+               sign is normalized here and callers always see "up is positive". */
+            output->wheelY = event.wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -event.wheel.y : event.wheel.y;
+            break;
         default:
             break;
     }
@@ -142,6 +149,26 @@ bool swift_sdl3_fill_rect(SwiftSDL3Context *context, float x, float y, float wid
     }
     SDL_FRect rect = { x, y, width, height };
     return SDL_RenderFillRect(context->renderer, &rect);
+}
+
+bool swift_sdl3_set_clip_rect(SwiftSDL3Context *context, float x, float y, float width, float height) {
+    if (context == NULL || context->renderer == NULL) {
+        return false;
+    }
+    SDL_Rect rect = {
+        (int)SDL_lroundf(x),
+        (int)SDL_lroundf(y),
+        (int)SDL_lroundf(width),
+        (int)SDL_lroundf(height)
+    };
+    return SDL_SetRenderClipRect(context->renderer, &rect);
+}
+
+void swift_sdl3_clear_clip_rect(SwiftSDL3Context *context) {
+    if (context == NULL || context->renderer == NULL) {
+        return;
+    }
+    SDL_SetRenderClipRect(context->renderer, NULL);
 }
 
 bool swift_sdl3_fill_circle(SwiftSDL3Context *context, float centerX, float centerY, float radius) {

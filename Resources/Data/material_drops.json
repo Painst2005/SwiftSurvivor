@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "source": "雷霆战机机库装备系统 AI 改造规格 Prompt 第 6 节 + 第 15 节冲突 7（关卡掉落表按项目关卡数选择）",
+  "comment": "本项目 8 章结构（MissionCatalog）对原版 112 关掉落表的映射：普通波次=黄关掉绿色量子系；Boss 关=红关掉蓝色米加系；夸克系（原版第 36 关起）映射到第 5 章起，第 8 章为最后拼图（对应原版第 80 关）。全部必掉。",
+  "missionCount": 8,
+  "drops": [
+    { "mission": 1, "normalWaves": ["quantum_design", "quantum_controller", "quantum_alloy", "quantum_cell"], "boss": [] },
+    { "mission": 2, "normalWaves": ["quantum_design", "quantum_controller", "quantum_alloy", "quantum_cell"], "boss": [] },
+    { "mission": 3, "normalWaves": ["quantum_design", "quantum_controller", "quantum_alloy", "quantum_cell"], "boss": ["mega_design", "mega_controller", "mega_alloy", "mega_thruster"] },
+    { "mission": 4, "normalWaves": ["quantum_design", "quantum_controller", "quantum_alloy", "quantum_cell"], "boss": ["mega_design", "mega_controller", "mega_alloy", "mega_thruster"] },
+    { "mission": 5, "normalWaves": ["quantum_design", "quantum_controller", "quantum_alloy", "quantum_cell"], "boss": ["mega_design", "mega_controller", "mega_alloy", "mega_thruster", "quark_design", "quark_controller", "quark_alloy", "quark_reactor"] },
+    { "mission": 6, "normalWaves": ["quantum_design", "quantum_controller", "quantum_alloy", "quantum_cell"], "boss": ["mega_design", "mega_controller", "mega_alloy", "mega_thruster", "quark_design", "quark_controller", "quark_alloy", "quark_reactor"] },
+    { "mission": 7, "normalWaves": ["quantum_design", "quantum_controller", "quantum_alloy", "quantum_cell"], "boss": ["mega_design", "mega_controller", "mega_alloy", "mega_thruster", "quark_design", "quark_controller", "quark_alloy", "quark_reactor"] },
+    { "mission": 8, "normalWaves": ["quantum_design", "quantum_controller", "quantum_alloy", "quantum_cell"], "boss": ["mega_design", "mega_controller", "mega_alloy", "mega_thruster", "quark_design", "quark_controller", "quark_alloy", "quark_reactor"] }
+  ],
+  "sameNameDrop": {
+    "comment": "同名装备（进阶材料本体）来源：Boss 稀有掉落与无尽模式装备宝箱；同系列任意品质可作该系列任意阶的进阶材料（规格第 4 节：等级不限）。传奇掉落按四个槽位各一个系列，保证每个槽位的进阶材料都有稳定来源。",
+    "bossRareDropSeries": ["fighter_alien", "sub_blast", "armor_gold", "wing_rapid"],
+    "pityBossDefeats": 3
+  },
+  "endless": {
+    "comment": "无尽模式产出装备宝箱与战神进阶材料（原版‘战神材料只从英雄难度/活动产出’映射为无尽 Boss 战）。",
+    "equipmentCratePerWaves": 5,
+    "warriorMaterialPerBossWaves": 5
+  }
+}

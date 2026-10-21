@@ -1,0 +1,168 @@
+{
+  "version": 1,
+  "source": "雷霆战机机库装备系统 AI 改造规格 Prompt 第 2/3/4 节与第 12.4/12.5 条",
+  "comment": "20 个基础系列（4 槽位 x 5 档位）。names/namesEn 以阶为阈值的改名表（0=白/绿期, 2=蓝四星期, 6=紫五星期），实现形态与数值捆绑。tier1=一等品最优。weaponProfile 为弹道签名：archetype 复用现有五种武器原型(cannon/laser/scatter/missile/emp)，参数化保证每件唯一签名；fighter 决定主弹道，subweapon 必须与主武器互补，wingman 前期高后期平滑。armor 的 skill 为生存被动。注意：除突击系改名链为规格原文外，其余系列的白/蓝期名称为按同一约定补全（见风险清单）。",
+  "slots": ["fighter", "subweapon", "armor", "wingman"],
+  "series": [
+    {
+      "id": "fighter_alien", "slot": "fighter", "tier": 1, "family": "异形系",
+      "scenario": "单体贯穿 / Boss 炮塔狙击",
+      "names": { "0": "曙光原型", "2": "智慧曙光", "6": "神魔异形" },
+      "namesEn": { "0": "DAWN PROTO", "2": "LUMEN DAWN", "6": "DEMON VISAGE" },
+      "skill": null,
+      "weaponProfile": { "archetype": "laser", "damageScale": 1.25, "fireRateScale": 0.80, "projectileCount": 2, "spread": 0.06, "speedScale": 1.0, "pierce": 2, "homingTurn": 0, "radiusScale": 1.15 }
+    },
+    {
+      "id": "fighter_phantom", "slot": "fighter", "tier": 2, "family": "幻影系",
+      "scenario": "广域扫群 / 近距压制",
+      "names": { "0": "虚空残影", "2": "极光幻影", "6": "虚空幻影" },
+      "namesEn": { "0": "VOID REMNANT", "2": "AURORA PHANTOM", "6": "VOID PHANTOM" },
+      "skill": null,
+      "weaponProfile": { "archetype": "scatter", "damageScale": 1.10, "fireRateScale": 0.85, "projectileCount": 5, "spread": 0.35, "speedScale": 1.0, "pierce": 0, "homingTurn": 0, "radiusScale": 0.9 }
+    },
+    {
+      "id": "fighter_phoenix", "slot": "fighter", "tier": 3, "family": "猛禽系",
+      "scenario": "均衡连发 / 全程通用",
+      "names": { "0": "怒火雏鹰", "2": "烈焰凤凰", "6": "怒火凤凰" },
+      "namesEn": { "0": "WRATH FLEDGLING", "2": "BLAZE PHOENIX", "6": "WAR PHOENIX" },
+      "skill": null,
+      "weaponProfile": { "archetype": "cannon", "damageScale": 0.90, "fireRateScale": 1.35, "projectileCount": 3, "spread": 0.07, "speedScale": 1.05, "pierce": 0, "homingTurn": 0, "radiusScale": 1.0 }
+    },
+    {
+      "id": "fighter_spike", "slot": "fighter", "tier": 4, "family": "尖峰系",
+      "scenario": "多目标追踪 / 高速机动战",
+      "names": { "0": "脉冲尖峰", "2": "迅雷尖峰", "6": "雷霆尖峰" },
+      "namesEn": { "0": "PULSE SPIKE", "2": "GALE SPIKE", "6": "THUNDER SPIKE" },
+      "skill": null,
+      "weaponProfile": { "archetype": "missile", "damageScale": 1.00, "fireRateScale": 0.95, "projectileCount": 2, "spread": 0.18, "speedScale": 0.95, "pierce": 0, "homingTurn": 5.5, "radiusScale": 1.0 }
+    },
+    {
+      "id": "fighter_assault", "slot": "fighter", "tier": 5, "family": "突击系",
+      "scenario": "前期平滑 / 稳定单体",
+      "names": { "0": "脉冲突击", "2": "迅雷突击", "6": "雷霆突击" },
+      "namesEn": { "0": "IMPULSE RAIDER", "2": "GALE RAIDER", "6": "THUNDER RAIDER" },
+      "skill": null,
+      "weaponProfile": { "archetype": "cannon", "damageScale": 1.00, "fireRateScale": 1.00, "projectileCount": 1, "spread": 0.0, "speedScale": 1.0, "pierce": 0, "homingTurn": 0, "radiusScale": 1.0 }
+    },
+    {
+      "id": "sub_blast", "slot": "subweapon", "tier": 1, "family": "爆破弹系",
+      "scenario": "的范围爆发 / 弥补近身盲区",
+      "names": { "0": "轰击弹", "2": "烈焰爆破弹", "6": "爆破弹" },
+      "namesEn": { "0": "SLAM SHELL", "2": "MAGMA SHELL", "6": "BLAST SHELL" },
+      "skill": null,
+      "weaponProfile": { "archetype": "emp", "damageScale": 1.30, "fireRateScale": 0.70, "projectileCount": 1, "spread": 0.0, "speedScale": 0.9, "pierce": 0, "homingTurn": 0, "radiusScale": 1.5 }
+    },
+    {
+      "id": "sub_nuke", "slot": "subweapon", "tier": 2, "family": "核弹系",
+      "scenario": "慢速重击 / 对单高伤",
+      "names": { "0": "高爆弹", "2": "聚变核弹", "6": "融合核弹" },
+      "namesEn": { "0": "BLAST BOMB", "2": "FUSION BOMB", "6": "MERGE BOMB" },
+      "skill": null,
+      "weaponProfile": { "archetype": "cannon", "damageScale": 2.20, "fireRateScale": 0.45, "projectileCount": 1, "spread": 0.0, "speedScale": 0.8, "pierce": 1, "homingTurn": 0, "radiusScale": 1.8 }
+    },
+    {
+      "id": "sub_lightning", "slot": "subweapon", "tier": 3, "family": "闪电球系",
+      "scenario": "横摆压制 / 中距覆盖",
+      "names": { "0": "静电磁场", "2": "闪电球", "6": "闪电新星" },
+      "namesEn": { "0": "STATIC FIELD", "2": "LIGHTNING ORB", "6": "LIGHTNING NOVA" },
+      "skill": null,
+      "weaponProfile": { "archetype": "emp", "damageScale": 1.00, "fireRateScale": 1.10, "projectileCount": 2, "spread": 0.25, "speedScale": 1.0, "pierce": 0, "homingTurn": 0, "radiusScale": 1.1 }
+    },
+    {
+      "id": "sub_depleted", "slot": "subweapon", "tier": 4, "family": "穿甲弹系",
+      "scenario": "直线贯穿 / 补正窄弹道",
+      "names": { "0": "合金弹", "2": "穿甲弹", "6": "贫铀穿甲弹" },
+      "namesEn": { "0": "ALLOY SHELL", "2": "PIERCER", "6": "DU PIERCER" },
+      "skill": null,
+      "weaponProfile": { "archetype": "laser", "damageScale": 1.05, "fireRateScale": 1.00, "projectileCount": 1, "spread": 0.0, "speedScale": 1.2, "pierce": 3, "homingTurn": 0, "radiusScale": 0.8 }
+    },
+    {
+      "id": "sub_tracking", "slot": "subweapon", "tier": 5, "family": "跟踪导弹系",
+      "scenario": "自动追踪 / 弥补瞄准压力",
+      "names": { "0": "脉冲导弹", "2": "迅捷导弹", "6": "跟踪导弹" },
+      "namesEn": { "0": "PULSE MISSILE", "2": "GALE MISSILE", "6": "TRACKING MISSILE" },
+      "skill": null,
+      "weaponProfile": { "archetype": "missile", "damageScale": 0.95, "fireRateScale": 0.90, "projectileCount": 2, "spread": 0.15, "speedScale": 0.9, "pierce": 0, "homingTurn": 5.0, "radiusScale": 1.0 }
+    },
+    {
+      "id": "armor_dragon", "slot": "armor", "tier": 1, "family": "魔龙系",
+      "scenario": "回血续航 / 长线作战",
+      "names": { "0": "潜影之鳞", "2": "迅龙之鳞", "6": "魔龙之鳞" },
+      "namesEn": { "0": "SHADOW SCALE", "2": "GALE SCALE", "6": "DRAGON SCALE" },
+      "skill": "regen",
+      "weaponProfile": null
+    },
+    {
+      "id": "armor_focus", "slot": "armor", "tier": 2, "family": "聚能系",
+      "scenario": "加分加速 / 冲分向",
+      "names": { "0": "脉冲之光", "2": "迅能之光", "6": "聚能之光" },
+      "namesEn": { "0": "PULSE LIGHT", "2": "GALE LIGHT", "6": "FOCUS LIGHT" },
+      "skill": "scoreBonus",
+      "weaponProfile": null
+    },
+    {
+      "id": "armor_gold", "slot": "armor", "tier": 3, "family": "黄金系",
+      "scenario": "增攻 / 输出向",
+      "names": { "0": "青铜之铠", "2": "璨金之铠", "6": "黄金之铠" },
+      "namesEn": { "0": "BRONZE MAIL", "2": "GOLD MAIL", "6": "GOLDEN MAIL" },
+      "skill": "damageBonus",
+      "weaponProfile": null
+    },
+    {
+      "id": "armor_holy", "slot": "armor", "tier": 4, "family": "神圣系",
+      "scenario": "免秒 / 容错向",
+      "names": { "0": "圣洁之力", "2": "辉光之力", "6": "神圣之力" },
+      "namesEn": { "0": "PURE BLESS", "2": "RADIANT BLESS", "6": "DIVINE BLESS" },
+      "skill": "surviveLethal",
+      "weaponProfile": null
+    },
+    {
+      "id": "armor_diamond", "slot": "armor", "tier": 5, "family": "金刚系",
+      "scenario": "减伤 / 稳定坦度",
+      "names": { "0": "合金护盾", "2": "迅雷护盾", "6": "金刚护盾" },
+      "namesEn": { "0": "ALLOY BULWARK", "2": "GALE BULWARK", "6": "DIAMOND BULWARK" },
+      "skill": "damageReduction",
+      "weaponProfile": null
+    },
+    {
+      "id": "wing_plasma", "slot": "wingman", "tier": 1, "family": "电浆炮系",
+      "scenario": "贯穿双轨 / 后期平滑",
+      "names": { "0": "等离子原型", "2": "迅电浆炮", "6": "电浆炮" },
+      "namesEn": { "0": "PLASMA PROTO", "2": "GALE PLASMA", "6": "PLASMA CANNON" },
+      "skill": null,
+      "weaponProfile": { "archetype": "laser", "damageScale": 1.20, "fireRateScale": 1.00, "projectileCount": 2, "spread": 0.0, "speedScale": 1.1, "pierce": 2, "homingTurn": 0, "radiusScale": 1.0 }
+    },
+    {
+      "id": "wing_guardian", "slot": "wingman", "tier": 2, "family": "守卫系",
+      "scenario": "双轨拦截 / 护航",
+      "names": { "0": "铁翼守卫", "2": "迅影守卫", "6": "毁灭守卫" },
+      "namesEn": { "0": "IRON WATCH", "2": "GALE WATCH", "6": "RUIN WATCH" },
+      "skill": null,
+      "weaponProfile": { "archetype": "laser", "damageScale": 1.10, "fireRateScale": 0.90, "projectileCount": 2, "spread": 0.15, "speedScale": 1.0, "pierce": 1, "homingTurn": 0, "radiusScale": 1.0 }
+    },
+    {
+      "id": "wing_rapid", "slot": "wingman", "tier": 3, "family": "高速火炮系",
+      "scenario": "极高射速 / 前期顶输出",
+      "names": { "0": "疾风火炮", "2": "高速火炮", "6": "超高速火炮" },
+      "namesEn": { "0": "GALE CANNON", "2": "SWIFT CANNON", "6": "HYPER CANNON" },
+      "skill": null,
+      "weaponProfile": { "archetype": "cannon", "damageScale": 0.80, "fireRateScale": 1.80, "projectileCount": 1, "spread": 0.05, "speedScale": 1.15, "pierce": 0, "homingTurn": 0, "radiusScale": 0.85 }
+    },
+    {
+      "id": "wing_mega", "slot": "wingman", "tier": 4, "family": "米加系",
+      "scenario": "慢速重炮 / 点杀",
+      "names": { "0": "米加机枪", "2": "米加炮", "6": "米加巨炮" },
+      "namesEn": { "0": "MEGA GUN", "2": "MEGA CANNON", "6": "MEGA ARTILLERY" },
+      "skill": null,
+      "weaponProfile": { "archetype": "cannon", "damageScale": 1.60, "fireRateScale": 0.50, "projectileCount": 1, "spread": 0.0, "speedScale": 0.95, "pierce": 1, "homingTurn": 0, "radiusScale": 1.4 }
+    },
+    {
+      "id": "wing_gun", "slot": "wingman", "tier": 5, "family": "散弹机枪系",
+      "scenario": "广域高频 / 开局主力",
+      "names": { "0": "速射机枪", "2": "机关炮", "6": "散弹机枪" },
+      "namesEn": { "0": "RAPID GUN", "2": "GATLING", "6": "BUCKSHOT GUN" },
+      "skill": null,
+      "weaponProfile": { "archetype": "scatter", "damageScale": 0.70, "fireRateScale": 1.40, "projectileCount": 3, "spread": 0.30, "speedScale": 1.0, "pierce": 0, "homingTurn": 0, "radiusScale": 0.9 }
+    }
+  ]
+}

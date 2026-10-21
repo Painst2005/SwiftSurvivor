@@ -8,20 +8,23 @@ enum UITheme {
         // A restrained navy palette keeps the interface legible without the
         // harsh "neon dashboard" look. Bright accents are reserved for state
         // changes, rewards and combat warnings.
-        static let background = RenderColor(7, 12, 24)
+        static let background = RenderColor(5, 10, 19)
         static let backgroundRaised = RenderColor(12, 23, 40)
-        static let panel = RenderColor(14, 27, 47, 224)
-        static let panelRaised = RenderColor(22, 40, 61, 236)
-        static let panelSoft = RenderColor(18, 34, 54, 210)
-        static let panelHover = RenderColor(30, 55, 77, 244)
-        static let panelSelected = RenderColor(36, 73, 96, 248)
-        static let border = RenderColor(69, 96, 116, 138)
-        static let borderHighlight = RenderColor(105, 158, 172, 176)
-        static let primary = RenderColor(116, 196, 207)
-        static let primaryDeep = RenderColor(42, 103, 116)
+        static let panel = RenderColor(10, 21, 35, 236)
+        static let panelRaised = RenderColor(19, 35, 52, 230)
+        static let panelSoft = RenderColor(15, 28, 43, 202)
+        static let panelHover = RenderColor(28, 57, 77, 248)
+        static let panelSelected = RenderColor(24, 64, 83, 248)
+        static let border = RenderColor(71, 109, 134, 96)
+        static let borderHighlight = RenderColor(109, 161, 187, 140)
+        static let primary = RenderColor(105, 218, 243)
+        static let primaryDeep = RenderColor(31, 108, 134)
+        static let action = RenderColor(255, 174, 83)
+        static let actionHover = RenderColor(255, 195, 121)
+        static let ink = RenderColor(25, 23, 25)
         static let secondary = RenderColor(173, 190, 204)
         static let text = RenderColor(232, 239, 243)
-        static let muted = RenderColor(143, 162, 178)
+        static let muted = RenderColor(146, 169, 189)
         static let danger = RenderColor(231, 100, 119)
         static let warning = RenderColor(239, 202, 126)
         static let success = RenderColor(127, 210, 174)
@@ -60,6 +63,12 @@ enum UITheme {
         static let pressed = 0.08
         static let page = 0.24
         static let popup = 0.18
+
+        // 阻尼弹簧参数（接近临界阻尼）：stiffness 是刚度 ω²，damping 是每 1/60 秒
+        // 保留的速度比例。约 0.3 秒收敛且几乎不过冲，用于列表滚动这类
+        // 既要跟手又不能抖动的场景。
+        static let scrollStiffness = 260.0
+        static let scrollDamping = 0.63
     }
 
     static func rarity(_ value: Int) -> RenderColor {
@@ -91,6 +100,8 @@ enum UIInteraction {
     nonisolated(unsafe) static var primaryHeld = false
     nonisolated(unsafe) static var screenID = ""
     nonisolated(unsafe) static var transitionStart = 0.0
+    // Widths are measured in menu coordinates, before the geometry transform.
+    nonisolated(unsafe) static var textMeasurementScale: Float = 1
 
     static func state(for rect: UIRect, selected: Bool, enabled: Bool = true) -> UIControlState {
         guard enabled else { return .disabled }
@@ -233,5 +244,10 @@ final class UITransformRenderer: GameRenderer, GameTextureProvider {
     func drawTextScaled(_ text: String, at position: (x: Float, y: Float), scale: Float, color: RenderColor) {
         let p = point(position.x, position.y)
         base.drawTextScaled(text, at: p, scale: textScale * scale, color: color)
+    }
+
+    /// 裁剪区必须跟随同一套几何变换，否则滚动视口会和内容错位。
+    func setClipRect(_ rect: RenderRect?) {
+        base.setClipRect(rect.map { self.rect($0) })
     }
 }

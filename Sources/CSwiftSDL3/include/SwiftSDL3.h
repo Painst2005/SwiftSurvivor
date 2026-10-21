@@ -16,7 +16,8 @@ typedef enum SwiftSDL3EventKind {
     SWIFT_SDL3_EVENT_MOUSE_MOTION = 4,
     SWIFT_SDL3_EVENT_MOUSE_BUTTON_DOWN = 5,
     SWIFT_SDL3_EVENT_MOUSE_BUTTON_UP = 6,
-    SWIFT_SDL3_EVENT_WINDOW_RESIZED = 7
+    SWIFT_SDL3_EVENT_WINDOW_RESIZED = 7,
+    SWIFT_SDL3_EVENT_MOUSE_WHEEL = 8
 } SwiftSDL3EventKind;
 
 typedef struct SwiftSDL3Event {
@@ -28,6 +29,8 @@ typedef struct SwiftSDL3Event {
     float y;
     int32_t width;
     int32_t height;
+    /* Wheel notch delta: positive means scrolled up (away from the user). */
+    float wheelY;
 } SwiftSDL3Event;
 
 bool swift_sdl3_startup(void);
@@ -38,6 +41,10 @@ bool swift_sdl3_poll_event(SwiftSDL3Event *event);
 void swift_sdl3_begin_frame(SwiftSDL3Context *context, uint8_t r, uint8_t g, uint8_t b, uint8_t a);
 void swift_sdl3_set_draw_color(SwiftSDL3Context *context, uint8_t r, uint8_t g, uint8_t b, uint8_t a);
 bool swift_sdl3_fill_rect(SwiftSDL3Context *context, float x, float y, float width, float height);
+/* Scrollable lists restrict drawing to their viewport; passing a huge rect
+   effectively clears the clip again. */
+bool swift_sdl3_set_clip_rect(SwiftSDL3Context *context, float x, float y, float width, float height);
+void swift_sdl3_clear_clip_rect(SwiftSDL3Context *context);
 bool swift_sdl3_fill_circle(SwiftSDL3Context *context, float centerX, float centerY, float radius);
 bool swift_sdl3_line(SwiftSDL3Context *context, float x1, float y1, float x2, float y2);
 bool swift_sdl3_debug_text(SwiftSDL3Context *context, float x, float y, const char *utf8);

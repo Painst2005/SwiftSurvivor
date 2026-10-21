@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "source": "雷霆战机机库装备系统 AI 改造规格 Prompt 第 6 节（进阶材料表）",
+  "comment": "三系 12 种进阶材料。quantum 绿系用于白二星→绿三星；mega 蓝系用于绿三星→蓝四星；quark 紫系用于蓝四星+3→紫五星。价格锚点：紫色材料最小出现在第 36 关，主线第 80 关是最后一块拼图；本项目 8 章映射见 material_drops.json。",
+  "materials": [
+    { "id": "quantum_design",     "name": "量子科技设计图", "nameEn": "QUANTUM BLUEPRINT",   "set": "quantum", "color": "green" },
+    { "id": "quantum_controller", "name": "量子级控制器",   "nameEn": "QUANTUM CONTROLLER",  "set": "quantum", "color": "green" },
+    { "id": "quantum_alloy",      "name": "量子级耐热合金", "nameEn": "QUANTUM ALLOY",       "set": "quantum", "color": "green" },
+    { "id": "quantum_cell",       "name": "量子能量块",     "nameEn": "QUANTUM CELL",        "set": "quantum", "color": "green" },
+    { "id": "mega_design",        "name": "米加科技设计图", "nameEn": "MEGA BLUEPRINT",      "set": "mega",    "color": "blue" },
+    { "id": "mega_controller",    "name": "米加级控制器",   "nameEn": "MEGA CONTROLLER",     "set": "mega",    "color": "blue" },
+    { "id": "mega_alloy",         "name": "米加级冲击合金", "nameEn": "MEGA ALLOY",          "set": "mega",    "color": "blue" },
+    { "id": "mega_thruster",      "name": "米加粒子推进器", "nameEn": "MEGA THRUSTER",       "set": "mega",    "color": "blue" },
+    { "id": "quark_design",       "name": "夸克科技设计图", "nameEn": "QUARK BLUEPRINT",     "set": "quark",   "color": "purple" },
+    { "id": "quark_controller",   "name": "夸克级控制器",   "nameEn": "QUARK CONTROLLER",    "set": "quark",   "color": "purple" },
+    { "id": "quark_alloy",        "name": "夸克级记忆合金", "nameEn": "QUARK ALLOY",         "set": "quark",   "color": "purple" },
+    { "id": "quark_reactor",      "name": "夸克聚能反应堆", "nameEn": "QUARK REACTOR",      "set": "quark",   "color": "purple" },
+    { "id": "warrior_core_design",     "name": "战神核心设计图", "nameEn": "WARRIOR CORE BLUEPRINT",  "set": "warrior", "color": "gold" },
+    { "id": "warrior_core_controller", "name": "战神核心控制器", "nameEn": "WARRIOR CORE CONTROLLER", "set": "warrior", "color": "gold" },
+    { "id": "warrior_core_alloy",      "name": "战神核心合金",   "nameEn": "WARRIOR CORE ALLOY",      "set": "warrior", "color": "gold" },
+    { "id": "warrior_core_reactor",    "name": "战神核心反应堆", "nameEn": "WARRIOR CORE REACTOR",    "set": "warrior", "color": "gold" },
+    { "id": "warrior_gold_design",     "name": "黄金核心设计图", "nameEn": "GOLDEN CORE BLUEPRINT",  "set": "warrior_gold", "color": "gold" },
+    { "id": "warrior_gold_controller", "name": "黄金核心控制器", "nameEn": "GOLDEN CORE CONTROLLER", "set": "warrior_gold", "color": "gold" },
+    { "id": "warrior_gold_alloy",      "name": "黄金核心合金",   "nameEn": "GOLDEN CORE ALLOY",      "set": "warrior_gold", "color": "gold" },
+    { "id": "warrior_gold_reactor",    "name": "黄金核心反应堆", "nameEn": "GOLDEN CORE REACTOR",    "set": "warrior_gold", "color": "gold" }
+  ],
+  "experience": [
+    { "id": "exp_wreckage", "name": "敌机残骸", "nameEn": "ENEMY WRECKAGE", "exp": 120 },
+    { "id": "exp_cube",     "name": "魔方",     "nameEn": "CUBE",     "exp": 600 }
+  ],
+  "expPerLevel": {
+    "comment": "升级只吃经验素材。expToNext(level) = (base + level * slope) * stageMultiplier^stage（阶级越高斜率越陡，规格第 5 节 + 第 12.1 节可配置曲线）。",
+    "base": 100,
+    "slope": 24,
+    "stageMultiplier": 1.18
+  },
+  "guaranteedGift": {
+    "comment": "规格第 6 节保底兜底：装备练到 75 级（进入紫五星条件）时任务线赠送一整套紫色材料，每槽位一次。",
+    "triggerLevel": 75,
+    "grant": ["quark_design", "quark_controller", "quark_alloy", "quark_reactor"]
+  }
+}

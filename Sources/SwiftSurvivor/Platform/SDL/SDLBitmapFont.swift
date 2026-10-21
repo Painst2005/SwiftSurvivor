@@ -51,7 +51,8 @@ final class SDLBitmapFont {
         guard let texture = SDLTexture(platform: platform, width: width, height: height, rgbaPixels: pixels) else {
             return nil
         }
-        _ = swift_sdl3_texture_set_nearest(texture.handle)
+        // SDL 3 creates textures with linear filtering. Keep that default so
+        // the high-resolution atlas retains antialiased edges at UI sizes.
         var index: [Character: Int] = [:]
         for (offset, character) in mapping.enumerated() {
             index[character] = offset
@@ -61,24 +62,29 @@ final class SDLBitmapFont {
 
     func draw(_ value: String, at position: (x: Float, y: Float), scale: Float = 1, color: RenderColor) {
         var cursorX = position.x
-        // Keep the atlas close to its native 20 px glyph size.  Rendering a
-        // 24 px cell down to an 11 px destination makes SDL's linear sampler
-        // soften the strokes until they look like missing text.
-        let safeScale = min(1.35, max(0.65, scale))
+        // Atlas pixels and logical UI dimensions are deliberately independent:
+        // both the original 24 px and the sharper 48 px cells occupy 20 px at
+        // scale 1, preserving existing advances while allowing large headings.
+        let safeScale = min(3.2, max(0.5, scale))
         let height: Float = 20 * safeScale
         for character in value {
             if character == " " {
                 cursorX += 8 * safeScale
                 continue
             }
+            // Advance must match the layout metric (SDLNativeGameRenderer.glyphWidth)
+            // exactly.  Otherwise a character that is missing from the atlas is
+            // measured as 20 px but drawn as 11 px, which both hides the glyph and
+            // pulls the rest of the line out of alignment.
+            let wide = character.unicodeScalars.allSatisfy { $0.value > 0x7f }
+            let advance: Float = (wide ? 20 : 14) * safeScale
             guard let index = glyphIndex[character] else {
-                cursorX += 11 * safeScale
+                // Leave a correctly sized blank instead of shifting the line.
+                cursorX += advance
                 continue
             }
             let sourceX = Float(index % columns) * cellSize
             let sourceY = Float(index / columns) * cellSize
-            let wide = character.unicodeScalars.first.map { $0.value > 0x7f } ?? false
-            let advance: Float = (wide ? 20 : 14) * safeScale
             _ = swift_sdl3_draw_texture_region(
                 context, texture.handle,
                 sourceX, sourceY, cellSize, cellSize,
@@ -89,7 +95,8 @@ final class SDLBitmapFont {
         }
     }
 
-    private static func assetURL() -> URL? {
+    /// 图集资产定位。`--font-coverage` 校验复用同一解析逻辑，避免两处路径判断走偏。
+    static func assetURL() -> URL? {
         var candidates: [URL] = []
         let fileManager = FileManager.default
         candidates.append(URL(fileURLWithPath: fileManager.currentDirectoryPath)
